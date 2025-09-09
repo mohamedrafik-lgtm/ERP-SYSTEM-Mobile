@@ -6,6 +6,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import TestLogin from './src/screens/LoginScreen';
 import ProgramsScreen from './src/screens/ProgramsScreen';
 import AddProgramScreen from './src/screens/AddProgramScreen';
+import EditProgramScreen from './src/screens/EditProgramScreen';
 import AuthService from './src/services/AuthService';
 import { enableScreens } from 'react-native-screens';
 enableScreens();
@@ -54,6 +55,7 @@ function App() {
           <Stack.Screen name="Login" component={TestLogin} />
           <Stack.Screen name="Programs" component={ProgramsScreen} />
           <Stack.Screen name="AddProgram" component={AddProgramScreen} />
+          <Stack.Screen name="EditProgram" component={EditProgramScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

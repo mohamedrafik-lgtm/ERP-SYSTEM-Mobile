@@ -173,6 +173,67 @@ class AuthService {
       await this.clearAuthData();
     }
   }
+
+  // حذف برنامج تدريبي
+  static async deleteProgram(programId: number): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const response = await fetch(`http://10.0.2.2:4000/api/programs/${programId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // إلقاء خطأ مع رسالة من الـ API إذا كانت متاحة
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error deleting program in AuthService:', error);
+      // إعادة إلقاء الخطأ ليتم التعامل معه في الشاشة
+      throw error;
+    }
+  }
+
+  // تحديث برنامج تدريبي
+  static async updateProgram(programId: number, programData: any): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const response = await fetch(`http://10.0.2.2:4000/api/programs/${programId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(programData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error updating program in AuthService:', error);
+      throw error;
+    }
+  }
 }
 
 export default AuthService;

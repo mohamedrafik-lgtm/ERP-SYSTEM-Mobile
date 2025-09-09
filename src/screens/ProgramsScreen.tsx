@@ -148,39 +148,7 @@ const ProgramsScreen = ({ navigation }: any) => {
 
   const deleteProgram = async (programId: number) => {
     try {
-      const token = await AuthService.getToken();
-      if (!token) {
-        Toast.show({
-          type: 'error',
-          text1: 'خطأ في المصادقة',
-          text2: 'يرجى تسجيل الدخول لحذف البرنامج',
-        });
-        return;
-      }
-
-      const response = await fetch(`http://10.0.2.2:4000/api/programs/${programId}`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      const data = await response.json();
-      console.log("Delete Program Response:", data);
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          console.log('Token expired or invalid, redirecting to login');
-          await AuthService.clearAuthData();
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Login' }],
-          });
-          throw new Error('انتهت صلاحية الجلسة، يرجى تسجيل الدخول مرة أخرى');
-        }
-        throw new Error(data.message || 'فشل في حذف البرنامج');
-      }
+      await AuthService.deleteProgram(programId);
 
       Toast.show({
         type: 'success',
@@ -188,16 +156,36 @@ const ProgramsScreen = ({ navigation }: any) => {
         text2: 'تم حذف البرنامج التدريبي بنجاح',
       });
 
-      // إعادة تحميل قائمة البرامج
-      fetchPrograms();
+      // تحديث الحالة المحلية لإزالة البرنامج المحذوف فوراً
+      setPrograms(prevPrograms => prevPrograms.filter(p => p.id !== programId));
+      setTotalItems(prevTotal => prevTotal - 1);
 
     } catch (error) {
       console.error('Error deleting program:', error);
-      Toast.show({
-        type: 'error',
-        text1: 'خطأ',
-        text2: error instanceof Error ? error.message : 'فشل في حذف البرنامج',
-      });
+      
+      const errorMessage = error instanceof Error ? error.message : 'فشل في حذف البرنامج';
+
+      // التحقق من خطأ المصادقة (إذا تم إلقاؤه من السيرفس)
+      if (errorMessage.includes('401') || errorMessage.toLowerCase().includes('unauthorized')) {
+        Toast.show({
+          type: 'error',
+          text1: 'خطأ في المصادقة',
+          text2: 'انتهت صلاحية الجلسة، يرجى تسجيل الدخول مرة أخرى.',
+        });
+        // إعادة التوجيه لتسجيل الدخول
+        AuthService.clearAuthData().then(() => {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Login' }],
+          });
+        });
+      } else {
+        Toast.show({
+          type: 'error',
+          text1: 'خطأ',
+          text2: errorMessage,
+        });
+      }
     }
   };
 
@@ -353,7 +341,10 @@ const ProgramsScreen = ({ navigation }: any) => {
                   </View>
                   
                   <View style={styles.programActions}>
-                    <TouchableOpacity style={styles.actionButton}>
+                    <TouchableOpacity 
+                      style={styles.actionButton}
+                      onPress={() => navigation.navigate('EditProgram', { program })}
+                    >
                       <Icon name="edit" size={18} color="#1a237e" />
                     </TouchableOpacity>
                     <TouchableOpacity 
