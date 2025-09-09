@@ -5,36 +5,27 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   ActivityIndicator,
   RefreshControl,
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import Toast from 'react-native-toast-message';
 import CustomMenu from '../components/CustomMenu';
 import ArabicSearchInput from '../components/ArabicSearchInput';
+import AuthService from '../services/AuthService';
 
-interface Program {
-  id: string;
+export interface Program {
+  id: number;
   nameAr: string;
   nameEn: string;
   price: number;
   description: string;
-  createdAt?: string;
-  updatedAt?: string;
-  status?: string;
-  enrolledStudents?: number;
-}
-
-interface ProgramsResponse {
-  data: Program[];
-  pagination: {
-    currentPage: number;
-    totalPages: number;
-    totalItems: number;
-    itemsPerPage: number;
+  _count: {
+    trainees: number;
   };
 }
+
 
 const ProgramsScreen = ({ navigation }: any) => {
   const [programs, setPrograms] = useState<Program[]>([]);
@@ -42,62 +33,92 @@ const ProgramsScreen = ({ navigation }: any) => {
   const [refreshing, setRefreshing] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [totalPages, _setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
 
-  const fetchPrograms = async (page: number = 1, search: string = '') => {
+  useEffect(() => {
+    fetchPrograms();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fetchPrograms = async () => {
     try {
       setLoading(true);
       
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: '10',
-        ...(search && { search }),
-      });
-
-      const response = await fetch(`http://10.0.2.2:4000/api/programs?${params}`, {
+      // جلب الـ token من AuthService
+      const token = await AuthService.getToken();
+      console.log('Token for programs request:', token);
+      
+      // Add timeout to the fetch request
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 seconds timeout
+      
+      const headers: any = {
+        'Content-Type': 'application/json',
+      };
+      
+      // إضافة الـ token للـ headers إذا كان موجود
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+      
+      const response = await fetch('http://10.0.2.2:4000/api/programs', {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
-        throw new Error('فشل في تحميل البرامج');
+        if (response.status === 401) {
+          // Token غير صالح أو منتهي الصلاحية
+          console.log('Token expired or invalid, redirecting to login');
+          await AuthService.clearAuthData();
+          // العودة لشاشة تسجيل الدخول
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Login' }],
+          });
+          throw new Error('انتهت صلاحية الجلسة، يرجى تسجيل الدخول مرة أخرى');
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const result: ProgramsResponse = await response.json();
-      
-      setPrograms(result.data);
-      setCurrentPage(result.pagination.currentPage);
-      setTotalPages(result.pagination.totalPages);
-      setTotalItems(result.pagination.totalItems);
+      const data: Program[] = await response.json();
+      setPrograms(data);
+      setTotalItems(data.length);
     } catch (error) {
       console.error('Error fetching programs:', error);
-      Alert.alert('خطأ', 'فشل في تحميل البرامج');
+      
+      // Show error message
+      Toast.show({
+        type: 'error',
+        text1: 'خطأ في الاتصال',
+        text2: 'تعذر الاتصال بالخادم',
+      });
+      
+      // Set empty array if API fails
+      setPrograms([]);
+      setTotalItems(0);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
-  useEffect(() => {
-    fetchPrograms();
-  }, []);
-
   const handleSearch = () => {
-    setCurrentPage(1);
-    fetchPrograms(1, searchText);
+    // For now, we'll fetch all programs and filter locally
+    // In the future, you can implement server-side search
+    fetchPrograms();
   };
 
   const handleRefresh = () => {
     setRefreshing(true);
-    fetchPrograms(currentPage, searchText);
+    fetchPrograms();
   };
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
-    fetchPrograms(page, searchText);
   };
 
   const formatPrice = (price: number) => {
@@ -105,6 +126,79 @@ const ProgramsScreen = ({ navigation }: any) => {
       style: 'currency',
       currency: 'EGP',
     }).format(price);
+  };
+
+  const handleDeleteProgram = (program: Program) => {
+    Alert.alert(
+      'تأكيد الحذف',
+      `هل أنت متأكد من حذف البرنامج "${program.nameAr}"؟\n\nهذا الإجراء لا يمكن التراجع عنه.`,
+      [
+        {
+          text: 'إلغاء',
+          style: 'cancel',
+        },
+        {
+          text: 'حذف',
+          style: 'destructive',
+          onPress: () => deleteProgram(program.id),
+        },
+      ]
+    );
+  };
+
+  const deleteProgram = async (programId: number) => {
+    try {
+      const token = await AuthService.getToken();
+      if (!token) {
+        Toast.show({
+          type: 'error',
+          text1: 'خطأ في المصادقة',
+          text2: 'يرجى تسجيل الدخول لحذف البرنامج',
+        });
+        return;
+      }
+
+      const response = await fetch(`http://10.0.2.2:4000/api/programs/${programId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+      console.log("Delete Program Response:", data);
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.log('Token expired or invalid, redirecting to login');
+          await AuthService.clearAuthData();
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Login' }],
+          });
+          throw new Error('انتهت صلاحية الجلسة، يرجى تسجيل الدخول مرة أخرى');
+        }
+        throw new Error(data.message || 'فشل في حذف البرنامج');
+      }
+
+      Toast.show({
+        type: 'success',
+        text1: 'تم بنجاح!',
+        text2: 'تم حذف البرنامج التدريبي بنجاح',
+      });
+
+      // إعادة تحميل قائمة البرامج
+      fetchPrograms();
+
+    } catch (error) {
+      console.error('Error deleting program:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'خطأ',
+        text2: error instanceof Error ? error.message : 'فشل في حذف البرنامج',
+      });
+    }
   };
 
   const renderPagination = () => {
@@ -167,15 +261,7 @@ const ProgramsScreen = ({ navigation }: any) => {
       <View style={styles.header}>
         <CustomMenu navigation={navigation} activeRouteName="Programs" />
         <Text style={styles.title}>إدارة البرامج التدريبية</Text>
-        <View style={styles.headerButtons}>
-          <TouchableOpacity 
-            style={styles.addButton}
-            onPress={() => navigation.navigate('AddProgram')}
-          >
-            <Icon name="add" size={24} color="#fff" />
-            <Text style={styles.addButtonText}>إضافة برنامج</Text>
-          </TouchableOpacity>
-        </View>
+        <View style={styles.headerButtons} />
       </View>
 
       <ScrollView style={styles.content} refreshControl={
@@ -198,18 +284,25 @@ const ProgramsScreen = ({ navigation }: any) => {
           </View>
           <View style={styles.statCard}>
             <Icon name="trending-up" size={24} color="#10b981" />
-            <Text style={styles.statNumber}>
-              {programs.filter(p => p.status === 'active').length}
-            </Text>
+            <Text style={styles.statNumber}>{programs.length}</Text>
             <Text style={styles.statLabel}>نشطة</Text>
           </View>
           <View style={styles.statCard}>
             <Icon name="people" size={24} color="#3b82f6" />
-            <Text style={styles.statNumber}>
-              {programs.reduce((sum, p) => sum + (p.enrolledStudents || 0), 0)}
-            </Text>
+            <Text style={styles.statNumber}>{programs.reduce((sum, p) => sum + p._count.trainees, 0)}</Text>
             <Text style={styles.statLabel}>الطلاب المسجلين</Text>
           </View>
+        </View>
+
+        {/* زر إضافة برنامج تدريبي */}
+        <View style={styles.addButtonContainer}>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => navigation.navigate('AddProgram')}
+          >
+            <Icon name="add" size={24} color="#fff" />
+            <Text style={styles.addButtonText}>إضافة برنامج تدريبي</Text>
+          </TouchableOpacity>
         </View>
 
         {/* قائمة البرامج */}
@@ -217,6 +310,19 @@ const ProgramsScreen = ({ navigation }: any) => {
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#1a237e" />
             <Text style={styles.loadingText}>جاري تحميل البرامج...</Text>
+          </View>
+        ) : programs.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Icon name="book" size={64} color="#d1d5db" />
+            <Text style={styles.emptyTitle}>لا توجد برامج تدريبية</Text>
+            <Text style={styles.emptySubtitle}>لم يتم العثور على أي برامج تدريبية أو تعذر الاتصال بالخادم</Text>
+            <TouchableOpacity 
+              style={styles.retryButton}
+              onPress={fetchPrograms}
+            >
+              <Icon name="refresh" size={20} color="#1a237e" />
+              <Text style={styles.retryButtonText}>إعادة المحاولة</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           <View style={styles.programsList}>
@@ -241,24 +347,19 @@ const ProgramsScreen = ({ navigation }: any) => {
                     <View style={styles.infoItem}>
                       <Icon name="people" size={16} color="#6b7280" />
                       <Text style={styles.infoText}>
-                        {program.enrolledStudents || 0} طالب
+                        {program._count.trainees} طالب
                       </Text>
                     </View>
-                    {program.createdAt && (
-                      <View style={styles.infoItem}>
-                        <Icon name="calendar-today" size={16} color="#6b7280" />
-                        <Text style={styles.infoText}>
-                          {new Date(program.createdAt).toLocaleDateString('ar-EG')}
-                        </Text>
-                      </View>
-                    )}
                   </View>
                   
                   <View style={styles.programActions}>
                     <TouchableOpacity style={styles.actionButton}>
                       <Icon name="edit" size={18} color="#1a237e" />
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionButton}>
+                    <TouchableOpacity 
+                      style={styles.actionButton}
+                      onPress={() => handleDeleteProgram(program)}
+                    >
                       <Icon name="delete" size={18} color="#e53e3e" />
                     </TouchableOpacity>
                   </View>
@@ -278,6 +379,7 @@ const ProgramsScreen = ({ navigation }: any) => {
           </View>
         )}
       </ScrollView>
+      <Toast />
     </View>
   );
 };
@@ -292,6 +394,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
+    paddingTop: 50,
     backgroundColor: '#fff',
     elevation: 2,
     shadowColor: '#000',
@@ -307,6 +410,10 @@ const styles = StyleSheet.create({
   headerButtons: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  addButtonContainer: {
+    alignItems: 'center',
+    marginVertical: 16,
   },
   addButton: {
     flexDirection: 'row',
@@ -362,6 +469,39 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: '#6b7280',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 20,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#6b7280',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    color: '#9ca3af',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#1a237e',
+  },
+  retryButtonText: {
+    color: '#1a237e',
+    fontWeight: '600',
+    marginLeft: 8,
   },
   programsList: {
     marginBottom: 20,

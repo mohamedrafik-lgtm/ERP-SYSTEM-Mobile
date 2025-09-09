@@ -6,18 +6,18 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import Toast from 'react-native-toast-message';
 import CustomMenu from '../components/CustomMenu';
-import EnhancedArabicInput from '../components/EnhancedArabicInput';
+import AuthService from '../services/AuthService';
 
 interface ProgramData {
   nameAr: string;
   nameEn: string;
-  price: number;
+  price: string;
   description: string;
 }
 
@@ -25,7 +25,7 @@ const AddProgramScreen = ({ navigation }: any) => {
   const [formData, setFormData] = useState<ProgramData>({
     nameAr: '',
     nameEn: '',
-    price: 0,
+    price: '',
     description: '',
   });
   const [loading, setLoading] = useState(false);
@@ -34,27 +34,43 @@ const AddProgramScreen = ({ navigation }: any) => {
   const validateForm = (): boolean => {
     const newErrors: Partial<ProgramData> = {};
 
+    // التحقق من اسم البرنامج بالعربية
     if (!formData.nameAr.trim()) {
       newErrors.nameAr = 'اسم البرنامج بالعربية مطلوب';
+    } else if (formData.nameAr.trim().length < 3) {
+      newErrors.nameAr = 'اسم البرنامج بالعربية يجب أن يكون 3 أحرف على الأقل';
     }
 
+    // التحقق من اسم البرنامج بالإنجليزية
     if (!formData.nameEn.trim()) {
       newErrors.nameEn = 'اسم البرنامج بالإنجليزية مطلوب';
+    } else if (formData.nameEn.trim().length < 3) {
+      newErrors.nameEn = 'اسم البرنامج بالإنجليزية يجب أن يكون 3 أحرف على الأقل';
     }
 
-    if (formData.price <= 0) {
+    // التحقق من السعر
+    if (!formData.price.trim()) {
+      newErrors.price = 'السعر مطلوب';
+    } else if (isNaN(Number(formData.price))) {
+      newErrors.price = 'السعر يجب أن يكون رقم صحيح';
+    } else if (Number(formData.price) <= 0) {
       newErrors.price = 'السعر يجب أن يكون أكبر من صفر';
+    } else if (Number(formData.price) > 100000) {
+      newErrors.price = 'السعر لا يمكن أن يكون أكبر من 100,000 جنيه';
     }
 
+    // التحقق من الوصف
     if (!formData.description.trim()) {
       newErrors.description = 'وصف البرنامج مطلوب';
+    } else if (formData.description.trim().length < 10) {
+      newErrors.description = 'وصف البرنامج يجب أن يكون 10 أحرف على الأقل';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleInputChange = (field: keyof ProgramData, value: string | number) => {
+  const handleInputChange = (field: keyof ProgramData, value: string) => {
     setFormData(prev => ({
       ...prev,
       [field]: value,
@@ -67,43 +83,99 @@ const AddProgramScreen = ({ navigation }: any) => {
         [field]: undefined,
       }));
     }
+
+    // Real-time validation for specific fields
+    if (field === 'price' && value.trim()) {
+      if (isNaN(Number(value))) {
+        setErrors(prev => ({
+          ...prev,
+          price: 'السعر يجب أن يكون رقم صحيح',
+        }));
+      } else if (Number(value) <= 0) {
+        setErrors(prev => ({
+          ...prev,
+          price: 'السعر يجب أن يكون أكبر من صفر',
+        }));
+      } else if (Number(value) > 100000) {
+        setErrors(prev => ({
+          ...prev,
+          price: 'السعر لا يمكن أن يكون أكبر من 100,000 جنيه',
+        }));
+      }
+    }
   };
 
   const handleSubmit = async () => {
     if (!validateForm()) {
-      Alert.alert('خطأ', 'يرجى ملء جميع الحقول المطلوبة بشكل صحيح');
+      Toast.show({
+        type: 'error',
+        text1: 'خطأ في البيانات',
+        text2: 'يرجى ملء جميع الحقول المطلوبة بشكل صحيح',
+      });
       return;
     }
 
     try {
       setLoading(true);
-
+      // جلب التوكن
+      const token = await AuthService.getToken();
+      if (!token) {
+        Toast.show({
+          type: 'error',
+          text1: 'انتهت الجلسة',
+          text2: 'يرجى تسجيل الدخول مرة أخرى',
+        });
+        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+        return;
+      }
+      // تجهيز البيانات
+      const payload = {
+        nameAr: formData.nameAr.trim(),
+        nameEn: formData.nameEn.trim(),
+        price: Number(formData.price),
+        description: formData.description.trim(),
+      };
       const response = await fetch('http://10.0.2.2:4000/api/programs', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'فشل في إضافة البرنامج');
+      const data = await response.json();
+      if (response.ok) {
+        Toast.show({
+          type: 'success',
+          text1: 'تم بنجاح!',
+          text2: 'تم إضافة البرنامج التدريبي بنجاح',
+        });
+        setTimeout(() => {
+          navigation.goBack();
+        }, 1000);
+      } else if (response.status === 401) {
+        await AuthService.clearAuthData();
+        Toast.show({
+          type: 'error',
+          text1: 'انتهت الجلسة',
+          text2: 'يرجى تسجيل الدخول مرة أخرى',
+        });
+        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+      } else {
+        console.log('Add program error:', data);
+        Toast.show({
+          type: 'error',
+          text1: 'خطأ',
+          text2: data.message || data.error || 'فشل في إضافة البرنامج',
+        });
       }
-
-      Alert.alert(
-        'نجح',
-        'تم إضافة البرنامج التدريبي بنجاح',
-        [
-          {
-            text: 'حسناً',
-            onPress: () => navigation.goBack(),
-          },
-        ]
-      );
     } catch (error) {
       console.error('Error adding program:', error);
-      Alert.alert('خطأ', error instanceof Error ? error.message : 'فشل في إضافة البرنامج');
+      Toast.show({
+        type: 'error',
+        text1: 'خطأ',
+        text2: 'فشل في إضافة البرنامج',
+      });
     } finally {
       setLoading(false);
     }
@@ -113,7 +185,7 @@ const AddProgramScreen = ({ navigation }: any) => {
     setFormData({
       nameAr: '',
       nameEn: '',
-      price: 0,
+      price: '',
       description: '',
     });
     setErrors({});
@@ -133,63 +205,94 @@ const AddProgramScreen = ({ navigation }: any) => {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.formContainer}>
           {/* اسم البرنامج بالعربية */}
-          <EnhancedArabicInput
-            label="اسم البرنامج بالعربية"
-            placeholder="أدخل اسم البرنامج بالعربية"
-            placeholderTextColor="#9ca3af"
-            value={formData.nameAr}
-            onChangeText={(value) => handleInputChange('nameAr', value)}
-            isArabic={true}
-            required={true}
-            icon="translate"
-            error={errors.nameAr}
-          />
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              اسم البرنامج بالعربية <Text style={styles.required}>*</Text>
+            </Text>
+            <View style={[styles.inputContainer, errors.nameAr && styles.errorInput]}>
+              <Icon name="translate" size={20} color="#6b7280" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="أدخل اسم البرنامج بالعربية"
+                placeholderTextColor="#9ca3af"
+                value={formData.nameAr}
+                onChangeText={(value) => handleInputChange('nameAr', value)}
+                textAlign="right"
+                autoCorrect={false}
+                autoCapitalize="words"
+                returnKeyType="next"
+              />
+            </View>
+            {errors.nameAr && <Text style={styles.errorText}>{errors.nameAr}</Text>}
+          </View>
 
           {/* اسم البرنامج بالإنجليزية */}
-          <EnhancedArabicInput
-            label="اسم البرنامج بالإنجليزية"
-            placeholder="Enter program name in English"
-            placeholderTextColor="#9ca3af"
-            value={formData.nameEn}
-            onChangeText={(value) => handleInputChange('nameEn', value)}
-            isArabic={false}
-            required={true}
-            icon="translate"
-            error={errors.nameEn}
-          />
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              اسم البرنامج بالإنجليزية <Text style={styles.required}>*</Text>
+            </Text>
+            <View style={[styles.inputContainer, errors.nameEn && styles.errorInput]}>
+              <Icon name="translate" size={20} color="#6b7280" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="Enter program name in English"
+                placeholderTextColor="#9ca3af"
+                value={formData.nameEn}
+                onChangeText={(value) => handleInputChange('nameEn', value)}
+                textAlign="left"
+                autoCorrect={false}
+                autoCapitalize="words"
+                returnKeyType="next"
+              />
+            </View>
+            {errors.nameEn && <Text style={styles.errorText}>{errors.nameEn}</Text>}
+          </View>
 
           {/* سعر البرنامج */}
-          <EnhancedArabicInput
-            label="سعر البرنامج (جنيه مصري)"
-            placeholder="أدخل سعر البرنامج"
-            placeholderTextColor="#9ca3af"
-            value={formData.price.toString()}
-            onChangeText={(value) => {
-              const numValue = parseFloat(value) || 0;
-              handleInputChange('price', numValue);
-            }}
-            keyboardType="numeric"
-            isArabic={true}
-            required={true}
-            icon="attach-money"
-            error={errors.price}
-          />
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              سعر البرنامج (جنيه مصري) <Text style={styles.required}>*</Text>
+            </Text>
+            <View style={[styles.inputContainer, errors.price && styles.errorInput]}>
+              <Icon name="attach-money" size={20} color="#6b7280" style={styles.inputIcon} />
+              <TextInput
+                style={styles.input}
+                placeholder="أدخل سعر البرنامج"
+                placeholderTextColor="#9ca3af"
+                value={formData.price}
+                onChangeText={(value) => handleInputChange('price', value)}
+                keyboardType="numeric"
+                textAlign="right"
+                autoCorrect={false}
+                returnKeyType="next"
+              />
+            </View>
+            {errors.price && <Text style={styles.errorText}>{errors.price}</Text>}
+          </View>
 
           {/* وصف البرنامج */}
-          <EnhancedArabicInput
-            label="وصف البرنامج"
-            placeholder="أدخل وصف مفصل للبرنامج التدريبي"
-            placeholderTextColor="#9ca3af"
-            value={formData.description}
-            onChangeText={(value) => handleInputChange('description', value)}
-            multiline
-            numberOfLines={4}
-            isArabic={true}
-            required={true}
-            icon="description"
-            error={errors.description}
-            returnKeyType="done"
-          />
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>
+              وصف البرنامج <Text style={styles.required}>*</Text>
+            </Text>
+            <View style={[styles.inputContainer, styles.multilineContainer, errors.description && styles.errorInput]}>
+              <Icon name="description" size={20} color="#6b7280" style={styles.inputIcon} />
+              <TextInput
+                style={[styles.input, styles.multilineInput]}
+                placeholder="أدخل وصف مفصل للبرنامج التدريبي"
+                placeholderTextColor="#9ca3af"
+                value={formData.description}
+                onChangeText={(value) => handleInputChange('description', value)}
+                multiline
+                numberOfLines={4}
+                textAlign="right"
+                textAlignVertical="top"
+                autoCorrect={false}
+                returnKeyType="done"
+              />
+            </View>
+            {errors.description && <Text style={styles.errorText}>{errors.description}</Text>}
+          </View>
 
           {/* معاينة البيانات */}
           <View style={styles.previewContainer}>
@@ -198,7 +301,7 @@ const AddProgramScreen = ({ navigation }: any) => {
               <View style={styles.previewHeader}>
                 <Text style={styles.previewNameAr}>{formData.nameAr || 'اسم البرنامج بالعربية'}</Text>
                 <Text style={styles.previewPrice}>
-                  {formData.price > 0 ? `${formData.price} جنيه` : 'السعر'}
+                  {formData.price ? `${formData.price} جنيه` : 'السعر'}
                 </Text>
               </View>
               <Text style={styles.previewNameEn}>{formData.nameEn || 'Program name in English'}</Text>
@@ -236,6 +339,7 @@ const AddProgramScreen = ({ navigation }: any) => {
           </View>
         </View>
       </ScrollView>
+      <Toast />
     </KeyboardAvoidingView>
   );
 };
@@ -250,6 +354,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
+    paddingTop: 50,
     backgroundColor: '#fff',
     elevation: 2,
     shadowColor: '#000',
@@ -278,6 +383,57 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 8,
+  },
+  required: {
+    color: '#e53e3e',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    paddingHorizontal: 12,
+    minHeight: 48,
+  },
+  multilineContainer: {
+    alignItems: 'flex-start',
+    minHeight: 100,
+    paddingVertical: 12,
+  },
+  errorInput: {
+    borderColor: '#e53e3e',
+    backgroundColor: '#fef2f2',
+  },
+  inputIcon: {
+    marginRight: 8,
+  },
+  input: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1f2937',
+    fontFamily: 'System',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+  },
+  multilineInput: {
+    minHeight: 60,
+    textAlignVertical: 'top',
+  },
+  errorText: {
+    color: '#e53e3e',
+    fontSize: 12,
+    marginTop: 4,
   },
   previewContainer: {
     marginTop: 20,

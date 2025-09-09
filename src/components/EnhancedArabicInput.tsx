@@ -81,6 +81,8 @@ const EnhancedArabicInput: React.FC<EnhancedArabicInputProps> = ({
           keyboardType={props.keyboardType || 'default'}
           multiline={props.multiline || false}
           numberOfLines={props.numberOfLines || 1}
+          selectTextOnFocus={false}
+          editable={props.editable !== false}
           onFocus={handleFocus}
           onBlur={handleBlur}
           {...props}
@@ -155,6 +157,8 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     fontFamily: 'System',
     paddingVertical: 12,
+    paddingHorizontal: 8,
+    minHeight: 24,
   },
   arabicInput: {
     writingDirection: 'rtl',

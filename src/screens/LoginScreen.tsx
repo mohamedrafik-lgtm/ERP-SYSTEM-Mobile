@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, KeyboardAvoidingView, Platform, ScrollView } from "react-native";
 import Toast from 'react-native-toast-message';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import AuthService from '../services/AuthService';
 
 const TestLogin = ({ navigation }: any) => {
   const [emailOrPhone, setEmailOrPhone] = useState("");
@@ -9,6 +10,16 @@ const TestLogin = ({ navigation }: any) => {
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async () => {
+    // التحقق من البيانات المطلوبة
+    if (!emailOrPhone.trim() || !password.trim()) {
+      Toast.show({
+        type: 'error',
+        text1: 'خطأ في البيانات',
+        text2: 'يرجى إدخال البريد الإلكتروني/رقم الهاتف وكلمة المرور',
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await fetch("http://10.0.2.2:4000/api/auth/login", {
@@ -17,36 +28,69 @@ const TestLogin = ({ navigation }: any) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          emailOrPhone,
-          password,
+          emailOrPhone: emailOrPhone.trim(),
+          password: password.trim(),
         }),
       });
 
       const data = await response.json();
-      console.log("Response:", data);
+      console.log("Login Response:", data);
+      console.log("Response Status:", response.status);
+      console.log("Response OK:", response.ok);
+      console.log("Data Token:", data.token);
+      console.log("Data Keys:", Object.keys(data));
 
       if (response.ok) {
+        // حفظ بيانات الجلسة من الـ API
+        const userData = {
+          id: data.user?.id || data.userId || '',
+          email: data.user?.email || emailOrPhone.trim(),
+          name: data.user?.name || data.user?.fullName || 'مستخدم',
+        };
+        
+        // البحث عن الـ token في أي مكان في الـ response
+        const token = data.token || data.accessToken || data.access_token || data.jwt || data.authToken;
+        console.log("Found token:", token);
+        
+        if (token) {
+          await AuthService.saveAuthData(token, userData);
+        } else {
+          console.log("No token found in response");
+          Toast.show({
+            type: 'error',
+            text1: 'خطأ في البيانات',
+            text2: 'لم يتم العثور على رمز المصادقة في الاستجابة',
+          });
+          return;
+        }
+        
         Toast.show({
           type: 'success',
           text1: 'تم تسجيل الدخول بنجاح',
-          text2: 'مرحباً بك في مركز طيبة للتدريب',
+          text2: `مرحباً بك ${userData.name}`,
         });
+        
         setTimeout(() => {
-          navigation.replace('Home');
+          navigation.replace('Programs');
         }, 1200);
       } else {
+        console.log("Login failed - Response not OK or no token");
+        console.log("Response OK:", response.ok);
+        console.log("Has Token:", !!data.token);
+        console.log("Error Message:", data.message || data.error);
+        
         Toast.show({
           type: 'error',
           text1: 'فشل تسجيل الدخول',
-          text2: data.message || 'يرجى التحقق من البيانات',
+          text2: data.message || data.error || 'يرجى التحقق من البيانات',
         });
       }
     } catch (error) {
-      console.error("Fetch error:", error);
+      console.error("Login error:", error);
       Toast.show({
         type: 'error',
         text1: 'خطأ في الاتصال',
-        text2: 'تعذر الاتصال بالخادم',
+        text2: 'تعذر الاتصال بالخادم، يرجى المحاولة مرة أخرى',
       });
     } finally {
       setLoading(false);
@@ -124,6 +168,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     padding: 24,
+    paddingTop: 60,
     backgroundColor: "#f4f6fa",
   },
   orgName: {

@@ -10,6 +10,7 @@ import {
   Dimensions,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import AuthService from '../services/AuthService';
 
 const { width } = Dimensions.get('window');
 
@@ -24,64 +25,16 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
 
   const menuItems = [
     {
-      id: 'Home',
-      title: 'الرئيسية',
-      icon: 'home',
-      screen: 'Home',
-    },
-    {
-      id: 'Students',
-      title: 'الطلاب',
-      icon: 'school',
-      screen: 'Students',
-    },
-    {
-      id: 'StudentsList',
-      title: 'قائمة الطلاب',
-      icon: 'list',
-      screen: 'StudentsList',
-    },
-    {
-      id: 'Courses',
-      title: 'البرامج التدريبية',
-      icon: 'book',
-      screen: 'Courses',
-    },
-    {
       id: 'Programs',
       title: 'البرامج التدريبية',
-      icon: 'school',
+      icon: 'book',
       screen: 'Programs',
     },
     {
-      id: 'IconTest',
-      title: 'اختبار الأيقونات',
-      icon: 'bug-report',
-      screen: 'IconTest',
-    },
-    {
-      id: 'Teachers',
-      title: 'المدربين',
-      icon: 'person',
-      screen: 'Teachers',
-    },
-    {
-      id: 'Schedule',
-      title: 'الجدول',
-      icon: 'schedule',
-      screen: 'Schedule',
-    },
-    {
-      id: 'Reports',
-      title: 'التقارير',
-      icon: 'assessment',
-      screen: 'Reports',
-    },
-    {
-      id: 'Settings',
-      title: 'الإعدادات',
-      icon: 'settings',
-      screen: 'Settings',
+      id: 'AddProgram',
+      title: 'إضافة برنامج تدريبي',
+      icon: 'add',
+      screen: 'AddProgram',
     },
     {
       id: 'Logout',
@@ -111,9 +64,11 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
     });
   };
 
-  const handleMenuPress = (item: any) => {
+  const handleMenuPress = async (item: any) => {
     hideMenu();
     if (item.isLogout) {
+      // تسجيل الخروج مع إشعار الـ API
+      await AuthService.logout();
       navigation.reset({
         index: 0,
         routes: [{ name: 'Login' }],
@@ -234,6 +189,7 @@ const styles = StyleSheet.create({
   },
   header: {
     padding: 20,
+    paddingTop: 40,
     alignItems: 'center',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
@@ -265,7 +221,7 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     position: 'absolute',
-    top: 20,
+    top: 40,
     right: 20,
     padding: 8,
     borderRadius: 20,
