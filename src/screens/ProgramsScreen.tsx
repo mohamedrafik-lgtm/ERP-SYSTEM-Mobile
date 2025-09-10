@@ -282,7 +282,7 @@ const ProgramsScreen = ({ navigation }: any) => {
           </View>
         </View>
 
-        {/* زر إضافة برنامج تدريبي */}
+        {/* أزرار الإضافة */}
         <View style={styles.addButtonContainer}>
           <TouchableOpacity
             style={styles.addButton}
@@ -290,6 +290,14 @@ const ProgramsScreen = ({ navigation }: any) => {
           >
             <Icon name="add" size={24} color="#fff" />
             <Text style={styles.addButtonText}>إضافة برنامج تدريبي</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.addContentButton}
+            onPress={() => navigation.navigate('AddTrainingContent')}
+          >
+            <Icon name="post-add" size={20} color="#1a237e" />
+            <Text style={styles.addContentButtonText}>إضافة محتوى تدريبي</Text>
           </TouchableOpacity>
         </View>
 
@@ -341,13 +349,6 @@ const ProgramsScreen = ({ navigation }: any) => {
                   </View>
                   
                   <View style={styles.programActions}>
-                    <TouchableOpacity
-                      style={[styles.actionButton, styles.addContentButton]}
-                      onPress={() => navigation.navigate('AddTrainingContent', { programId: program.id })}
-                    >
-                      <Icon name="post-add" size={16} color="#10b981" />
-                      <Text style={styles.addContentButtonText}>محتوى</Text>
-                    </TouchableOpacity>
                     <TouchableOpacity 
                       style={styles.actionButton}
                       onPress={() => navigation.navigate('EditProgram', { program })}
@@ -412,6 +413,7 @@ const styles = StyleSheet.create({
   addButtonContainer: {
     alignItems: 'center',
     marginVertical: 16,
+    gap: 12,
   },
   addButton: {
     flexDirection: 'row',
@@ -423,6 +425,21 @@ const styles = StyleSheet.create({
   },
   addButtonText: {
     color: '#fff',
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  addContentButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#1a237e',
+  },
+  addContentButtonText: {
+    color: '#1a237e',
     fontWeight: '600',
     marginLeft: 4,
   },

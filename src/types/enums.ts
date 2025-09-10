@@ -137,3 +137,28 @@ export const YearArabic: Record<Year, string> = {
   [Year.THIRD]: 'السنة الثالثة',
   [Year.FOURTH]: 'السنة الرابعة'
 };
+
+// Additional enums from API
+export enum SessionType {
+  THEORY = 'THEORY',
+  PRACTICAL = 'PRACTICAL'
+}
+
+export enum AttendanceStatus {
+  PRESENT = 'PRESENT',
+  ABSENT = 'ABSENT',
+  LATE = 'LATE',
+  EXCUSED = 'EXCUSED'
+}
+
+export const SessionTypeArabic: Record<SessionType, string> = {
+  [SessionType.THEORY]: 'نظري',
+  [SessionType.PRACTICAL]: 'عملي'
+};
+
+export const AttendanceStatusArabic: Record<AttendanceStatus, string> = {
+  [AttendanceStatus.PRESENT]: 'حاضر',
+  [AttendanceStatus.ABSENT]: 'غائب',
+  [AttendanceStatus.LATE]: 'متأخر',
+  [AttendanceStatus.EXCUSED]: 'معذور'
+};

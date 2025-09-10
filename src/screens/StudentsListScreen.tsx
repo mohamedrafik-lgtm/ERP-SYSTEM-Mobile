@@ -14,31 +14,10 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import CustomMenu from '../components/CustomMenu';
 import ArabicSearchInput from '../components/ArabicSearchInput';
 import AuthService from '../services/AuthService';
-
-interface Student {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  status: string;
-  programId?: string;
-  programName?: string;
-  enrollmentDate?: string;
-  lastActivity?: string;
-}
-
-interface StudentsResponse {
-  data: Student[];
-  pagination: {
-    currentPage: number;
-    totalPages: number;
-    totalItems: number;
-    itemsPerPage: number;
-  };
-}
+import { ITrainee, IPaginatedTraineesResponse, TraineeStatus } from '../types/student';
 
 const StudentsListScreen = ({ navigation }: any) => {
-  const [students, setStudents] = useState<Student[]>([]);
+  const [students, setStudents] = useState<ITrainee[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchText, setSearchText] = useState('');
@@ -50,10 +29,10 @@ const StudentsListScreen = ({ navigation }: any) => {
 
   const statusOptions = [
     { value: 'all', label: 'جميع الحالات' },
-    { value: 'active', label: 'نشط' },
-    { value: 'inactive', label: 'غير نشط' },
-    { value: 'suspended', label: 'معلق' },
-    { value: 'graduated', label: 'متخرج' },
+    { value: 'NEW', label: 'جديد' },
+    { value: 'CURRENT', label: 'حالي' },
+    { value: 'GRADUATE', label: 'خريج' },
+    { value: 'WITHDRAWN', label: 'منسحب' },
   ];
 
   const fetchStudents = async (page: number = 1, search: string = '', status: string = 'all') => {
@@ -67,19 +46,23 @@ const StudentsListScreen = ({ navigation }: any) => {
         status: status !== 'all' ? status : undefined,
       };
 
-      const result = await AuthService.getTrainees(params);
+      console.log('Fetching students with params:', params);
+      const result: IPaginatedTraineesResponse = await AuthService.getTrainees(params);
+      console.log('API Response:', result);
 
       setStudents(result.data || []);
       if (result.pagination) {
-        setCurrentPage(result.pagination.currentPage);
+        setCurrentPage(result.pagination.page);
         setTotalPages(result.pagination.totalPages);
-        setTotalItems(result.pagination.totalItems);
+        setTotalItems(result.pagination.total);
       } else {
         // Fallback if pagination object is missing
         setCurrentPage(1);
         setTotalPages(1);
         setTotalItems(result.data?.length || 0);
       }
+      
+      console.log('Students loaded:', result.data?.length || 0, 'students');
     } catch (error) {
       console.error('Error fetching students:', error);
       const errorMessage = error instanceof Error ? error.message : 'فشل في تحميل بيانات الطلاب';
@@ -126,22 +109,22 @@ const StudentsListScreen = ({ navigation }: any) => {
     fetchStudents(page, searchText, statusFilter);
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: TraineeStatus) => {
     switch (status) {
-      case 'active':
+      case 'CURRENT':
         return '#10b981';
-      case 'inactive':
-        return '#6b7280';
-      case 'suspended':
-        return '#f59e0b';
-      case 'graduated':
+      case 'NEW':
         return '#3b82f6';
+      case 'GRADUATE':
+        return '#059669';
+      case 'WITHDRAWN':
+        return '#dc2626';
       default:
         return '#6b7280';
     }
   };
 
-  const getStatusLabel = (status: string) => {
+  const getStatusLabel = (status: TraineeStatus) => {
     const option = statusOptions.find(opt => opt.value === status);
     return option ? option.label : status;
   };
@@ -245,10 +228,20 @@ const StudentsListScreen = ({ navigation }: any) => {
           </ScrollView>
         </View>
 
-        <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate('AddStudent')}>
-          <Icon name="add" size={24} color="#fff" />
-          <Text style={styles.addButtonText}>إضافة طالب</Text>
-        </TouchableOpacity>
+        <View style={styles.buttonsContainer}>
+          <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate('AddStudent')}>
+            <Icon name="add" size={24} color="#fff" />
+            <Text style={styles.addButtonText}>إضافة طالب</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={styles.testButton} onPress={() => {
+            console.log('Testing API connection...');
+            fetchStudents(1, '', 'all');
+          }}>
+            <Icon name="refresh" size={20} color="#1a237e" />
+            <Text style={styles.testButtonText}>اختبار الاتصال</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* إحصائيات */}
         <View style={styles.statsContainer}>
@@ -260,16 +253,16 @@ const StudentsListScreen = ({ navigation }: any) => {
           <View style={styles.statCard}>
             <Icon name="check-circle" size={24} color="#10b981" />
             <Text style={styles.statNumber}>
-              {students.filter(s => s.status === 'active').length}
+              {students.filter(s => s.traineeStatus === 'CURRENT').length}
             </Text>
-            <Text style={styles.statLabel}>نشط</Text>
+            <Text style={styles.statLabel}>حالي</Text>
           </View>
           <View style={styles.statCard}>
-            <Icon name="pause-circle" size={24} color="#f59e0b" />
+            <Icon name="school" size={24} color="#059669" />
             <Text style={styles.statNumber}>
-              {students.filter(s => s.status === 'suspended').length}
+              {students.filter(s => s.traineeStatus === 'GRADUATE').length}
             </Text>
-            <Text style={styles.statLabel}>معلق</Text>
+            <Text style={styles.statLabel}>خريج</Text>
           </View>
         </View>
 
@@ -284,6 +277,9 @@ const StudentsListScreen = ({ navigation }: any) => {
             <Icon name="people-outline" size={64} color="#d1d5db" />
             <Text style={styles.emptyTitle}>لا يوجد طلاب</Text>
             <Text style={styles.emptySubtitle}>لم يتم العثور على أي طلاب يطابقون معايير البحث الحالية.</Text>
+            <Text style={styles.debugText}>
+              إجمالي الطلاب: {totalItems} | الصفحة: {currentPage} من {totalPages}
+            </Text>
             <TouchableOpacity 
               style={styles.retryButton}
               onPress={() => fetchStudents(1, '', 'all')}
@@ -298,37 +294,41 @@ const StudentsListScreen = ({ navigation }: any) => {
               <View key={student.id} style={styles.studentCard}>
                 <View style={styles.studentInfo}>
                   <View style={styles.studentHeader}>
-                    <Text style={styles.studentName}>{student.name}</Text>
-                    <View style={[styles.statusBadge, { backgroundColor: getStatusColor(student.status) + '20' }]}>
-                      <Text style={[styles.statusText, { color: getStatusColor(student.status) }]}>
-                        {getStatusLabel(student.status)}
+                    <Text style={styles.studentName}>{student.nameAr}</Text>
+                    <View style={[styles.statusBadge, { backgroundColor: getStatusColor(student.traineeStatus) + '20' }]}>
+                      <Text style={[styles.statusText, { color: getStatusColor(student.traineeStatus) }]}>
+                        {getStatusLabel(student.traineeStatus)}
                       </Text>
                     </View>
                   </View>
                   
                   <View style={styles.studentDetails}>
-                    <View style={styles.detailRow}>
-                      <Icon name="email" size={16} color="#6b7280" />
-                      <Text style={styles.detailText}>{student.email}</Text>
-                    </View>
+                    {student.email && (
+                      <View style={styles.detailRow}>
+                        <Icon name="email" size={16} color="#6b7280" />
+                        <Text style={styles.detailText}>{student.email}</Text>
+                      </View>
+                    )}
                     <View style={styles.detailRow}>
                       <Icon name="phone" size={16} color="#6b7280" />
                       <Text style={styles.detailText}>{student.phone}</Text>
                     </View>
-                    {student.programName && (
-                      <View style={styles.detailRow}>
-                        <Icon name="book" size={16} color="#6b7280" />
-                        <Text style={styles.detailText}>{student.programName}</Text>
-                      </View>
-                    )}
-                    {student.enrollmentDate && (
-                      <View style={styles.detailRow}>
-                        <Icon name="calendar-today" size={16} color="#6b7280" />
-                        <Text style={styles.detailText}>
-                          تاريخ التسجيل: {new Date(student.enrollmentDate).toLocaleDateString('ar-EG')}
-                        </Text>
-                      </View>
-                    )}
+                    <View style={styles.detailRow}>
+                      <Icon name="book" size={16} color="#6b7280" />
+                      <Text style={styles.detailText}>{student.program.nameAr}</Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                      <Icon name="calendar-today" size={16} color="#6b7280" />
+                      <Text style={styles.detailText}>
+                        تاريخ التسجيل: {new Date(student.createdAt).toLocaleDateString('ar-EG')}
+                      </Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                      <Icon name="person" size={16} color="#6b7280" />
+                      <Text style={styles.detailText}>
+                        {student.gender === 'MALE' ? 'ذكر' : 'أنثى'} - {student.nationality}
+                      </Text>
+                    </View>
                   </View>
                 </View>
                 
@@ -377,6 +377,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1a237e',
   },
+  buttonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginVertical: 16,
+    gap: 12,
+  },
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -385,7 +391,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
-    marginVertical: 16,
+    flex: 1,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -394,6 +400,23 @@ const styles = StyleSheet.create({
   },
   addButtonText: {
     color: '#fff',
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  testButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#1a237e',
+    flex: 1,
+  },
+  testButtonText: {
+    color: '#1a237e',
     fontWeight: '600',
     marginLeft: 4,
   },
@@ -594,6 +617,13 @@ const styles = StyleSheet.create({
     color: '#1a237e',
     fontWeight: '600',
     marginLeft: 8,
+  },
+  debugText: {
+    fontSize: 12,
+    color: '#9ca3af',
+    textAlign: 'center',
+    marginBottom: 16,
+    fontFamily: 'monospace',
   },
 });
 

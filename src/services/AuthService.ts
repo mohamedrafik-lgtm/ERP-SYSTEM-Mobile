@@ -236,7 +236,7 @@ class AuthService {
   }
 
   // جلب قائمة الطلاب مع الفلاتر والترقيم
-  static async getTrainees(params: { page?: number; limit?: number; search?: string; programId?: string; status?: string; includeDetails?: boolean }): Promise<any> {
+  static async getTrainees(params: { page?: number; limit?: number; search?: string; programId?: string; status?: string; includeDetails?: boolean }): Promise<import('../types/student').IPaginatedTraineesResponse> {
     try {
       const token = await this.getToken();
       if (!token) {
@@ -245,14 +245,19 @@ class AuthService {
 
       // بناء الـ query string
       const queryParams = new URLSearchParams();
-      if (params.page) queryParams.append('page_string', params.page.toString());
-      if (params.limit) queryParams.append('limit_string', params.limit.toString());
-      if (params.search) queryParams.append('search_string', params.search);
-      if (params.programId) queryParams.append('programId_string', params.programId);
-      if (params.status) queryParams.append('status_string', params.status);
-      if (params.includeDetails) queryParams.append('includeDetails_string', 'true');
+      if (params.page) queryParams.append('page', params.page.toString());
+      if (params.limit) queryParams.append('limit', params.limit.toString());
+      if (params.search) queryParams.append('search', params.search);
+      if (params.programId) queryParams.append('programId', params.programId);
+      if (params.status) queryParams.append('status', params.status);
+      if (params.includeDetails) queryParams.append('includeDetails', 'true');
 
-      const response = await fetch(`http://10.0.2.2:4000/api/trainees?${queryParams.toString()}`, {
+      const url = `http://10.0.2.2:4000/api/trainees?${queryParams.toString()}`;
+      console.log('Fetching trainees from URL:', url);
+      console.log('Using token:', token.substring(0, 20) + '...');
+      console.log('Query params:', queryParams.toString());
+
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -260,7 +265,19 @@ class AuthService {
         },
       });
 
-      const data = await response.json();
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
+      let data;
+      try {
+        data = await response.json();
+        console.log('Response data:', data);
+      } catch (parseError) {
+        console.error('Error parsing JSON response:', parseError);
+        const textResponse = await response.text();
+        console.log('Raw response:', textResponse);
+        throw new Error(`Invalid JSON response: ${textResponse}`);
+      }
 
       if (!response.ok) {
         throw new Error(data.message || `HTTP error! status: ${response.status}`);
@@ -449,6 +466,163 @@ class AuthService {
       return data;
     } catch (error) {
       console.error('Error generating training content code:', error);
+      throw error;
+    }
+  }
+
+  // جلب قائمة المحتوى التدريبي
+  static async getTrainingContents(params?: { 
+    page?: number; 
+    limit?: number; 
+    search?: string; 
+    programId?: number; 
+    semester?: string; 
+    year?: string;
+    includeQuestionCount?: boolean;
+  }): Promise<import('../types/student').ITrainingContent[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      // بناء الـ query string
+      const queryParams = new URLSearchParams();
+      if (params?.page) queryParams.append('page', params.page.toString());
+      if (params?.limit) queryParams.append('limit', params.limit.toString());
+      if (params?.search) queryParams.append('search', params.search);
+      if (params?.programId) queryParams.append('programId', params.programId.toString());
+      if (params?.semester) queryParams.append('semester', params.semester);
+      if (params?.year) queryParams.append('year', params.year);
+      if (params?.includeQuestionCount) queryParams.append('includeQuestionCount', 'true');
+
+      const url = `http://10.0.2.2:4000/api/training-contents?${queryParams.toString()}`;
+      console.log('Fetching training contents from URL:', url);
+      console.log('Using token:', token.substring(0, 20) + '...');
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
+      let data;
+      try {
+        data = await response.json();
+        console.log('Response data:', data);
+      } catch (parseError) {
+        console.error('Error parsing JSON response:', parseError);
+        const textResponse = await response.text();
+        console.log('Raw response:', textResponse);
+        throw new Error(`Invalid JSON response: ${textResponse}`);
+      }
+
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching training contents in AuthService:', error);
+      throw error;
+    }
+  }
+
+  // تحديث محتوى تدريبي
+  static async updateTrainingContent(contentId: number, contentData: any): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = `http://10.0.2.2:4000/api/training-contents/${contentId}`;
+      console.log('Updating training content at URL:', url);
+      console.log('Update data:', JSON.stringify(contentData, null, 2));
+
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(contentData),
+      });
+
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
+      let data;
+      try {
+        data = await response.json();
+        console.log('Response data:', data);
+      } catch (parseError) {
+        console.error('Error parsing JSON response:', parseError);
+        const textResponse = await response.text();
+        console.log('Raw response:', textResponse);
+        throw new Error(`Invalid JSON response: ${textResponse}`);
+      }
+
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error updating training content in AuthService:', error);
+      throw error;
+    }
+  }
+
+  // حذف محتوى تدريبي
+  static async deleteTrainingContent(contentId: number): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = `http://10.0.2.2:4000/api/training-contents/${contentId}`;
+      console.log('Deleting training content at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
+      let data;
+      try {
+        data = await response.json();
+        console.log('Response data:', data);
+      } catch (parseError) {
+        console.error('Error parsing JSON response:', parseError);
+        const textResponse = await response.text();
+        console.log('Raw response:', textResponse);
+        // للحذف، قد لا يكون هناك response body
+        if (response.ok) {
+          return { success: true };
+        }
+        throw new Error(`Invalid JSON response: ${textResponse}`);
+      }
+
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error deleting training content in AuthService:', error);
       throw error;
     }
   }

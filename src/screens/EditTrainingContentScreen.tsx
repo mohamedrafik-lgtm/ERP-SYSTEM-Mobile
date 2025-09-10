@@ -17,14 +17,15 @@ import SelectBox from '../components/SelectBox';
 import MultiSelectBox from '../components/MultiSelectBox';
 import { ISemester, ISemesterArabic, Year, YearArabic } from '../types/enums';
 import { Program } from './ProgramsScreen';
+import { ITrainingContent } from '../types/student';
+import AuthService from '../services/AuthService';
 
 interface User {
   id: string;
   name: string;
 }
-import AuthService from '../services/AuthService';
 
-export interface IAddTrainingContent {
+export interface IEditTrainingContent {
   code: string;
   name: string;
   semester: ISemester;
@@ -45,36 +46,31 @@ export interface IAddTrainingContent {
   finalExamMarks: number;
 }
 
-const initialState: IAddTrainingContent = {
-  code: '',
-  name: '',
-  semester: ISemester.FIRST,
-  year: Year.FIRST,
-  programIds: [],
-  instructorId: '',
-  theoryAttendanceRecorderId: '',
-  practicalAttendanceRecorderId: '',
-  durationMonths: 0,
-  theorySessionsPerWeek: 0,
-  practicalSessionsPerWeek: 0,
-  chaptersCount: 0,
-  yearWorkMarks: 0,
-  practicalMarks: 0,
-  writtenMarks: 0,
-  attendanceMarks: 0,
-  quizzesMarks: 0,
-  finalExamMarks: 0,
-};
-
-const AddTrainingContentScreen = ({ route, navigation }: any) => {
-  // Get programId from route params if available, but don't require it
-  const programId = route?.params?.programId;
-  const [formData, setFormData] = useState({
-    ...initialState,
-    programIds: programId ? [programId] : [],
+const EditTrainingContentScreen = ({ route, navigation }: any) => {
+  const { content } = route.params;
+  const [formData, setFormData] = useState<IEditTrainingContent>({
+    code: content?.code || '',
+    name: content?.name || '',
+    semester: content?.semester || ISemester.FIRST,
+    year: content?.year || Year.FIRST,
+    programIds: content?.programIds || [],
+    instructorId: content?.instructorId || '',
+    theoryAttendanceRecorderId: content?.theoryAttendanceRecorderId || '',
+    practicalAttendanceRecorderId: content?.practicalAttendanceRecorderId || '',
+    durationMonths: content?.durationMonths || 0,
+    theorySessionsPerWeek: content?.theorySessionsPerWeek || 0,
+    practicalSessionsPerWeek: content?.practicalSessionsPerWeek || 0,
+    chaptersCount: content?.chaptersCount || 0,
+    yearWorkMarks: content?.yearWorkMarks || 0,
+    practicalMarks: content?.practicalMarks || 0,
+    writtenMarks: content?.writtenMarks || 0,
+    attendanceMarks: content?.attendanceMarks || 0,
+    quizzesMarks: content?.quizzesMarks || 0,
+    finalExamMarks: content?.finalExamMarks || 0,
   });
+  
   const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState<Partial<IAddTrainingContent>>({});
+  const [errors, setErrors] = useState<Partial<IEditTrainingContent>>({});
   
   const [programs, setPrograms] = useState<Program[]>([]);
   const [instructors, setInstructors] = useState<User[]>([]);
@@ -82,8 +78,6 @@ const AddTrainingContentScreen = ({ route, navigation }: any) => {
   const [usersLoading, setUsersLoading] = useState(true);
   const [programsLoading, setProgramsLoading] = useState(true);
   const [initialLoad, setInitialLoad] = useState(true);
-  const [codeLoading, setCodeLoading] = useState(false);
-  const [codeGenerated, setCodeGenerated] = useState(false);
 
   useEffect(() => {
     const fetchPrograms = async () => {
@@ -91,18 +85,6 @@ const AddTrainingContentScreen = ({ route, navigation }: any) => {
         setProgramsLoading(true);
         const fetchedPrograms = await AuthService.getAllPrograms();
         setPrograms(fetchedPrograms);
-        
-        // If we have a programId from route, validate it exists
-        if (programId) {
-          const programExists = fetchedPrograms.some(p => p.id === programId);
-          if (!programExists) {
-            console.warn('Program ID from route not found in fetched programs:', programId);
-            // Clear the programId if it doesn't exist, but don't show alert
-            setFormData(prev => ({ ...prev, programIds: [] }));
-          } else {
-            console.log('Program ID from route validated successfully:', programId);
-          }
-        }
       } catch (error) {
         console.error('Error fetching programs:', error);
         Alert.alert('خطأ', 'فشل في تحميل قائمة البرامج التدريبية. يرجى المحاولة مرة أخرى');
@@ -113,36 +95,9 @@ const AddTrainingContentScreen = ({ route, navigation }: any) => {
     };
     fetchPrograms();
 
-    // Generate training content code automatically
-    const generateCode = async () => {
-      try {
-        setCodeLoading(true);
-        console.log('Starting code generation...');
-        const response = await AuthService.generateTrainingContentCode();
-        console.log('Code generation response:', response);
-        
-        if (response && response.code) {
-          console.log('Setting code:', response.code);
-          setFormData(prev => ({ ...prev, code: response.code }));
-          setCodeGenerated(true);
-          console.log('Code set successfully');
-        } else {
-          console.log('Invalid response structure:', response);
-          Alert.alert('خطأ', 'استجابة غير صحيحة من الخادم');
-        }
-      } catch (error: any) {
-        console.error('Error generating code:', error);
-        Alert.alert('خطأ', error.message || 'فشل في توليد كود المادة. يرجى المحاولة مرة أخرى');
-      } finally {
-        setCodeLoading(false);
-      }
-    };
-    generateCode();
-
     const fetchUsers = async () => {
       try {
         setUsersLoading(true);
-        // Assuming 'INSTRUCTOR' and 'RECORDER' are roles in your system
         const fetchedInstructors = await AuthService.getAllUsers('INSTRUCTOR');
         const fetchedRecorders = await AuthService.getAllUsers('RECORDER');
         setInstructors(fetchedInstructors);
@@ -156,7 +111,7 @@ const AddTrainingContentScreen = ({ route, navigation }: any) => {
     fetchUsers();
   }, []);
 
-  const handleInputChange = (field: keyof IAddTrainingContent, value: any) => {
+  const handleInputChange = (field: keyof IEditTrainingContent, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: undefined }));
@@ -164,7 +119,7 @@ const AddTrainingContentScreen = ({ route, navigation }: any) => {
   };
 
   const handleSubmit = async () => {
-    const newErrors: Partial<IAddTrainingContent> = {};
+    const newErrors: Partial<IEditTrainingContent> = {};
 
     if (!formData.code) newErrors.code = 'كود المادة مطلوب';
     if (!formData.name) newErrors.name = 'اسم المادة مطلوب';
@@ -183,21 +138,20 @@ const AddTrainingContentScreen = ({ route, navigation }: any) => {
 
     setLoading(true);
     try {
-      console.log('Sending form data:', JSON.stringify(formData, null, 2));
-      await AuthService.addTrainingContent(formData);
+      console.log('Sending update data:', JSON.stringify(formData, null, 2));
+      await AuthService.updateTrainingContent(content.id, formData);
       Toast.show({
         type: 'success',
         text1: 'تم بنجاح!',
-        text2: 'تمت إضافة المحتوى التدريبي بنجاح',
+        text2: 'تم تحديث المحتوى التدريبي بنجاح',
       });
       navigation.goBack();
     } catch (error: any) {
-      console.error('Error adding training content:', error);
+      console.error('Error updating training content:', error);
       
-      // عرض رسالة الخطأ في Alert
       Alert.alert(
         'خطأ',
-        error.message || 'حدث خطأ أثناء إضافة المحتوى',
+        error.message || 'حدث خطأ أثناء تحديث المحتوى',
         [
           {
             text: 'حسناً',
@@ -207,7 +161,6 @@ const AddTrainingContentScreen = ({ route, navigation }: any) => {
         { cancelable: true }
       );
       
-      // طباعة تفاصيل الخطأ في الكونسول لسهولة التصحيح
       if (error.response) {
         console.error('Error response data:', error.response.data);
         console.error('Error response status:', error.response.status);
@@ -223,7 +176,7 @@ const AddTrainingContentScreen = ({ route, navigation }: any) => {
   };
 
   const renderTextInput = (
-    field: keyof IAddTrainingContent,
+    field: keyof IEditTrainingContent,
     label: string,
     placeholder: string,
     keyboardType: 'default' | 'numeric' = 'default',
@@ -232,9 +185,6 @@ const AddTrainingContentScreen = ({ route, navigation }: any) => {
     <View style={styles.formGroup}>
       <Text style={styles.label}>{label}</Text>
       <View style={[styles.inputContainer, disabled && styles.inputDisabled]}>
-        {field === 'code' && codeLoading && (
-          <ActivityIndicator size="small" color="#1a237e" style={{ marginRight: 8 }} />
-        )}
         <TextInput
           style={[styles.input, disabled && styles.inputTextDisabled]}
           value={String(formData[field])}
@@ -250,7 +200,7 @@ const AddTrainingContentScreen = ({ route, navigation }: any) => {
   );
 
   const renderSelectBox = <T extends string>(
-    field: keyof IAddTrainingContent,
+    field: keyof IEditTrainingContent,
     label: string,
     enumObj: Record<string, T>,
     labels: Record<T, string>
@@ -285,14 +235,14 @@ const AddTrainingContentScreen = ({ route, navigation }: any) => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Icon name="arrow-forward-ios" size={24} color="#1F2937" />
         </TouchableOpacity>
-        <Text style={styles.title}>إضافة محتوى تدريبي</Text>
+        <Text style={styles.title}>تعديل محتوى تدريبي</Text>
         <View style={{ width: 44 }} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.formContainer}>
           <Text style={styles.sectionTitle}>معلومات المحتوى</Text>
-          {renderTextInput('code', 'كود المادة', codeLoading ? 'جاري توليد الكود...' : 'كود المادة', 'default', codeGenerated)}
+          {renderTextInput('code', 'كود المادة', 'كود المادة', 'default', true)}
           {renderTextInput('name', 'اسم المادة', 'ادخل اسم المادة')}
           {renderSelectBox('semester', 'الفصل الدراسي', ISemester, ISemesterArabic)}
           {renderSelectBox('year', 'السنة الدراسية', Year, YearArabic)}
@@ -352,7 +302,7 @@ const AddTrainingContentScreen = ({ route, navigation }: any) => {
             onPress={handleSubmit}
             disabled={loading}
           >
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>إضافة المحتوى</Text>}
+            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitButtonText}>تحديث المحتوى</Text>}
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -361,4 +311,4 @@ const AddTrainingContentScreen = ({ route, navigation }: any) => {
   );
 };
 
-export default AddTrainingContentScreen;
+export default EditTrainingContentScreen;

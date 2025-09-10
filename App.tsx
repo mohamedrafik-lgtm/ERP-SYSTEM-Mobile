@@ -10,6 +10,8 @@ import EditProgramScreen from './src/screens/EditProgramScreen';
 import StudentsListScreen from './src/screens/StudentsListScreen';
 import AddStudentScreen from './src/screens/AddStudentScreen';
 import AddTrainingContentScreen from './src/screens/AddTrainingContentScreen';
+import TrainingContentsScreen from './src/screens/TrainingContentsScreen';
+import EditTrainingContentScreen from './src/screens/EditTrainingContentScreen';
 import AuthService from './src/services/AuthService';
 import { enableScreens } from 'react-native-screens';
 enableScreens();
@@ -61,7 +63,9 @@ function App() {
           <Stack.Screen name="EditProgram" component={EditProgramScreen} />
           <Stack.Screen name="StudentsList" component={StudentsListScreen} />
                     <Stack.Screen name="AddStudent" component={AddStudentScreen} />
+          <Stack.Screen name="TrainingContents" component={TrainingContentsScreen} />
           <Stack.Screen name="AddTrainingContent" component={AddTrainingContentScreen} />
+          <Stack.Screen name="EditTrainingContent" component={EditTrainingContentScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
