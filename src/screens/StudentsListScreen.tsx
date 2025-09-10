@@ -13,6 +13,7 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import CustomMenu from '../components/CustomMenu';
 import ArabicSearchInput from '../components/ArabicSearchInput';
+import AuthService from '../services/AuthService';
 
 interface Student {
   id: string;
@@ -58,35 +59,42 @@ const StudentsListScreen = ({ navigation }: any) => {
   const fetchStudents = async (page: number = 1, search: string = '', status: string = 'all') => {
     try {
       setLoading(true);
-      
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: '10',
-        includeDetails: includeDetails.toString(),
-        ...(search && { search }),
-        ...(status !== 'all' && { status }),
-      });
+      const params = {
+        page,
+        limit: 10,
+        includeDetails,
+        search: search || undefined,
+        status: status !== 'all' ? status : undefined,
+      };
 
-      const response = await fetch(`http://10.0.2.2:4000/api/trainees?${params}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const result = await AuthService.getTrainees(params);
 
-      if (!response.ok) {
-        throw new Error('فشل في تحميل بيانات الطلاب');
+      setStudents(result.data || []);
+      if (result.pagination) {
+        setCurrentPage(result.pagination.currentPage);
+        setTotalPages(result.pagination.totalPages);
+        setTotalItems(result.pagination.totalItems);
+      } else {
+        // Fallback if pagination object is missing
+        setCurrentPage(1);
+        setTotalPages(1);
+        setTotalItems(result.data?.length || 0);
       }
-
-      const result: StudentsResponse = await response.json();
-      
-      setStudents(result.data);
-      setCurrentPage(result.pagination.currentPage);
-      setTotalPages(result.pagination.totalPages);
-      setTotalItems(result.pagination.totalItems);
     } catch (error) {
       console.error('Error fetching students:', error);
-      Alert.alert('خطأ', 'فشل في تحميل بيانات الطلاب');
+      const errorMessage = error instanceof Error ? error.message : 'فشل في تحميل بيانات الطلاب';
+
+      if (errorMessage.includes('401') || errorMessage.toLowerCase().includes('unauthorized')) {
+        Alert.alert('خطأ في المصادقة', 'انتهت صلاحية الجلسة، يرجى تسجيل الدخول مرة أخرى.');
+        AuthService.clearAuthData().then(() => {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Login' }],
+          });
+        });
+      } else {
+        Alert.alert('خطأ', errorMessage);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -196,12 +204,9 @@ const StudentsListScreen = ({ navigation }: any) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <CustomMenu navigation={navigation} activeRouteName="Students" />
+        <CustomMenu navigation={navigation} activeRouteName="StudentsList" />
         <Text style={styles.title}>قائمة الطلاب</Text>
-        <TouchableOpacity style={styles.addButton}>
-          <Icon name="add" size={24} color="#fff" />
-          <Text style={styles.addButtonText}>إضافة طالب</Text>
-        </TouchableOpacity>
+        <View style={{ width: 50 }} />
       </View>
 
       <ScrollView style={styles.content} refreshControl={
@@ -240,6 +245,11 @@ const StudentsListScreen = ({ navigation }: any) => {
           </ScrollView>
         </View>
 
+        <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate('AddStudent')}>
+          <Icon name="add" size={24} color="#fff" />
+          <Text style={styles.addButtonText}>إضافة طالب</Text>
+        </TouchableOpacity>
+
         {/* إحصائيات */}
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
@@ -268,6 +278,19 @@ const StudentsListScreen = ({ navigation }: any) => {
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#1a237e" />
             <Text style={styles.loadingText}>جاري تحميل الطلاب...</Text>
+          </View>
+        ) : students.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Icon name="people-outline" size={64} color="#d1d5db" />
+            <Text style={styles.emptyTitle}>لا يوجد طلاب</Text>
+            <Text style={styles.emptySubtitle}>لم يتم العثور على أي طلاب يطابقون معايير البحث الحالية.</Text>
+            <TouchableOpacity 
+              style={styles.retryButton}
+              onPress={() => fetchStudents(1, '', 'all')}
+            >
+              <Icon name="refresh" size={20} color="#1a237e" />
+              <Text style={styles.retryButtonText}>إعادة تحميل الكل</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           <View style={styles.studentsList}>
@@ -341,6 +364,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 20,
+    paddingTop: 50,
     backgroundColor: '#fff',
     elevation: 2,
     shadowColor: '#000',
@@ -356,10 +380,17 @@ const styles = StyleSheet.create({
   addButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#1a237e',
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 12,
     borderRadius: 8,
+    marginVertical: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
   },
   addButtonText: {
     color: '#fff',
@@ -530,6 +561,39 @@ const styles = StyleSheet.create({
   },
   activePageButtonText: {
     color: '#fff',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 20,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#6b7280',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    color: '#9ca3af',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#1a237e',
+  },
+  retryButtonText: {
+    color: '#1a237e',
+    fontWeight: '600',
+    marginLeft: 8,
   },
 });
 

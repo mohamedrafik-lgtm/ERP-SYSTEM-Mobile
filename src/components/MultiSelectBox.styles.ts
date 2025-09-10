@@ -1,0 +1,120 @@
+import { StyleSheet } from 'react-native';
+
+const COLORS = {
+  primary: '#3A86FF',
+  white: '#FFFFFF',
+  background: '#F7F8FC',
+  text: '#1F2937',
+  textSecondary: '#6B7280',
+  border: '#D1D5DB',
+  error: '#EF4444',
+  lightGray: '#F3F4F6',
+};
+
+export default StyleSheet.create({
+  container: {
+    marginBottom: 20,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: COLORS.textSecondary,
+    marginBottom: 8,
+    textAlign: 'right',
+  },
+  selectButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.lightGray,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  selectButtonText: {
+    fontSize: 16,
+    color: COLORS.textSecondary,
+  },
+  selectedItemsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 8,
+  },
+  selectedItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.primary,
+    borderRadius: 16,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  selectedItemText: {
+    color: COLORS.white,
+    fontSize: 14,
+    fontWeight: '500',
+    marginRight: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: 24,
+    width: '90%',
+    maxHeight: '80%',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  searchInput: {
+    backgroundColor: COLORS.lightGray,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+    fontSize: 16,
+    textAlign: 'right',
+  },
+  itemContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  itemText: {
+    flex: 1,
+    fontSize: 16,
+    color: COLORS.text,
+    textAlign: 'right',
+  },
+  closeButton: {
+    backgroundColor: COLORS.primary,
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  closeButtonText: {
+    color: COLORS.white,
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  errorText: {
+    color: COLORS.error,
+    fontSize: 12,
+    marginTop: 4,
+    textAlign: 'right',
+  },
+});

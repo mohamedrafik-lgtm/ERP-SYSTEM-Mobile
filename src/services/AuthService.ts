@@ -234,6 +234,224 @@ class AuthService {
       throw error;
     }
   }
+
+  // جلب قائمة الطلاب مع الفلاتر والترقيم
+  static async getTrainees(params: { page?: number; limit?: number; search?: string; programId?: string; status?: string; includeDetails?: boolean }): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      // بناء الـ query string
+      const queryParams = new URLSearchParams();
+      if (params.page) queryParams.append('page_string', params.page.toString());
+      if (params.limit) queryParams.append('limit_string', params.limit.toString());
+      if (params.search) queryParams.append('search_string', params.search);
+      if (params.programId) queryParams.append('programId_string', params.programId);
+      if (params.status) queryParams.append('status_string', params.status);
+      if (params.includeDetails) queryParams.append('includeDetails_string', 'true');
+
+      const response = await fetch(`http://10.0.2.2:4000/api/trainees?${queryParams.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching trainees in AuthService:', error);
+      throw error;
+    }
+  }
+
+  // إضافة طالب جديد
+  static async addTrainee(traineeData: any): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const response = await fetch(`http://10.0.2.2:4000/api/trainees`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(traineeData),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error adding trainee in AuthService:', error);
+      throw error;
+    }
+  }
+
+  // جلب كل البرامج التدريبية
+  static async getAllPrograms(): Promise<any[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const response = await fetch(`http://10.0.2.2:4000/api/programs`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching all programs in AuthService:', error);
+      throw error;
+    }
+  }
+
+  // جلب كل المستخدمين
+  static async getAllUsers(role?: string): Promise<any[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      let url = `http://10.0.2.2:4000/api/users`;
+      if (role) {
+        url += `?role=${role}`;
+      }
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching all users in AuthService:', error);
+      throw error;
+    }
+  }
+
+  // إضافة محتوى تدريبي جديد
+  static async addTrainingContent(contentData: any): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const response = await fetch(`http://10.0.2.2:4000/api/training-content`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(contentData),
+      });
+
+      if (!response.ok) {
+        try {
+          const errorData = await response.json();
+          // Throw error with message from API if available
+          throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+        } catch (e) {
+          // If parsing JSON fails, use the raw text response
+          const errorText = await response.text();
+          throw new Error(errorText || `HTTP error! status: ${response.status}`);
+        }
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error adding training content in AuthService:', error);
+      throw error;
+    }
+  }
+
+  static async generateTrainingContentCode(): Promise<{ code: string }> {
+    try {
+      // Try to get token using the old method first (for backward compatibility)
+      let token = await AsyncStorage.getItem('token');
+      
+      // If not found, try the new method
+      if (!token) {
+        token = await this.getToken();
+      }
+      
+      if (!token) {
+        throw new Error('لم يتم العثور على رمز المصادقة');
+      }
+
+      const response = await fetch(`http://10.0.2.2:4000/api/training-contents/generate-code`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.log('API Error Response:', errorData);
+        console.log('Response Status:', response.status);
+        
+        if (response.status === 401) {
+          await this.logout();
+          throw new Error('انتهت صلاحية الجلسة. يرجى تسجيل الدخول مرة أخرى');
+        }
+        throw new Error(`فشل في توليد كود المادة: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('API Response Data:', data);
+      
+      // Check if the response has the expected structure
+      if (!data || !data.code) {
+        console.log('Invalid response structure:', data);
+        throw new Error('استجابة غير صحيحة من الخادم');
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Error generating training content code:', error);
+      throw error;
+    }
+  }
 }
 
 export default AuthService;

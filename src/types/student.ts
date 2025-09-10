@@ -1,0 +1,44 @@
+import { EnrollmentType, MaritalStatus, ProgramType, Gender, Religion, EducationType, TraineeStatus, ClassLevel } from './enums';
+
+export interface IStudent {
+  id?: string;
+  nameAr: string;
+  nameEn: string;
+  enrollmentType: EnrollmentType;
+  maritalStatus: MaritalStatus;
+  nationalId: string;
+  idIssueDate: string;
+  idExpiryDate: string;
+  programType: ProgramType;
+  nationality: string;
+  gender: Gender;
+  birthDate: string;
+  residenceAddress: string;
+  photoUrl: string;
+  religion: Religion;
+  programId: number;
+  country: string;
+  governorate: string;
+  city: string;
+  address: string;
+  phone: string;
+  email: string;
+  guardianPhone: string;
+  guardianEmail: string;
+  guardianJob: string;
+  guardianRelation: string;
+  guardianNationalId: string;
+  landline: string;
+  whatsapp: string;
+  facebook: string;
+  educationType: EducationType;
+  schoolName: string;
+  graduationDate: string;
+  totalGrade: number;
+  gradePercentage: number;
+  traineeStatus: TraineeStatus;
+  classLevel: ClassLevel;
+  programName?: string;
+  enrollmentDate?: string;
+  lastActivity?: string;
+}

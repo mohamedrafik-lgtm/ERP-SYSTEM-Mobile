@@ -1,4 +1,35 @@
 {
   "name": "erpSystem",
-  "displayName": "erpSystem"
+  "displayName": "طيبة للتدريب",
+  "expo": {
+    "name": "طيبة للتدريب",
+    "slug": "taybah-training",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./img/502585454_122235753458244801_413190920156398012_n-removebg-preview.png",
+    "splash": {
+      "image": "./img/502585454_122235753458244801_413190920156398012_n-removebg-preview.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./img/502585454_122235753458244801_413190920156398012_n-removebg-preview.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "package": "com.taybah.training"
+    },
+    "web": {
+      "favicon": "./img/502585454_122235753458244801_413190920156398012_n-removebg-preview.png"
+    }
+  }
 }

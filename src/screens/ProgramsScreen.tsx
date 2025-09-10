@@ -341,6 +341,13 @@ const ProgramsScreen = ({ navigation }: any) => {
                   </View>
                   
                   <View style={styles.programActions}>
+                    <TouchableOpacity
+                      style={[styles.actionButton, styles.addContentButton]}
+                      onPress={() => navigation.navigate('AddTrainingContent', { programId: program.id })}
+                    >
+                      <Icon name="post-add" size={16} color="#10b981" />
+                      <Text style={styles.addContentButtonText}>محتوى</Text>
+                    </TouchableOpacity>
                     <TouchableOpacity 
                       style={styles.actionButton}
                       onPress={() => navigation.navigate('EditProgram', { program })}
@@ -571,6 +578,22 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: '#f3f4f6',
     marginLeft: 8,
+  },
+  addContentButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ecfdf5',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#10b981',
+  },
+  addContentButtonText: {
+    fontSize: 11,
+    color: '#10b981',
+    fontWeight: '600',
+    marginLeft: 4,
   },
   paginationContainer: {
     alignItems: 'center',

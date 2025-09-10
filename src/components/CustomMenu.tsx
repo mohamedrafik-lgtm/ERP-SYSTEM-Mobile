@@ -37,6 +37,18 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
       screen: 'AddProgram',
     },
     {
+      id: 'Students',
+      title: 'قائمة الطلاب',
+      icon: 'people',
+      screen: 'StudentsList',
+    },
+    {
+      id: 'AddTrainingContent',
+      title: 'إضافة محتوى تدريبي',
+      icon: 'post-add',
+      screen: 'AddTrainingContent',
+    },
+    {
       id: 'Logout',
       title: 'تسجيل الخروج',
       icon: 'logout',
