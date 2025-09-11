@@ -31,6 +31,7 @@ import EditUserScreen from './src/screens/EditUserScreen';
 import MarketersScreen from './src/screens/MarketersScreen';
 import AddMarketerScreen from './src/screens/AddMarketerScreen';
 import EditMarketerScreen from './src/screens/EditMarketerScreen';
+import TargetSettingScreen from './src/screens/TargetSettingScreen';
 import AuthService from './src/services/AuthService';
 import { enableScreens } from 'react-native-screens';
 enableScreens();
@@ -104,6 +105,7 @@ function App() {
           <Stack.Screen name="Marketers" component={MarketersScreen} />
           <Stack.Screen name="AddMarketer" component={AddMarketerScreen} />
           <Stack.Screen name="EditMarketer" component={EditMarketerScreen} />
+          <Stack.Screen name="TargetSetting" component={TargetSettingScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

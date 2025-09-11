@@ -1269,6 +1269,181 @@ class AuthService {
     }
   }
 
+  // Marketing Targets: Get marketing targets
+  static async getMarketingTargets(params?: import('../types/marketing').GetMarketingTargetsQuery): Promise<import('../types/marketing').MarketingTargetsResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const queryParams = new URLSearchParams();
+      if (params?.month) queryParams.append('month', params.month.toString());
+      if (params?.year) queryParams.append('year', params.year.toString());
+
+      const url = `http://10.0.2.2:4000/api/marketing/targets?${queryParams.toString()}`;
+      console.log('[AuthService] Fetching marketing targets from URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to fetch marketing targets: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching marketing targets:', error);
+      throw error;
+    }
+  }
+
+  // Marketing Targets: Create marketing target
+  static async createMarketingTarget(payload: import('../types/marketing').CreateMarketingTargetRequest): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      // الحصول على معلومات المستخدم الحالي
+      const user = await this.getUser();
+      const payloadWithUser = {
+        ...payload,
+        setById: user?.id || undefined, // إضافة معرف المستخدم الحالي
+      };
+
+      const url = `http://10.0.2.2:4000/api/marketing/targets`;
+      console.log('[AuthService] Creating marketing target with payload:', payloadWithUser);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payloadWithUser),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to create marketing target: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error creating marketing target:', error);
+      throw error;
+    }
+  }
+
+  // Marketing Targets: Update marketing target
+  static async updateMarketingTarget(id: number, payload: import('../types/marketing').UpdateMarketingTargetRequest): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = `http://10.0.2.2:4000/api/marketing/targets/${id}`;
+      console.log('[AuthService] Updating marketing target', id);
+
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to update marketing target: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error updating marketing target:', error);
+      throw error;
+    }
+  }
+
+  // Marketing Targets: Delete marketing target
+  static async deleteMarketingTarget(id: number): Promise<{ success: boolean } | any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = `http://10.0.2.2:4000/api/marketing/targets/${id}`;
+      console.log('[AuthService] Deleting marketing target', id);
+
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to delete marketing target: ${response.status}`);
+      }
+
+      try { return await response.json(); } catch { return { success: true }; }
+    } catch (error) {
+      console.error('[AuthService] Error deleting marketing target:', error);
+      throw error;
+    }
+  }
+
+  // Marketing Targets: Get marketing target stats
+  static async getMarketingTargetStats(params?: {
+    month?: number;
+    year?: number;
+  }): Promise<import('../types/marketing').MarketingTargetStats> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const queryParams = new URLSearchParams();
+      if (params?.month) queryParams.append('month', params.month.toString());
+      if (params?.year) queryParams.append('year', params.year.toString());
+
+      const url = `http://10.0.2.2:4000/api/marketing/targets/stats?${queryParams.toString()}`;
+      console.log('[AuthService] Fetching marketing target stats from URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to fetch marketing target stats: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching marketing target stats:', error);
+      throw error;
+    }
+  }
+
   // Get Safe Transactions
   static async getSafeTransactions(safeId: string): Promise<import('../types/student').ITransaction[]> {
     try {

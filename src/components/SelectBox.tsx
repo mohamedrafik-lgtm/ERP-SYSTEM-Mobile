@@ -25,7 +25,7 @@ function SelectBox<T>({
 }: SelectBoxProps<T>) {
   const [modalVisible, setModalVisible] = React.useState(false);
   
-  const selectedItem = items.find(item => item.value === selectedValue);
+  const selectedItem = items?.find(item => item.value === selectedValue);
   console.log('SelectBox: selectedValue:', selectedValue);
   console.log('SelectBox: selectedItem:', selectedItem);
   console.log('SelectBox: items:', items);
@@ -68,7 +68,7 @@ function SelectBox<T>({
               </TouchableOpacity>
             </View>
             <FlatList
-              data={items}
+              data={items || []}
               keyExtractor={(item, index) => index.toString()}
               renderItem={({ item }) => (
                 <TouchableOpacity
