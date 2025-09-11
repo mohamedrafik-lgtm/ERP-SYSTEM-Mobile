@@ -930,6 +930,108 @@ class AuthService {
     }
   }
 
+  // Permissions: Get roles with relations
+  static async getRoles(): Promise<import('../types/permissions').RolesResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = `http://10.0.2.2:4000/api/permissions/roles`;
+      console.log('[AuthService] Fetching roles from URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('[AuthService] Get roles response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[AuthService] Get roles failed:', response.status, errorText);
+        throw new Error(`Failed to fetch roles: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error fetching roles:', error);
+      throw error;
+    }
+  }
+
+  // Permissions: Get role by id
+  static async getRoleById(roleId: string): Promise<import('../types/permissions').RoleByIdResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = `http://10.0.2.2:4000/api/permissions/roles/${roleId}`;
+      console.log('[AuthService] Fetching role by id from URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('[AuthService] Get role by id response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('[AuthService] Get role by id failed:', response.status, errorText);
+        throw new Error(`Failed to fetch role: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error fetching role by id:', error);
+      throw error;
+    }
+  }
+
+  // Users: Create user
+  static async createUser(payload: import('../types/users').CreateUserRequest): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = `http://10.0.2.2:4000/api/users`;
+      console.log('[AuthService] Creating user');
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to create user: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error creating user:', error);
+      throw error;
+    }
+  }
+
   // Get Safe Transactions
   static async getSafeTransactions(safeId: string): Promise<import('../types/student').ITransaction[]> {
     try {

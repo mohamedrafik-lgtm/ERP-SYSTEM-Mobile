@@ -24,6 +24,18 @@ const DrawerMenu: React.FC<DrawerMenuProps> = ({ navigation, activeRouteName }) 
       screen: 'Home',
     },
     {
+      id: 'Permissions',
+      title: 'الصلاحيات',
+      icon: 'lock',
+      screen: 'Permissions',
+    },
+    {
+      id: 'AddUser',
+      title: 'إضافة مستخدم',
+      icon: 'person-add',
+      screen: 'AddUser',
+    },
+    {
       id: 'Students',
       title: 'الطلاب',
       icon: 'school',

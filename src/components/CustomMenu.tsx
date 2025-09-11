@@ -93,12 +93,26 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
       title: 'النظام',
       items: [
         {
+          id: 'Permissions',
+          title: 'الصلاحيات',
+          icon: 'lock',
+          screen: 'Permissions',
+          priority: 8,
+        },
+        {
+          id: 'AddUser',
+          title: 'إضافة مستخدم',
+          icon: 'person-add',
+          screen: 'AddUser',
+          priority: 8.5,
+        },
+        {
           id: 'Logout',
           title: 'تسجيل الخروج',
           icon: 'exit-to-app',
           screen: 'Login',
           isLogout: true,
-          priority: 8,
+          priority: 9,
         },
       ],
     },

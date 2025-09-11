@@ -22,6 +22,10 @@ import FeesScreen from './src/screens/FeesScreen';
 import AddFeeScreen from './src/screens/AddFeeScreen';
 import TraineePaymentsScreen from './src/screens/TraineePaymentsScreen';
 import TraineePaymentDetailsScreen from './src/screens/TraineePaymentDetailsScreen';
+import PermissionsScreen from './src/screens/PermissionsScreen';
+import RoleDetailsScreen from './src/screens/RoleDetailsScreen';
+import AddPermissionScreen from './src/screens/AddPermissionScreen';
+import AddUserScreen from './src/screens/AddUserScreen';
 import AuthService from './src/services/AuthService';
 import { enableScreens } from 'react-native-screens';
 enableScreens();
@@ -86,6 +90,10 @@ function App() {
           <Stack.Screen name="AddFeeScreen" component={AddFeeScreen} />
           <Stack.Screen name="TraineePayments" component={TraineePaymentsScreen} />
           <Stack.Screen name="TraineePaymentDetails" component={TraineePaymentDetailsScreen} />
+          <Stack.Screen name="Permissions" component={PermissionsScreen} />
+          <Stack.Screen name="RoleDetails" component={RoleDetailsScreen} />
+          <Stack.Screen name="AddPermission" component={AddPermissionScreen} />
+          <Stack.Screen name="AddUser" component={AddUserScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>
