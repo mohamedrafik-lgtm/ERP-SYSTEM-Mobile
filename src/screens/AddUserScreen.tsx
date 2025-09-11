@@ -1,13 +1,32 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import CustomMenu from '../components/CustomMenu';
+import SelectBox from '../components/SelectBox';
 import AuthService from '../services/AuthService';
+import type { RolesResponse } from '../types/permissions';
 import type { CreateUserRequest } from '../types/users';
 import Toast from 'react-native-toast-message';
 
 const AddUserScreen = ({ navigation }: any) => {
   const [form, setForm] = useState<CreateUserRequest>({ name: '', email: '', phone: '', password: '', roleId: undefined });
   const [submitting, setSubmitting] = useState(false);
+  const [rolesLoading, setRolesLoading] = useState(false);
+  const [roles, setRoles] = useState<RolesResponse>([]);
+
+  React.useEffect(() => {
+    const loadRoles = async () => {
+      try {
+        setRolesLoading(true);
+        const data = await AuthService.getRoles();
+        setRoles(data);
+      } catch (e) {
+        // ignore, toast on submit if needed
+      } finally {
+        setRolesLoading(false);
+      }
+    };
+    loadRoles();
+  }, []);
 
   const setField = (key: keyof CreateUserRequest, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -66,6 +85,15 @@ const AddUserScreen = ({ navigation }: any) => {
             <Text style={styles.label}>كلمة المرور</Text>
             <TextInput style={styles.input} secureTextEntry value={form.password} onChangeText={(t) => setField('password', t)} placeholder="******" />
           </View>
+
+          <SelectBox
+            label="الدور / الصلاحية"
+            selectedValue={form.roleId}
+            onValueChange={(v) => setField('roleId', v as string)}
+            items={roles.map(r => ({ value: r.id, label: r.displayName }))}
+            placeholder={rolesLoading ? 'جاري التحميل...' : 'اختر دور المستخدم (اختياري)'}
+            loading={rolesLoading}
+          />
 
           <TouchableOpacity style={[styles.submitBtn, submitting && styles.submitDisabled]} onPress={onSubmit} disabled={submitting}>
             {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>إضافة</Text>}

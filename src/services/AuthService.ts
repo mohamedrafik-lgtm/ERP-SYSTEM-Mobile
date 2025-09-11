@@ -1032,6 +1032,37 @@ class AuthService {
     }
   }
 
+  // Users: Get all users with relations
+  static async getUsers(): Promise<import('../types/users').UsersResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = `http://10.0.2.2:4000/api/users`;
+      console.log('[AuthService] Fetching users');
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to fetch users: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching users:', error);
+      throw error;
+    }
+  }
+
   // Get Safe Transactions
   static async getSafeTransactions(safeId: string): Promise<import('../types/student').ITransaction[]> {
     try {

@@ -48,6 +48,13 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
           priority: 2,
         },
         {
+          id: 'UsersList',
+          title: 'المستخدمون',
+          icon: 'group',
+          screen: 'UsersList',
+          priority: 2.5,
+        },
+        {
           id: 'Programs',
           title: 'البرامج التدريبية',
           icon: 'school',
