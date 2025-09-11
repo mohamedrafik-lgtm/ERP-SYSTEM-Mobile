@@ -10,6 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import CustomMenu from '../components/CustomMenu';
 import AuthService from '../services/AuthService';
 import { ITraineeFee, FeeType, PaymentStatus } from '../types/student';
 
@@ -179,12 +180,7 @@ const FeesScreen = ({ navigation }: FeesScreenProps) => {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.menuButton}
-            onPress={() => navigation.openDrawer()}
-          >
-            <Icon name="menu" size={24} color="#1a237e" />
-          </TouchableOpacity>
+          <CustomMenu navigation={navigation} activeRouteName="Fees" />
           <View style={styles.headerContent}>
             <Text style={styles.headerTitle}>الرسوم</Text>
             <Text style={styles.headerSubtitle}>إدارة الرسوم المالية</Text>
@@ -201,12 +197,7 @@ const FeesScreen = ({ navigation }: FeesScreenProps) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.menuButton}
-          onPress={() => navigation.openDrawer()}
-        >
-          <Icon name="menu" size={24} color="#1a237e" />
-        </TouchableOpacity>
+        <CustomMenu navigation={navigation} activeRouteName="Fees" />
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>الرسوم</Text>
           <Text style={styles.headerSubtitle}>إدارة الرسوم المالية</Text>

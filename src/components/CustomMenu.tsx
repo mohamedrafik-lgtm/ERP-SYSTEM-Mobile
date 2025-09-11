@@ -25,6 +25,12 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
 
   const menuItems = [
     {
+      id: 'Home',
+      title: 'الرئيسية',
+      icon: 'home',
+      screen: 'Home',
+    },
+    {
       id: 'Programs',
       title: 'البرامج التدريبية',
       icon: 'book',

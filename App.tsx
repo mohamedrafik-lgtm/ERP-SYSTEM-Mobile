@@ -4,6 +4,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import TestLogin from './src/screens/LoginScreen';
+import HomeScreen from './src/screens/HomeScreen';
 import ProgramsScreen from './src/screens/ProgramsScreen';
 import AddProgramScreen from './src/screens/AddProgramScreen';
 import EditProgramScreen from './src/screens/EditProgramScreen';
@@ -61,10 +62,11 @@ function App() {
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <NavigationContainer>
         <Stack.Navigator 
-          initialRouteName={isAuthenticated ? "Programs" : "Login"} 
+          initialRouteName={isAuthenticated ? "Home" : "Login"} 
           screenOptions={{ headerShown: false }}
         >
           <Stack.Screen name="Login" component={TestLogin} />
+          <Stack.Screen name="Home" component={HomeScreen} />
           <Stack.Screen name="Programs" component={ProgramsScreen} />
           <Stack.Screen name="AddProgram" component={AddProgramScreen} />
           <Stack.Screen name="EditProgram" component={EditProgramScreen} />
