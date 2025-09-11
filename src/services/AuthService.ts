@@ -1143,6 +1143,132 @@ class AuthService {
     }
   }
 
+  // Marketing: Get marketing employees
+  static async getMarketingEmployees(): Promise<import('../types/marketing').MarketingEmployeesResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = `http://10.0.2.2:4000/api/marketing/employees`;
+      console.log('[AuthService] Fetching marketing employees');
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to fetch marketing employees: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching marketing employees:', error);
+      throw error;
+    }
+  }
+
+  // Marketing: Create marketing employee
+  static async createMarketingEmployee(payload: import('../types/marketing').CreateMarketingEmployeeRequest): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = `http://10.0.2.2:4000/api/marketing/employees`;
+      console.log('[AuthService] Creating marketing employee');
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to create marketing employee: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error creating marketing employee:', error);
+      throw error;
+    }
+  }
+
+  // Marketing: Update marketing employee (PUT)
+  static async updateMarketingEmployee(id: number | string, payload: import('../types/marketing').UpdateMarketingEmployeeRequest): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = `http://10.0.2.2:4000/api/marketing/employees/${id}`;
+      console.log('[AuthService] Updating marketing employee', id);
+
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to update marketing employee: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error updating marketing employee:', error);
+      throw error;
+    }
+  }
+
+  // Marketing: Delete marketing employee
+  static async deleteMarketingEmployee(id: number | string): Promise<{ success: boolean } | any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = `http://10.0.2.2:4000/api/marketing/employees/${id}`;
+      console.log('[AuthService] Deleting marketing employee', id);
+
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to delete marketing employee: ${response.status}`);
+      }
+
+      try { return await response.json(); } catch { return { success: true }; }
+    } catch (error) {
+      console.error('[AuthService] Error deleting marketing employee:', error);
+      throw error;
+    }
+  }
+
   // Get Safe Transactions
   static async getSafeTransactions(safeId: string): Promise<import('../types/student').ITransaction[]> {
     try {

@@ -48,6 +48,12 @@ const DrawerMenu: React.FC<DrawerMenuProps> = ({ navigation, activeRouteName }) 
       screen: 'UsersList',
     },
     {
+      id: 'Marketers',
+      title: 'المسوقون',
+      icon: 'campaign',
+      screen: 'Marketers',
+    },
+    {
       id: 'Courses',
       title: 'الدورات',
       icon: 'book',
