@@ -48,7 +48,7 @@ class AuthService {
         return null;
       }
 
-      const expires = parseInt(expiresAt[1]);
+      const expires = parseInt(expiresAt[1], 10);
       
       // التحقق من انتهاء صلاحية الـ token
       if (Date.now() > expires) {
@@ -117,7 +117,7 @@ class AuthService {
       const expiresAt = await AsyncStorage.getItem(this.EXPIRES_KEY);
       if (!expiresAt) return true;
       
-      return Date.now() > parseInt(expiresAt);
+      return Date.now() > parseInt(expiresAt, 10);
     } catch (error) {
       console.error('Error checking token expiration:', error);
       return true;
@@ -736,6 +736,67 @@ class AuthService {
       return data;
     } catch (error) {
       console.error('[AuthService] Error creating safe:', error);
+      throw error;
+    }
+  }
+
+  // Get Trainee Payments
+  static async getTraineePayments(params?: { 
+    page?: number; 
+    limit?: number; 
+    search?: string; 
+    status?: string;
+    traineeId?: number;
+    feeId?: number;
+  }): Promise<import('../types/student').ITraineePaymentsResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      // بناء الـ query string
+      const queryParams = new URLSearchParams();
+      if (params?.page) queryParams.append('page', params.page.toString());
+      if (params?.limit) queryParams.append('limit', params.limit.toString());
+      if (params?.search) queryParams.append('search', params.search);
+      if (params?.status) queryParams.append('status', params.status);
+      if (params?.traineeId) queryParams.append('traineeId', params.traineeId.toString());
+      if (params?.feeId) queryParams.append('feeId', params.feeId.toString());
+
+      const url = `http://10.0.2.2:4000/api/finances/trainee-payments?${queryParams.toString()}`;
+      console.log('Fetching trainee payments from URL:', url);
+      console.log('Using token:', token.substring(0, 20) + '...');
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
+      let data;
+      try {
+        data = await response.json();
+        console.log('Response data:', data);
+      } catch (parseError) {
+        console.error('Error parsing JSON response:', parseError);
+        const textResponse = await response.text();
+        console.log('Raw response:', textResponse);
+        throw new Error(`Invalid JSON response: ${textResponse}`);
+      }
+
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching trainee payments in AuthService:', error);
       throw error;
     }
   }

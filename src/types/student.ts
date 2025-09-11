@@ -340,6 +340,64 @@ export interface ITraineeFee {
 // Response type
 export type ITraineeFeesResponse = ITraineeFee[];
 
+// Trainee Payment Response Types
+export interface TraineePaymentResponse {
+  id: number;                    // معرف الدفعة
+  amount: number;                // المبلغ المطلوب دفعه
+  status: PaymentStatus;         // حالة الدفع
+  paidAmount: number;            // المبلغ المدفوع فعلياً
+  paidAt?: string;               // تاريخ الدفع (ISO string)
+  paidById?: string;             // معرف المستخدم الذي سجل الدفع
+  notes?: string;                // ملاحظات
+  createdAt: string;             // تاريخ الإنشاء (ISO string)
+  updatedAt: string;             // تاريخ التحديث (ISO string)
+  
+  // بيانات المتدرب
+  trainee: {
+    id: number;
+    nameAr: string;              // الاسم بالعربية
+    nameEn: string;              // الاسم بالإنجليزية
+    nationalId: string;          // الرقم القومي
+    phone: string;               // رقم الهاتف
+    email?: string;              // البريد الإلكتروني
+    gender: Gender;              // الجنس
+    traineeStatus: TraineeStatus; // حالة المتدرب
+    programId: number;           // معرف البرنامج
+  };
+  
+  // بيانات الرسوم
+  fee: {
+    id: number;
+    name: string;                // اسم الرسوم
+    amount: number;              // قيمة الرسوم
+    type: FeeType;               // نوع الرسوم
+    academicYear: string;        // العام الدراسي
+    allowMultipleApply: boolean; // السماح بتطبيق متعدد
+    programId: number;           // معرف البرنامج
+    safeId: string;              // معرف الخزينة
+    isApplied: boolean;          // حالة التطبيق
+    appliedAt?: string;          // تاريخ التطبيق (ISO string)
+    appliedById?: string;        // معرف من طبق الرسوم
+    createdAt: string;           // تاريخ الإنشاء (ISO string)
+    updatedAt: string;           // تاريخ التحديث (ISO string)
+  };
+  
+  // بيانات الخزينة
+  safe: {
+    id: string;
+    name: string;                // اسم الخزينة
+    description?: string;        // وصف الخزينة
+    category: SafeCategory;      // تصنيف الخزينة
+    balance: number;             // الرصيد الحالي
+    currency: string;            // العملة
+    isActive: boolean;           // حالة الحساب
+    createdAt: string;           // تاريخ الإنشاء (ISO string)
+    updatedAt: string;           // تاريخ التحديث (ISO string)
+  };
+}
+
+export type ITraineePaymentsResponse = TraineePaymentResponse[];
+
 export interface CreateTraineeFeePayload {
   name: string;                    // اسم الرسوم (مطلوب)
   amount: number;                  // قيمة الرسوم (مطلوب، أكبر من 0)

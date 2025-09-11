@@ -38,6 +38,8 @@ import {
   TraineeStatusArabic,
   Year,
   YearArabic,
+  ClassLevel,
+  ClassLevelArabic,
 } from '../types/enums';
 
 interface StudentFormData {
