@@ -55,6 +55,12 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
       screen: 'AddTrainingContent',
     },
     {
+      id: 'Treasury',
+      title: 'الخزائن',
+      icon: 'inventory',
+      screen: 'Treasury',
+    },
+    {
       id: 'Logout',
       title: 'تسجيل الخروج',
       icon: 'logout',
