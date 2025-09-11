@@ -27,6 +27,8 @@ interface AddFeeScreenProps {
 
 const AddFeeScreen = ({ navigation }: AddFeeScreenProps) => {
   const [loading, setLoading] = useState(false);
+  const [programsLoading, setProgramsLoading] = useState(true);
+  const [safesLoading, setSafesLoading] = useState(true);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [safes, setSafes] = useState<ISafe[]>([]);
   const [formData, setFormData] = useState<CreateTraineeFeePayload>({
@@ -61,19 +63,31 @@ const AddFeeScreen = ({ navigation }: AddFeeScreenProps) => {
 
   const fetchPrograms = async () => {
     try {
+      setProgramsLoading(true);
+      console.log('Fetching programs...');
       const data = await AuthService.getAllPrograms();
+      console.log('Fetched programs:', data);
       setPrograms(data);
     } catch (error) {
       console.error('Error fetching programs:', error);
+      Alert.alert('خطأ', 'فشل في تحميل البرامج التدريبية');
+    } finally {
+      setProgramsLoading(false);
     }
   };
 
   const fetchSafes = async () => {
     try {
+      setSafesLoading(true);
+      console.log('Fetching safes...');
       const data = await AuthService.getAllSafes();
+      console.log('Fetched safes:', data);
       setSafes(data);
     } catch (error) {
       console.error('Error fetching safes:', error);
+      Alert.alert('خطأ', 'فشل في تحميل الخزائن');
+    } finally {
+      setSafesLoading(false);
     }
   };
 
@@ -141,6 +155,9 @@ const AddFeeScreen = ({ navigation }: AddFeeScreenProps) => {
   };
 
   const handleInputChange = (field: string, value: any) => {
+    console.log(`Updating ${field}:`, value);
+    console.log('Current formData:', formData);
+    
     setFormData({
       ...formData,
       [field]: value,
@@ -171,17 +188,33 @@ const AddFeeScreen = ({ navigation }: AddFeeScreenProps) => {
   };
 
   const getProgramOptions = () => {
-    return programs.map(program => ({
-      value: program.id,
-      label: program.nameAr,
-    }));
+    console.log('Getting program options, programs:', programs);
+    console.log('Programs length:', programs.length);
+    
+    if (programs.length === 0) {
+      console.log('No programs available');
+      return [];
+    }
+    
+    const options = programs.map(program => {
+      console.log('Mapping program:', program);
+      return {
+        value: program.id,
+        label: program.nameAr,
+      };
+    });
+    console.log('Program options:', options);
+    return options;
   };
 
   const getSafeOptions = () => {
-    return safes.map(safe => ({
+    console.log('Getting safe options, safes:', safes);
+    const options = safes.map(safe => ({
       value: safe.id,
       label: safe.name,
     }));
+    console.log('Safe options:', options);
+    return options;
   };
 
   return (
@@ -260,12 +293,20 @@ const AddFeeScreen = ({ navigation }: AddFeeScreenProps) => {
           <View style={styles.formGroup}>
             <SelectBox
               label="البرنامج التدريبي *"
-              selectedValue={formData.programId.toString()}
-              onValueChange={(value) => handleInputChange('programId', Number(value))}
+              selectedValue={formData.programId}
+              onValueChange={(value) => {
+                console.log('Program selected:', value);
+                handleInputChange('programId', value);
+              }}
               items={getProgramOptions()}
               placeholder="اختر البرنامج التدريبي"
               error={errors.programId}
+              loading={programsLoading}
             />
+            {/* Debug Info */}
+            <Text style={styles.debugText}>
+              Selected Program ID: {formData.programId} | Programs Count: {programs.length}
+            </Text>
           </View>
 
           {/* Safe */}
@@ -273,11 +314,19 @@ const AddFeeScreen = ({ navigation }: AddFeeScreenProps) => {
             <SelectBox
               label="الخزينة *"
               selectedValue={formData.safeId}
-              onValueChange={(value) => handleInputChange('safeId', value)}
+              onValueChange={(value) => {
+                console.log('Safe selected:', value);
+                handleInputChange('safeId', value);
+              }}
               items={getSafeOptions()}
               placeholder="اختر الخزينة"
               error={errors.safeId}
+              loading={safesLoading}
             />
+            {/* Debug Info */}
+            <Text style={styles.debugText}>
+              Selected Safe ID: {formData.safeId} | Safes Count: {safes.length}
+            </Text>
           </View>
 
           {/* Allow Multiple Apply */}
@@ -296,6 +345,13 @@ const AddFeeScreen = ({ navigation }: AddFeeScreenProps) => {
                 thumbColor={formData.allowMultipleApply ? '#fff' : '#f3f4f6'}
               />
             </View>
+          </View>
+
+          {/* Debug Form Data */}
+          <View style={styles.formGroup}>
+            <Text style={styles.debugText}>
+              Form Data: {JSON.stringify(formData, null, 2)}
+            </Text>
           </View>
 
           {/* Submit Button */}
@@ -458,6 +514,12 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginLeft: 8,
+  },
+  debugText: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
 });
 

@@ -26,6 +26,9 @@ function SelectBox<T>({
   const [modalVisible, setModalVisible] = React.useState(false);
   
   const selectedItem = items.find(item => item.value === selectedValue);
+  console.log('SelectBox: selectedValue:', selectedValue);
+  console.log('SelectBox: selectedItem:', selectedItem);
+  console.log('SelectBox: items:', items);
 
   return (
     <View style={styles.container}>
@@ -71,6 +74,9 @@ function SelectBox<T>({
                 <TouchableOpacity
                   style={styles.option}
                   onPress={() => {
+                    console.log('SelectBox: Item selected:', item);
+                    console.log('SelectBox: Value:', item.value);
+                    console.log('SelectBox: Label:', item.label);
                     onValueChange(item.value);
                     setModalVisible(false);
                   }}
