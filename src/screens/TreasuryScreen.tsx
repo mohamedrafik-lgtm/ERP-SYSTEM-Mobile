@@ -7,8 +7,11 @@ import {
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import AuthService from '../services/AuthService';
+import { ISafe, SafeCategory, ITransaction, TransactionType } from '../types/student';
 
 interface TreasuryScreenProps {
   navigation: any;
@@ -16,144 +19,159 @@ interface TreasuryScreenProps {
 
 const TreasuryScreen = ({ navigation }: TreasuryScreenProps) => {
   const [activeTab, setActiveTab] = useState<'treasuries' | 'operations'>('treasuries');
-  const [selectedTreasury, setSelectedTreasury] = useState<any>(null);
+  const [selectedTreasury, setSelectedTreasury] = useState<ISafe | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [treasuries, setTreasuries] = useState<ISafe[]>([]);
+  const [transactions, setTransactions] = useState<ITransaction[]>([]);
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
 
-  // Mock data for now - will be replaced with API calls
-  const [treasuries] = useState([
-    {
-      id: 1,
-      name: 'الخزينة الرئيسية',
-      balance: 50000,
-      currency: 'EGP',
-      type: 'main',
-      status: 'active',
-    },
-    {
-      id: 2,
-      name: 'خزينة الطوارئ',
-      balance: 15000,
-      currency: 'EGP',
-      type: 'emergency',
-      status: 'active',
-    },
-    {
-      id: 3,
-      name: 'خزينة المشتريات',
-      balance: 25000,
-      currency: 'EGP',
-      type: 'purchases',
-      status: 'active',
-    },
-  ]);
+  useEffect(() => {
+    fetchTreasuries();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [operations] = useState([
-    {
-      id: 1,
-      treasuryId: 1,
-      type: 'deposit',
-      amount: 10000,
-      description: 'إيداع من بيع الكورسات',
-      date: '2024-01-15',
-      status: 'completed',
-    },
-    {
-      id: 2,
-      treasuryId: 1,
-      type: 'withdrawal',
-      amount: 5000,
-      description: 'سحب لشراء مواد تدريبية',
-      date: '2024-01-14',
-      status: 'completed',
-    },
-    {
-      id: 3,
-      treasuryId: 2,
-      type: 'deposit',
-      amount: 3000,
-      description: 'إيداع طوارئ',
-      date: '2024-01-13',
-      status: 'completed',
-    },
-  ]);
+  const fetchTreasuries = async () => {
+    try {
+      setLoading(true);
+      const data = await AuthService.getAllSafes();
+      setTreasuries(data);
+    } catch (error) {
+      console.error('Error fetching treasuries:', error);
+      const errorMessage = error instanceof Error ? error.message : 'فشل في تحميل الخزائن';
+      
+      if (errorMessage.includes('401') || errorMessage.toLowerCase().includes('unauthorized')) {
+        Alert.alert('خطأ في المصادقة', 'انتهت صلاحية الجلسة، يرجى تسجيل الدخول مرة أخرى.');
+        AuthService.clearAuthData().then(() => {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Login' }],
+          });
+        });
+      } else {
+        Alert.alert('خطأ', errorMessage);
+      }
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    // Simulate API call
-    setTimeout(() => {
-      setRefreshing(false);
-    }, 1000);
+    await fetchTreasuries();
+    
+    // إذا كان هناك خزينة محددة، قم بتحديث معاملاتها أيضاً
+    if (selectedTreasury) {
+      await fetchTransactions(selectedTreasury.id);
+    }
   };
 
-  const handleTreasurySelect = (treasury: any) => {
+  const fetchTransactions = async (safeId: string) => {
+    try {
+      setTransactionsLoading(true);
+      const data = await AuthService.getSafeTransactions(safeId);
+      setTransactions(data);
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+      const errorMessage = error instanceof Error ? error.message : 'فشل في تحميل المعاملات';
+      
+      if (errorMessage.includes('401') || errorMessage.toLowerCase().includes('unauthorized')) {
+        Alert.alert('خطأ في المصادقة', 'انتهت صلاحية الجلسة، يرجى تسجيل الدخول مرة أخرى.');
+        AuthService.clearAuthData().then(() => {
+          navigation.reset({
+            index: 0,
+            routes: [{ name: 'Login' }],
+          });
+        });
+      } else {
+        Alert.alert('خطأ', errorMessage);
+      }
+    } finally {
+      setTransactionsLoading(false);
+    }
+  };
+
+  const handleTreasurySelect = async (treasury: ISafe) => {
     setSelectedTreasury(treasury);
     setActiveTab('operations');
+    await fetchTransactions(treasury.id);
   };
 
   const handleBackToTreasuries = () => {
     setSelectedTreasury(null);
     setActiveTab('treasuries');
+    setTransactions([]);
   };
 
-  // Filter operations by selected treasury
-  const filteredOperations = selectedTreasury 
-    ? operations.filter(op => op.treasuryId === selectedTreasury.id)
-    : [];
-
-  const getTreasuryTypeLabel = (type: string) => {
-    switch (type) {
-      case 'main':
-        return 'رئيسية';
-      case 'emergency':
-        return 'طوارئ';
-      case 'purchases':
-        return 'مشتريات';
+  const getTreasuryCategoryLabel = (category: SafeCategory) => {
+    switch (category) {
+      case 'DEBT':
+        return 'ديون';
+      case 'INCOME':
+        return 'إيرادات';
+      case 'EXPENSE':
+        return 'مصروفات';
+      case 'ASSETS':
+        return 'أصول';
+      case 'UNSPECIFIED':
+        return 'غير محدد';
       default:
-        return type;
+        return category;
     }
   };
 
-  const getTreasuryTypeColor = (type: string) => {
-    switch (type) {
-      case 'main':
-        return '#1a237e';
-      case 'emergency':
+  const getTreasuryCategoryColor = (category: SafeCategory) => {
+    switch (category) {
+      case 'DEBT':
         return '#dc2626';
-      case 'purchases':
+      case 'INCOME':
         return '#059669';
+      case 'EXPENSE':
+        return '#f59e0b';
+      case 'ASSETS':
+        return '#1a237e';
+      case 'UNSPECIFIED':
+        return '#6b7280';
       default:
         return '#666';
     }
   };
 
-  const getOperationTypeLabel = (type: string) => {
+  const getTransactionTypeLabel = (type: TransactionType) => {
     switch (type) {
-      case 'deposit':
+      case 'DEPOSIT':
         return 'إيداع';
-      case 'withdrawal':
+      case 'WITHDRAW':
         return 'سحب';
-      case 'transfer':
+      case 'TRANSFER':
         return 'تحويل';
+      case 'FEE':
+        return 'رسوم';
+      case 'PAYMENT':
+        return 'دفع';
       default:
         return type;
     }
   };
 
-  const getOperationTypeColor = (type: string) => {
+  const getTransactionTypeColor = (type: TransactionType) => {
     switch (type) {
-      case 'deposit':
+      case 'DEPOSIT':
         return '#059669';
-      case 'withdrawal':
+      case 'WITHDRAW':
         return '#dc2626';
-      case 'transfer':
+      case 'TRANSFER':
         return '#1a237e';
+      case 'FEE':
+        return '#f59e0b';
+      case 'PAYMENT':
+        return '#3b82f6';
       default:
         return '#666';
     }
   };
 
-  const renderTreasuryCard = (treasury: any) => (
+  const renderTreasuryCard = (treasury: ISafe) => (
     <TouchableOpacity 
       key={treasury.id} 
       style={styles.treasuryCard}
@@ -162,17 +180,23 @@ const TreasuryScreen = ({ navigation }: TreasuryScreenProps) => {
       <View style={styles.treasuryHeader}>
         <View style={styles.treasuryInfo}>
           <Text style={styles.treasuryName}>{treasury.name}</Text>
-          <View style={[styles.typeBadge, { backgroundColor: getTreasuryTypeColor(treasury.type) + '20' }]}>
-            <Text style={[styles.typeText, { color: getTreasuryTypeColor(treasury.type) }]}>
-              {getTreasuryTypeLabel(treasury.type)}
+          <View style={[styles.typeBadge, { backgroundColor: getTreasuryCategoryColor(treasury.category) + '20' }]}>
+            <Text style={[styles.typeText, { color: getTreasuryCategoryColor(treasury.category) }]}>
+              {getTreasuryCategoryLabel(treasury.category)}
             </Text>
           </View>
         </View>
         <View style={styles.treasuryActions}>
-          <Icon name="account-balance" size={32} color={getTreasuryTypeColor(treasury.type)} />
+          <Icon name="account-balance" size={32} color={getTreasuryCategoryColor(treasury.category)} />
           <Icon name="arrow-forward" size={20} color="#666" style={styles.arrowIcon} />
         </View>
       </View>
+      
+      {treasury.description && (
+        <View style={styles.descriptionContainer}>
+          <Text style={styles.descriptionText}>{treasury.description}</Text>
+        </View>
+      )}
       
       <View style={styles.treasuryDetails}>
         <View style={styles.balanceContainer}>
@@ -182,31 +206,45 @@ const TreasuryScreen = ({ navigation }: TreasuryScreenProps) => {
           </Text>
         </View>
         <View style={styles.statusContainer}>
-          <View style={[styles.statusDot, { backgroundColor: treasury.status === 'active' ? '#10b981' : '#dc2626' }]} />
+          <View style={[styles.statusDot, { backgroundColor: treasury.isActive ? '#10b981' : '#dc2626' }]} />
           <Text style={styles.statusText}>
-            {treasury.status === 'active' ? 'نشطة' : 'غير نشطة'}
+            {treasury.isActive ? 'نشطة' : 'غير نشطة'}
           </Text>
         </View>
       </View>
       
       <View style={styles.treasuryFooter}>
+        <TouchableOpacity 
+          style={styles.addTransactionButton}
+          onPress={() => navigation.navigate('AddTransactionScreen', { safe: treasury })}
+        >
+          <Icon name="add" size={16} color="#1a237e" />
+          <Text style={styles.addTransactionButtonText}>إنشاء معاملة</Text>
+        </TouchableOpacity>
         <Text style={styles.tapToViewText}>اضغط لعرض المعاملات</Text>
       </View>
     </TouchableOpacity>
   );
 
-  const renderOperationCard = (operation: any) => (
-    <View key={operation.id} style={styles.operationCard}>
+  const renderTransactionCard = (transaction: ITransaction) => (
+    <View key={transaction.id} style={styles.operationCard}>
       <View style={styles.operationHeader}>
         <View style={styles.operationInfo}>
-          <Text style={styles.operationDescription}>{operation.description}</Text>
-          <Text style={styles.operationDate}>
-            {new Date(operation.date).toLocaleDateString('ar-EG')}
+          <Text style={styles.operationDescription}>
+            {transaction.description || 'معاملة مالية'}
           </Text>
+          <Text style={styles.operationDate}>
+            {new Date(transaction.createdAt).toLocaleDateString('ar-EG')}
+          </Text>
+          {transaction.reference && (
+            <Text style={styles.operationReference}>
+              المرجع: {transaction.reference}
+            </Text>
+          )}
         </View>
-        <View style={[styles.operationTypeBadge, { backgroundColor: getOperationTypeColor(operation.type) + '20' }]}>
-          <Text style={[styles.operationTypeText, { color: getOperationTypeColor(operation.type) }]}>
-            {getOperationTypeLabel(operation.type)}
+        <View style={[styles.operationTypeBadge, { backgroundColor: getTransactionTypeColor(transaction.type) + '20' }]}>
+          <Text style={[styles.operationTypeText, { color: getTransactionTypeColor(transaction.type) }]}>
+            {getTransactionTypeLabel(transaction.type)}
           </Text>
         </View>
       </View>
@@ -214,11 +252,11 @@ const TreasuryScreen = ({ navigation }: TreasuryScreenProps) => {
       <View style={styles.operationDetails}>
         <Text style={[
           styles.operationAmount,
-          { color: operation.type === 'deposit' ? '#059669' : '#dc2626' }
+          { color: ['DEPOSIT', 'PAYMENT'].includes(transaction.type) ? '#059669' : '#dc2626' }
         ]}>
-          {operation.type === 'deposit' ? '+' : '-'}{operation.amount.toLocaleString()} EGP
+          {['DEPOSIT', 'PAYMENT'].includes(transaction.type) ? '+' : '-'}{transaction.amount.toLocaleString()} {selectedTreasury?.currency || 'EGP'}
         </Text>
-        <View style={[styles.statusDot, { backgroundColor: operation.status === 'completed' ? '#10b981' : '#f59e0b' }]} />
+        <View style={[styles.statusDot, { backgroundColor: '#10b981' }]} />
       </View>
     </View>
   );
@@ -289,9 +327,9 @@ const TreasuryScreen = ({ navigation }: TreasuryScreenProps) => {
               {selectedTreasury.balance.toLocaleString()} {selectedTreasury.currency}
             </Text>
           </View>
-          <View style={[styles.selectedTreasuryTypeBadge, { backgroundColor: getTreasuryTypeColor(selectedTreasury.type) + '20' }]}>
-            <Text style={[styles.selectedTreasuryTypeText, { color: getTreasuryTypeColor(selectedTreasury.type) }]}>
-              {getTreasuryTypeLabel(selectedTreasury.type)}
+          <View style={[styles.selectedTreasuryTypeBadge, { backgroundColor: getTreasuryCategoryColor(selectedTreasury.category) + '20' }]}>
+            <Text style={[styles.selectedTreasuryTypeText, { color: getTreasuryCategoryColor(selectedTreasury.category) }]}>
+              {getTreasuryCategoryLabel(selectedTreasury.category)}
             </Text>
           </View>
         </View>
@@ -309,26 +347,51 @@ const TreasuryScreen = ({ navigation }: TreasuryScreenProps) => {
           />
         }
       >
-        {!selectedTreasury ? (
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#1a237e" />
+            <Text style={styles.loadingText}>جاري تحميل الخزائن...</Text>
+          </View>
+        ) : !selectedTreasury ? (
           <View style={styles.treasuriesContainer}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>خزائنك</Text>
               <Text style={styles.sectionSubtitle}>إجمالي {treasuries.length} خزينة - اضغط على خزينة لعرض معاملاتها</Text>
             </View>
             
-            {treasuries.map(renderTreasuryCard)}
+            {treasuries.length === 0 ? (
+              <View style={styles.emptyContainer}>
+                <Icon name="account-balance" size={64} color="#d1d5db" />
+                <Text style={styles.emptyTitle}>لا توجد خزائن</Text>
+                <Text style={styles.emptySubtitle}>لم يتم العثور على أي خزائن في النظام</Text>
+                <TouchableOpacity 
+                  style={styles.retryButton}
+                  onPress={fetchTreasuries}
+                >
+                  <Icon name="refresh" size={20} color="#1a237e" />
+                  <Text style={styles.retryButtonText}>إعادة المحاولة</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              treasuries.map(renderTreasuryCard)
+            )}
           </View>
         ) : (
           <View style={styles.operationsContainer}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>معاملات {selectedTreasury.name}</Text>
               <Text style={styles.sectionSubtitle}>
-                {filteredOperations.length} عملية - آخر {filteredOperations.length} معاملة
+                {transactions.length} معاملة - آخر المعاملات
               </Text>
             </View>
             
-            {filteredOperations.length > 0 ? (
-              filteredOperations.map(renderOperationCard)
+            {transactionsLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color="#1a237e" />
+                <Text style={styles.loadingText}>جاري تحميل المعاملات...</Text>
+              </View>
+            ) : transactions.length > 0 ? (
+              transactions.map(renderTransactionCard)
             ) : (
               <View style={styles.emptyOperationsContainer}>
                 <Icon name="history" size={64} color="#ccc" />
@@ -664,6 +727,79 @@ const styles = StyleSheet.create({
     color: '#999',
     textAlign: 'center',
     lineHeight: 20,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6b7280',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 20,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#6b7280',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 16,
+    color: '#9ca3af',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f3f4f6',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#1a237e',
+  },
+  retryButtonText: {
+    color: '#1a237e',
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+  descriptionContainer: {
+    marginBottom: 12,
+  },
+  descriptionText: {
+    fontSize: 14,
+    color: '#6b7280',
+    lineHeight: 20,
+  },
+  operationReference: {
+    fontSize: 12,
+    color: '#9ca3af',
+    marginTop: 2,
+  },
+  addTransactionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f9ff',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#1a237e',
+    marginBottom: 8,
+    alignSelf: 'center',
+  },
+  addTransactionButtonText: {
+    color: '#1a237e',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 4,
   },
 });
 

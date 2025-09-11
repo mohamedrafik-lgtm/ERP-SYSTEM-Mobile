@@ -212,6 +212,49 @@ export interface CreateQuestionPayload {
 }
 
 // Safe (Treasury) Types
+export type SafeCategory = 'DEBT' | 'INCOME' | 'EXPENSE' | 'ASSETS' | 'UNSPECIFIED';
+export type TransactionType = 'DEPOSIT' | 'WITHDRAW' | 'TRANSFER' | 'FEE' | 'PAYMENT';
+
+export interface ITransaction {
+  id: string;
+  amount: number;
+  type: TransactionType;
+  description?: string | null;
+  reference?: string | null;
+  sourceId?: string | null;
+  sourceSafe?: ISafe | null;
+  targetId?: string | null;
+  targetSafe?: ISafe | null;
+  traineeFeeId?: number | null;
+  traineeFee?: any | null;
+  traineePaymentId?: number | null;
+  traineePayment?: any | null;
+  createdById?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ISafe {
+  id: string;
+  name: string;
+  description?: string | null;
+  category: SafeCategory;
+  balance: number;
+  currency: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  
+  // Recent transactions (last 5 of each type)
+  sourceTransactions: ITransaction[]; // التحويلات الصادرة
+  targetTransactions: ITransaction[]; // التحويلات الواردة
+  
+  // Additional computed field
+  hasTransactions: boolean; // هل تحتوي على معاملات أم لا
+}
+
+export type ISafesResponse = ISafe[];
+
 export interface CreateSafePayload {
   name: string;                    // اسم الخزينة
   description: string;             // وصف الخزينة
@@ -219,6 +262,15 @@ export interface CreateSafePayload {
   balance: number;                 // الرصيد
   currency: string;                // العملة (مثل: EGP, USD)
   isActive: boolean;               // حالة الخزينة
+}
+
+export interface CreateTransactionPayload {
+  amount: number;                    // قيمة المعاملة (مطلوب، أكبر من 0)
+  type: TransactionType;             // نوع المعاملة (مطلوب)
+  description?: string;              // وصف المعاملة (اختياري)
+  reference?: string;                // رقم مرجعي للمعاملة (اختياري)
+  sourceId?: string;                 // معرف الخزينة المصدر (اختياري)
+  targetId?: string;                 // معرف الخزينة الهدف (اختياري)
 }
 
 // Legacy interface for backward compatibility

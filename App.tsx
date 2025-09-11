@@ -16,6 +16,7 @@ import QuestionsScreen from './src/screens/QuestionsScreen';
 import AddQuestionScreen from './src/screens/AddQuestionScreen';
 import TreasuryScreen from './src/screens/TreasuryScreen';
 import AddTreasuryScreen from './src/screens/AddTreasuryScreen';
+import AddTransactionScreen from './src/screens/AddTransactionScreen';
 import AuthService from './src/services/AuthService';
 import { enableScreens } from 'react-native-screens';
 enableScreens();
@@ -74,6 +75,7 @@ function App() {
           <Stack.Screen name="AddQuestionScreen" component={AddQuestionScreen} />
           <Stack.Screen name="Treasury" component={TreasuryScreen} />
           <Stack.Screen name="AddTreasuryScreen" component={AddTreasuryScreen} />
+          <Stack.Screen name="AddTransactionScreen" component={AddTransactionScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

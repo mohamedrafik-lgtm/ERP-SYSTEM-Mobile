@@ -739,6 +739,118 @@ class AuthService {
       throw error;
     }
   }
+
+  // Get All Safes (Treasuries)
+  static async getAllSafes(): Promise<import('../types/student').ISafesResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      console.log(`[AuthService] Fetching all safes`);
+
+      const response = await fetch(`http://10.0.2.2:4000/api/finances/safes`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log(`[AuthService] Get safes response status: ${response.status}`);
+      console.log(`[AuthService] Get safes response headers:`, Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[AuthService] Get safes failed: ${response.status} - ${errorText}`);
+        throw new Error(`Failed to fetch safes: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log(`[AuthService] Safes fetched successfully:`, data);
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error fetching safes:', error);
+      throw error;
+    }
+  }
+
+  // Get Safe Transactions
+  static async getSafeTransactions(safeId: string): Promise<import('../types/student').ITransaction[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      console.log(`[AuthService] Fetching transactions for safe: ${safeId}`);
+
+      const response = await fetch(`http://10.0.2.2:4000/api/finances/safes/${safeId}/transactions`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log(`[AuthService] Get safe transactions response status: ${response.status}`);
+      console.log(`[AuthService] Get safe transactions response headers:`, Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[AuthService] Get safe transactions failed: ${response.status} - ${errorText}`);
+        throw new Error(`Failed to fetch safe transactions: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log(`[AuthService] Safe transactions fetched successfully:`, data);
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error fetching safe transactions:', error);
+      throw error;
+    }
+  }
+
+  // Create Transaction
+  static async createTransaction(transactionData: import('../types/student').CreateTransactionPayload): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      console.log(`[AuthService] Creating transaction:`, transactionData);
+
+      const response = await fetch(`http://10.0.2.2:4000/api/finances/transactions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(transactionData),
+      });
+
+      console.log(`[AuthService] Create transaction response status: ${response.status}`);
+      console.log(`[AuthService] Create transaction response headers:`, Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[AuthService] Create transaction failed: ${response.status} - ${errorText}`);
+        throw new Error(`Failed to create transaction: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log(`[AuthService] Transaction created successfully:`, data);
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error creating transaction:', error);
+      throw error;
+    }
+  }
 }
 
 export default AuthService;
