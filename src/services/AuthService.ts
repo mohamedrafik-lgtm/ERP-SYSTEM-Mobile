@@ -626,6 +626,81 @@ class AuthService {
       throw error;
     }
   }
+
+  // Get Questions by Content ID
+  static async getQuestionsByContent(contentId: number): Promise<import('../types/student').IQuestionsByContentResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      console.log(`[AuthService] Fetching questions for content ID: ${contentId}`);
+
+      const response = await fetch(`http://10.0.2.2:4000/api/questions/content/${contentId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log(`[AuthService] Get questions response status: ${response.status}`);
+      console.log(`[AuthService] Get questions response headers:`, Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[AuthService] Get questions failed: ${response.status} - ${errorText}`);
+        throw new Error(`Failed to fetch questions: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log(`[AuthService] Questions fetched successfully:`, data);
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error fetching questions:', error);
+      throw error;
+    }
+  }
+
+  // Create Question
+  static async createQuestion(questionData: import('../types/student').CreateQuestionPayload): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      console.log(`[AuthService] Creating question for content ID: ${questionData.contentId}`);
+
+      const response = await fetch(`http://10.0.2.2:4000/api/questions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(questionData),
+      });
+
+      console.log(`[AuthService] Create question response status: ${response.status}`);
+      console.log(`[AuthService] Create question response headers:`, Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[AuthService] Create question failed: ${response.status} - ${errorText}`);
+        throw new Error(`Failed to create question: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log(`[AuthService] Question created successfully:`, data);
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error creating question:', error);
+      throw error;
+    }
+  }
 }
 
 export default AuthService;

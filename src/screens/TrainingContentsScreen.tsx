@@ -369,7 +369,7 @@ const TrainingContentsScreen = ({ navigation }: any) => {
                   </TouchableOpacity>
                   <TouchableOpacity 
                     style={styles.questionsButton}
-                    onPress={() => { Alert.alert('قريباً', 'ميزة إدارة الأسئلة ستكون متاحة قريباً'); }}
+                    onPress={() => navigation.navigate('QuestionsScreen', { content })}
                   >
                     <Icon name="quiz" size={16} color="#059669" />
                     <Text style={styles.questionsButtonText}>الأسئلة</Text>

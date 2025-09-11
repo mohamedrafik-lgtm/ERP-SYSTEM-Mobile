@@ -158,6 +158,59 @@ export interface ITrainingContent {
   };
 }
 
+// Question Types
+export type QuestionType = 'MULTIPLE_CHOICE' | 'TRUE_FALSE';
+export type QuestionSkill = 'RECALL' | 'COMPREHENSION' | 'DEDUCTION';
+export type QuestionDifficulty = 'EASY' | 'MEDIUM' | 'HARD' | 'VERY_HARD';
+
+export interface IQuestionOption {
+  id: number;
+  text: string;
+  isCorrect: boolean;
+  questionId: number;
+}
+
+export interface ITrainingContentInfo {
+  name: string;
+  code: string;
+}
+
+export interface IQuestion {
+  id: number;
+  text: string;
+  type: QuestionType;
+  skill: QuestionSkill;
+  difficulty: QuestionDifficulty;
+  chapter: number;
+  contentId: number;
+  createdById: string;
+  createdAt: string;
+  updatedAt: string;
+  
+  // Included relations
+  options: IQuestionOption[];
+  content: ITrainingContentInfo;
+  createdBy: IUser;
+}
+
+export type IQuestionsByContentResponse = IQuestion[];
+
+// Question Creation Types
+export interface QuestionOption {
+  text: string;        // نص الخيار
+  isCorrect: boolean;  // هل الخيار صحيح أم لا
+}
+
+export interface CreateQuestionPayload {
+  text: string;                    // نص السؤال (مطلوب)
+  type: QuestionType;              // نوع السؤال (مطلوب)
+  skill: QuestionSkill;            // المهارة التي يقيسها السؤال (مطلوب)
+  difficulty: QuestionDifficulty;  // مستوى الصعوبة (مطلوب)
+  chapter: number;                 // رقم الباب (مطلوب، أكبر من 0)
+  contentId: number;               // ID المحتوى التدريبي (مطلوب)
+  options: QuestionOption[];       // خيارات السؤال (مطلوب، مصفوفة، على الأقل خيار واحد)
+}
+
 // Legacy interface for backward compatibility
 export interface IStudent {
   id?: string;
