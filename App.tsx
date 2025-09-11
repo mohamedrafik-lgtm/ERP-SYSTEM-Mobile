@@ -27,6 +27,7 @@ import RoleDetailsScreen from './src/screens/RoleDetailsScreen';
 import AddPermissionScreen from './src/screens/AddPermissionScreen';
 import AddUserScreen from './src/screens/AddUserScreen';
 import UsersListScreen from './src/screens/UsersListScreen';
+import EditUserScreen from './src/screens/EditUserScreen';
 import AuthService from './src/services/AuthService';
 import { enableScreens } from 'react-native-screens';
 enableScreens();
@@ -96,6 +97,7 @@ function App() {
           <Stack.Screen name="AddPermission" component={AddPermissionScreen} />
           <Stack.Screen name="AddUser" component={AddUserScreen} />
           <Stack.Screen name="UsersList" component={UsersListScreen} />
+          <Stack.Screen name="EditUser" component={EditUserScreen} />
         </Stack.Navigator>
       </NavigationContainer>
     </SafeAreaProvider>

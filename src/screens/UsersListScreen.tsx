@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, TextInput, TouchableOpacity, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import CustomMenu from '../components/CustomMenu';
 import AuthService from '../services/AuthService';
@@ -122,6 +122,38 @@ const UsersListScreen = ({ navigation }: any) => {
                       <Icon name="security" size={16} color="#6b7280" />
                       <Text style={styles.footerText}>أدوار: {u.userRoles?.length ?? 0}</Text>
                     </View>
+                    <TouchableOpacity style={styles.editBtn} onPress={() => navigation.navigate('EditUser', { user: u })}>
+                      <Icon name="edit" size={16} color="#1a237e" />
+                      <Text style={styles.editBtnText}>تعديل</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.editBtn, { backgroundColor: '#fee2e2' }]}
+                      onPress={() => {
+                        Alert.alert(
+                          'تأكيد الحذف',
+                          `هل أنت متأكد من حذف المستخدم ${u.name}؟`,
+                          [
+                            { text: 'إلغاء', style: 'cancel' },
+                            {
+                              text: 'حذف',
+                              style: 'destructive',
+                              onPress: async () => {
+                                try {
+                                  await AuthService.deleteUser(u.id);
+                                  setUsers((prev) => prev.filter((x) => x.id !== u.id));
+                                } catch (e: any) {
+                                  Alert.alert('تعذر الحذف', e?.message || 'حدث خطأ');
+                                }
+                              },
+                            },
+                          ],
+                          { cancelable: true }
+                        );
+                      }}
+                    >
+                      <Icon name="delete" size={16} color="#dc2626" />
+                      <Text style={[styles.editBtnText, { color: '#dc2626' }]}>حذف</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
               ))}
@@ -168,6 +200,8 @@ const styles = StyleSheet.create({
   userFooter: { marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#f3f4f6', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   footerItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   footerText: { fontSize: 12, color: '#6b7280', fontWeight: '600' },
+  editBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: '#eef2ff' },
+  editBtnText: { color: '#1a237e', fontSize: 12, fontWeight: '700' },
 });
 
 

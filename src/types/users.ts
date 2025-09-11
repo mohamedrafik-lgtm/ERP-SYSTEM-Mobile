@@ -6,6 +6,15 @@ export interface CreateUserRequest {
   roleId?: string;
 }
 
+export interface UpdateUserRequest {
+  name?: string;
+  email?: string;
+  phone?: string; // same pattern
+  password?: string; // optional change
+  roleId?: string | null; // allow unassign
+  isActive?: boolean;
+}
+
 export type UsersResponse = UserItem[];
 
 export interface UserItem {

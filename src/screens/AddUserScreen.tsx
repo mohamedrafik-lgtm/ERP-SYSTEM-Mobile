@@ -46,9 +46,18 @@ const AddUserScreen = ({ navigation }: any) => {
       Toast.show({ type: 'error', text1: 'تحقق من البيانات', text2: error });
       return;
     }
+    // Normalize roleId to ensure it's an ID, not a label
+    let payload: CreateUserRequest = { ...form };
+    if (payload.roleId) {
+      const isId = roles.some(r => r.id === payload.roleId);
+      if (!isId) {
+        const match = roles.find(r => r.displayName === payload.roleId || r.name === payload.roleId);
+        payload.roleId = match ? match.id : undefined;
+      }
+    }
     try {
       setSubmitting(true);
-      await AuthService.createUser(form);
+      await AuthService.createUser(payload);
       Toast.show({ type: 'success', text1: 'تم إضافة المستخدم', text2: form.name });
       setForm({ name: '', email: '', phone: '', password: '', roleId: undefined });
     } catch (e: any) {

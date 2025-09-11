@@ -1063,6 +1063,86 @@ class AuthService {
     }
   }
 
+  // Users: Update user (PATCH)
+  static async updateUser(userId: string, payload: import('../types/users').UpdateUserRequest): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = `http://10.0.2.2:4000/api/users/${userId}`;
+      // Sanitize payload: drop undefined/empty string fields
+      const cleanedEntries = Object.entries(payload).filter(([key, value]) => value !== undefined && value !== '');
+      const cleanedPayload = cleanedEntries.reduce((acc: any, [k, v]) => {
+        if (typeof v === 'string') acc[k] = v.trim(); else acc[k] = v;
+        return acc;
+      }, {} as Record<string, unknown>);
+
+      // If roleId provided but blank string, omit it
+      if ('roleId' in cleanedPayload && (!cleanedPayload.roleId || cleanedPayload.roleId === '')) {
+        delete (cleanedPayload as any).roleId;
+      }
+
+      console.log('[AuthService] Updating user', userId, 'with payload:', cleanedPayload);
+
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(cleanedPayload),
+      });
+
+      if (!response.ok) {
+        try {
+          const errJson = await response.json();
+          throw new Error(errJson?.message || `Failed to update user: ${response.status}`);
+        } catch {
+          const errorText = await response.text();
+          throw new Error(errorText || `Failed to update user: ${response.status}`);
+        }
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error updating user:', error);
+      throw error;
+    }
+  }
+
+  // Users: Delete user
+  static async deleteUser(userId: string): Promise<{ success: boolean } | any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = `http://10.0.2.2:4000/api/users/${userId}`;
+      console.log('[AuthService] Deleting user', userId);
+
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to delete user: ${response.status}`);
+      }
+
+      try { return await response.json(); } catch { return { success: true }; }
+    } catch (error) {
+      console.error('[AuthService] Error deleting user:', error);
+      throw error;
+    }
+  }
+
   // Get Safe Transactions
   static async getSafeTransactions(safeId: string): Promise<import('../types/student').ITransaction[]> {
     try {
