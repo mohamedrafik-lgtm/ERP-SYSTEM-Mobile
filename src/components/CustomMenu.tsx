@@ -8,6 +8,7 @@ import {
   Modal,
   Animated,
   Dimensions,
+  ScrollView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AuthService from '../services/AuthService';
@@ -29,55 +30,50 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
       title: 'الرئيسية',
       icon: 'home',
       screen: 'Home',
+      category: 'main',
     },
     {
       id: 'Programs',
       title: 'البرامج التدريبية',
-      icon: 'book',
+      icon: 'school',
       screen: 'Programs',
-    },
-    {
-      id: 'AddProgram',
-      title: 'إضافة برنامج تدريبي',
-      icon: 'add',
-      screen: 'AddProgram',
+      category: 'academic',
     },
     {
       id: 'Students',
-      title: 'قائمة الطلاب',
+      title: 'الطلاب',
       icon: 'people',
       screen: 'StudentsList',
+      category: 'academic',
     },
     {
       id: 'TrainingContents',
       title: 'المحتوى التدريبي',
-      icon: 'book',
+      icon: 'library-books',
       screen: 'TrainingContents',
-    },
-    {
-      id: 'AddTrainingContent',
-      title: 'إضافة محتوى تدريبي',
-      icon: 'post-add',
-      screen: 'AddTrainingContent',
+      category: 'academic',
     },
     {
       id: 'Treasury',
-      title: 'الخزائن',
-      icon: 'inventory',
+      title: 'الخزائن المالية',
+      icon: 'account-balance',
       screen: 'Treasury',
+      category: 'financial',
     },
     {
       id: 'Fees',
-      title: 'الرسوم',
+      title: 'الرسوم المالية',
       icon: 'account-balance-wallet',
       screen: 'Fees',
+      category: 'financial',
     },
     {
       id: 'Logout',
       title: 'تسجيل الخروج',
-      icon: 'logout',
+      icon: 'exit-to-app',
       screen: 'Login',
       isLogout: true,
+      category: 'system',
     },
   ];
 
@@ -153,7 +149,11 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
               </TouchableOpacity>
             </View>
 
-            <View style={styles.menuItems}>
+            <ScrollView 
+              style={styles.menuItems}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.menuItemsContent}
+            >
               {menuItems.map((item) => (
                 <TouchableOpacity
                   key={item.id}
@@ -191,7 +191,7 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
                   )}
                 </TouchableOpacity>
               ))}
-            </View>
+            </ScrollView>
 
             <View style={styles.footer}>
               <Text style={styles.footerText}>الإصدار 1.0.0</Text>
@@ -225,11 +225,12 @@ const styles = StyleSheet.create({
   },
   header: {
     padding: 20,
-    paddingTop: 40,
+    paddingTop: 50,
     alignItems: 'center',
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255, 255, 255, 0.1)',
     position: 'relative',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
   logo: {
     width: 80,
@@ -244,16 +245,18 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 4,
+    marginBottom: 6,
     textAlign: 'center',
+    letterSpacing: 0.5,
   },
   headerSubtitle: {
     fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
+    fontWeight: '500',
   },
   closeButton: {
     position: 'absolute',
@@ -265,16 +268,32 @@ const styles = StyleSheet.create({
   },
   menuItems: {
     flex: 1,
+  },
+  menuItemsContent: {
     paddingTop: 10,
+    paddingBottom: 20,
+  },
+  menuSection: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginBottom: 12,
+    marginLeft: 20,
+    marginRight: 20,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 16,
     paddingHorizontal: 20,
-    marginHorizontal: 10,
+    marginHorizontal: 12,
     borderRadius: 12,
-    marginBottom: 4,
+    marginBottom: 8,
   },
   activeMenuItem: {
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
@@ -288,9 +307,10 @@ const styles = StyleSheet.create({
     marginRight: 16,
   },
   menuText: {
-    fontSize: 16,
+    fontSize: 17,
     color: '#fff',
     fontWeight: '500',
+    letterSpacing: 0.2,
   },
   activeMenuText: {
     fontWeight: 'bold',
@@ -304,17 +324,35 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 2,
   },
+  subMenuItem: {
+    marginLeft: 20,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 8,
+    marginHorizontal: 10,
+    marginBottom: 4,
+  },
+  subMenuIcon: {
+    marginRight: 12,
+  },
+  subMenuText: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '400',
+  },
   footer: {
-    padding: 20,
+    padding: 16,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
   footerText: {
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.6)',
+    color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',
-    marginBottom: 2,
+    marginBottom: 4,
+    fontWeight: '500',
   },
 });
 
