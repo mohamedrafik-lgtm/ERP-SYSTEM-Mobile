@@ -36,86 +36,102 @@ import {
   EducationTypeArabic,
   TraineeStatus,
   TraineeStatusArabic,
-  ClassLevel,
-  ClassLevelArabic,
+  Year,
+  YearArabic,
 } from '../types/enums';
 
 interface StudentFormData {
-  nameAr: string;
-  nameEn: string;
-  enrollmentType: EnrollmentType;
-  maritalStatus: MaritalStatus;
-  nationalId: string;
-  idIssueDate: string; // ISO Date
-  idExpiryDate: string; // ISO Date
-  programType: ProgramType;
-  nationality: string;
-  gender: Gender;
-  birthDate: string;
-  residenceAddress: string;
-  photoUrl: string;
-  religion: Religion;
-  programId: number;
-  country: string;
-  governorate: string;
-  city: string;
-  address: string;
-  phone: string;
-  email: string;
-  guardianPhone: string;
-  guardianEmail: string;
-  guardianJob: string;
-  guardianRelation: string;
-  guardianNationalId: string;
-  landline: string;
-  whatsapp: string;
-  facebook: string;
-  educationType: EducationType;
-  schoolName: string;
-  graduationDate: string;
-  totalGrade: number;
-  gradePercentage: number;
-  traineeStatus: TraineeStatus;
-  classLevel: ClassLevel;
+  // البيانات الشخصية
+  nameAr: string;                    // اسم المتدرب باللغة العربية
+  nameEn: string;                    // اسم المتدرب باللغة الإنجليزية
+  nationalId: string;                // الرقم القومي (14 رقم)
+  birthDate: string;                 // تاريخ الميلاد
+  gender: Gender;                    // الجنس (MALE | FEMALE)
+  maritalStatus: MaritalStatus;      // الحالة الاجتماعية (SINGLE | MARRIED | DIVORCED | WIDOWED)
+  nationality: string;               // الجنسية
+  religion?: Religion;               // الديانة (اختياري) (ISLAM | CHRISTIANITY | JUDAISM)
+  photoUrl?: string;                 // رابط الصورة الشخصية (اختياري)
+
+  // البيانات الأكاديمية
+  enrollmentType: EnrollmentType;    // نوع الالتحاق (REGULAR | DISTANCE | BOTH)
+  programType: ProgramType;          // نوع البرنامج (SUMMER | WINTER | ANNUAL)
+  programId: number;                 // رقم البرنامج التدريبي
+  educationType: EducationType;      // نوع التعليم
+  schoolName: string;                // اسم المدرسة/الجامعة
+  graduationDate: string;            // تاريخ التخرج
+  totalGrade?: number;               // المجموع الكلي (اختياري)
+  gradePercentage?: number;          // النسبة المئوية للدرجات (اختياري)
+  academicYear?: string;             // العام الدراسي (اختياري)
+  traineeStatus?: TraineeStatus;     // حالة المتدرب (اختياري) (NEW | CURRENT | GRADUATE | WITHDRAWN)
+  classLevel?: Year;                 // الفرقة الدراسية (اختياري) (FIRST | SECOND | THIRD | FOURTH)
+
+  // بيانات العنوان
+  country: string;                   // الدولة
+  governorate?: string;              // المحافظة (اختياري)
+  city: string;                      // المدينة
+  address: string;                   // العنوان
+  residenceAddress: string;          // عنوان الإقامة
+
+  // بيانات التواصل
+  phone: string;                     // رقم الهاتف
+  email?: string;                    // البريد الإلكتروني (اختياري)
+  landline?: string;                 // رقم الهاتف الأرضي (اختياري)
+  whatsapp?: string;                 // رقم واتساب (اختياري)
+  facebook?: string;                 // حساب فيسبوك (اختياري)
+
+  // بيانات ولي الأمر
+  guardianName: string;              // اسم ولي الأمر
+  guardianPhone: string;             // رقم هاتف ولي الأمر
+  guardianEmail?: string;            // البريد الإلكتروني لولي الأمر (اختياري)
+  guardianJob?: string;              // وظيفة ولي الأمر (اختياري)
+  guardianRelation: string;          // صلة القرابة بولي الأمر
 }
 
 const initialState: StudentFormData = {
+  // البيانات الشخصية
   nameAr: '',
   nameEn: '',
-  enrollmentType: EnrollmentType.REGULAR, // Default value, adjust as needed
-  maritalStatus: MaritalStatus.SINGLE, // Default value, adjust as needed
   nationalId: '',
-  idIssueDate: new Date().toISOString(),
-  idExpiryDate: new Date(new Date().setFullYear(new Date().getFullYear() + 10)).toISOString(), // 10 years from now
-  programType: ProgramType.ANNUAL, // Default value, adjust as needed
-  nationality: 'مصر', // Default value, adjust as needed
-  gender: Gender.MALE, // Default value, adjust as needed
   birthDate: new Date().toISOString(),
-  residenceAddress: '',
+  gender: Gender.MALE,
+  maritalStatus: MaritalStatus.SINGLE,
+  nationality: 'مصر',
+  religion: Religion.ISLAM,
   photoUrl: '',
-  religion: Religion.ISLAM, // Default value, adjust as needed
-  programId: 0, // Default to 0, should be set when a program is selected
-  country: 'مصر', // Default value, adjust as needed
-  governorate: '',
-  city: '',
-  address: '',
-  phone: '',
-  email: '',
-  guardianPhone: '',
-  guardianEmail: '',
-  guardianJob: '',
-  guardianRelation: '',
-  guardianNationalId: '',
-  landline: '',
-  whatsapp: '',
-  facebook: '',
-  educationType: EducationType.SECONDARY, // Default value, adjust as needed
+
+  // البيانات الأكاديمية
+  enrollmentType: EnrollmentType.REGULAR,
+  programType: ProgramType.ANNUAL,
+  programId: 0,
+  educationType: EducationType.SECONDARY,
   schoolName: '',
   graduationDate: new Date().toISOString(),
   totalGrade: 0,
   gradePercentage: 0,
-  traineeStatus: TraineeStatus.NEW, // Default value, adjust as needed
-  classLevel: ClassLevel.FIRST, // Default value, adjust as needed
+  academicYear: '',
+  traineeStatus: TraineeStatus.NEW,
+  classLevel: ClassLevel.FIRST,
+
+  // بيانات العنوان
+  country: 'مصر',
+  governorate: '',
+  city: '',
+  address: '',
+  residenceAddress: '',
+
+  // بيانات التواصل
+  phone: '',
+  email: '',
+  landline: '',
+  whatsapp: '',
+  facebook: '',
+
+  // بيانات ولي الأمر
+  guardianName: '',
+  guardianPhone: '',
+  guardianEmail: '',
+  guardianJob: '',
+  guardianRelation: '',
 };
 
 const AddStudentScreen = ({ navigation }: any) => {
@@ -260,13 +276,19 @@ const AddStudentScreen = ({ navigation }: any) => {
     if (!formData.nameAr) newErrors.nameAr = 'الاسم بالعربية مطلوب';
     if (!formData.nationalId) newErrors.nationalId = 'الرقم القومي مطلوب';
     if (!formData.gender) newErrors.gender = 'النوع مطلوب';
-    if (!formData.religion) newErrors.religion = 'الديانة مطلوبة';
     if (!formData.enrollmentType) newErrors.enrollmentType = 'نوع القيد مطلوب';
     if (!formData.maritalStatus) newErrors.maritalStatus = 'الحالة الاجتماعية مطلوبة';
     if (!formData.programType) newErrors.programType = 'نوع البرنامج مطلوب';
     if (!formData.educationType) newErrors.educationType = 'نوع التعليم مطلوب';
-    if (!formData.traineeStatus) newErrors.traineeStatus = 'حالة المتدرب مطلوبة';
-    if (!formData.classLevel) newErrors.classLevel = 'المستوى الدراسي مطلوب';
+    if (!formData.phone) newErrors.phone = 'رقم الهاتف مطلوب';
+    if (!formData.country) newErrors.country = 'الدولة مطلوبة';
+    if (!formData.city) newErrors.city = 'المدينة مطلوبة';
+    if (!formData.address) newErrors.address = 'العنوان مطلوب';
+    if (!formData.residenceAddress) newErrors.residenceAddress = 'عنوان الإقامة مطلوب';
+    if (!formData.guardianName) newErrors.guardianName = 'اسم ولي الأمر مطلوب';
+    if (!formData.guardianPhone) newErrors.guardianPhone = 'هاتف ولي الأمر مطلوب';
+    if (!formData.guardianRelation) newErrors.guardianRelation = 'صلة القرابة مطلوبة';
+    if (!formData.schoolName) newErrors.schoolName = 'اسم المدرسة/الجامعة مطلوب';
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -382,13 +404,11 @@ const AddStudentScreen = ({ navigation }: any) => {
           {renderTextInput('nameAr', 'الاسم بالعربية *', 'ادخل الاسم بالعربية')}
           {renderTextInput('nameEn', 'الاسم بالإنجليزية', 'ادخل الاسم بالإنجليزية')}
           {renderTextInput('nationalId', 'الرقم القومي *', 'ادخل 14 رقم', 'numeric')}
-          {renderTextInput('idIssueDate', 'تاريخ إصدار الهوية', 'YYYY-MM-DD')}
-          {renderTextInput('idExpiryDate', 'تاريخ انتهاء الهوية', 'YYYY-MM-DD')}
           {renderTextInput('nationality', 'الجنسية', 'ادخل الجنسية')}
           {renderTextInput('birthDate', 'تاريخ الميلاد', 'YYYY-MM-DD', 'default', false)}
-          {renderTextInput('residenceAddress', 'عنوان الإقامة', 'ادخل عنوان الإقامة')}
+          {renderTextInput('residenceAddress', 'عنوان الإقامة *', 'ادخل عنوان الإقامة')}
           {renderSelectBox('gender', 'النوع *', Gender, GenderArabic)}
-          {renderSelectBox('religion', 'الديانة *', Religion, ReligionArabic)}
+          {renderSelectBox('religion', 'الديانة', Religion, ReligionArabic)}
           {renderSelectBox('maritalStatus', 'الحالة الاجتماعية *', MaritalStatus, MaritalStatusArabic)}
 
           <Text style={styles.sectionTitle}>معلومات الاتصال</Text>
@@ -399,30 +419,31 @@ const AddStudentScreen = ({ navigation }: any) => {
           {renderTextInput('facebook', 'حساب فيسبوك', 'ادخل رابط الحساب')}
 
           <Text style={styles.sectionTitle}>معلومات العنوان</Text>
-          {renderTextInput('country', 'الدولة', 'ادخل الدولة')}
+          {renderTextInput('country', 'الدولة *', 'ادخل الدولة')}
           {renderTextInput('governorate', 'المحافظة', 'ادخل المحافظة')}
-          {renderTextInput('city', 'المدينة', 'ادخل المدينة')}
-          {renderTextInput('address', 'العنوان بالتفصيل', 'ادخل العنوان')}
+          {renderTextInput('city', 'المدينة *', 'ادخل المدينة')}
+          {renderTextInput('address', 'العنوان بالتفصيل *', 'ادخل العنوان')}
 
           <Text style={styles.sectionTitle}>معلومات ولي الأمر</Text>
-          {renderTextInput('guardianPhone', 'هاتف ولي الأمر', '01xxxxxxxxx', 'phone-pad')}
+          {renderTextInput('guardianName', 'اسم ولي الأمر *', 'ادخل اسم ولي الأمر')}
+          {renderTextInput('guardianPhone', 'هاتف ولي الأمر *', '01xxxxxxxxx', 'phone-pad')}
           {renderTextInput('guardianEmail', 'بريد ولي الأمر', 'example@domain.com', 'email-address')}
           {renderTextInput('guardianJob', 'وظيفة ولي الأمر', 'ادخل الوظيفة')}
-          {renderTextInput('guardianRelation', 'صلة القرابة', 'ادخل صلة القرابة')}
-          {renderTextInput('guardianNationalId', 'رقم قومي لولي الأمر', 'ادخل 14 رقم', 'numeric')}
+          {renderTextInput('guardianRelation', 'صلة القرابة *', 'ادخل صلة القرابة')}
 
           <Text style={styles.sectionTitle}>المؤهل الدراسي</Text>
           {renderSelectBox('educationType', 'نوع التعليم *', EducationType, EducationTypeArabic)}
-          {renderTextInput('schoolName', 'اسم المدرسة/الجامعة', 'ادخل اسم المدرسة')}
+          {renderTextInput('schoolName', 'اسم المدرسة/الجامعة *', 'ادخل اسم المدرسة')}
           {renderTextInput('graduationDate', 'تاريخ التخرج', 'YYYY-MM-DD')}
           {renderTextInput('totalGrade', 'المجموع الكلي', 'ادخل المجموع', 'numeric')}
           {renderTextInput('gradePercentage', 'النسبة المئوية', 'ادخل النسبة', 'numeric')}
+          {renderTextInput('academicYear', 'العام الدراسي', 'ادخل العام الدراسي')}
 
           <Text style={styles.sectionTitle}>معلومات التسجيل</Text>
           {renderSelectBox('enrollmentType', 'نوع القيد *', EnrollmentType, EnrollmentTypeArabic)}
           {renderSelectBox('programType', 'نوع البرنامج *', ProgramType, ProgramTypeArabic)}
-          {renderSelectBox('traineeStatus', 'حالة المتدرب *', TraineeStatus, TraineeStatusArabic)}
-          {renderSelectBox('classLevel', 'المستوى الدراسي *', ClassLevel, ClassLevelArabic)}
+          {renderSelectBox('traineeStatus', 'حالة المتدرب', TraineeStatus, TraineeStatusArabic)}
+          {renderSelectBox('classLevel', 'المستوى الدراسي', Year, YearArabic)}
           {renderProgramSelector()}
 
           <TouchableOpacity
