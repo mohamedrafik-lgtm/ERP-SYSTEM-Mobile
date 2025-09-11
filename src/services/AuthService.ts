@@ -851,6 +851,118 @@ class AuthService {
       throw error;
     }
   }
+
+  // Create Trainee Fee
+  static async createTraineeFee(feeData: import('../types/student').CreateTraineeFeePayload): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      console.log(`[AuthService] Creating trainee fee:`, feeData);
+
+      const response = await fetch(`http://10.0.2.2:4000/api/finances/trainee-fees`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(feeData),
+      });
+
+      console.log(`[AuthService] Create trainee fee response status: ${response.status}`);
+      console.log(`[AuthService] Create trainee fee response headers:`, Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[AuthService] Create trainee fee failed: ${response.status} - ${errorText}`);
+        throw new Error(`Failed to create trainee fee: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log(`[AuthService] Trainee fee created successfully:`, data);
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error creating trainee fee:', error);
+      throw error;
+    }
+  }
+
+  // Get All Trainee Fees
+  static async getAllTraineeFees(): Promise<import('../types/student').ITraineeFeesResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      console.log(`[AuthService] Fetching all trainee fees`);
+
+      const response = await fetch(`http://10.0.2.2:4000/api/finances/trainee-fees`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log(`[AuthService] Get trainee fees response status: ${response.status}`);
+      console.log(`[AuthService] Get trainee fees response headers:`, Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[AuthService] Get trainee fees failed: ${response.status} - ${errorText}`);
+        throw new Error(`Failed to fetch trainee fees: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log(`[AuthService] Trainee fees fetched successfully:`, data);
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error fetching trainee fees:', error);
+      throw error;
+    }
+  }
+
+  // Apply Trainee Fee
+  static async applyTraineeFee(feeId: number): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      console.log(`[AuthService] Applying trainee fee: ${feeId}`);
+
+      const response = await fetch(`http://10.0.2.2:4000/api/finances/trainee-fees/${feeId}/apply`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log(`[AuthService] Apply trainee fee response status: ${response.status}`);
+      console.log(`[AuthService] Apply trainee fee response headers:`, Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[AuthService] Apply trainee fee failed: ${response.status} - ${errorText}`);
+        throw new Error(`Failed to apply trainee fee: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log(`[AuthService] Trainee fee applied successfully:`, data);
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error applying trainee fee:', error);
+      throw error;
+    }
+  }
 }
 
 export default AuthService;

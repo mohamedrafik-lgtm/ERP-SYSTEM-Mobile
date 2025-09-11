@@ -273,6 +273,83 @@ export interface CreateTransactionPayload {
   targetId?: string;                 // معرف الخزينة الهدف (اختياري)
 }
 
+// Fee Types
+export type FeeType = 'TUITION' | 'SERVICES' | 'TRAINING' | 'ADDITIONAL';
+export type PaymentStatus = 'PENDING' | 'PAID' | 'PARTIALLY_PAID' | 'CANCELLED';
+
+// Training Program interface
+export interface ITrainingProgram {
+  id: number;
+  nameAr: string;
+  nameEn: string;
+  price: number;
+  description?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Trainee interface (minimal for payments)
+export interface ITrainee {
+  id: number;
+  nameAr: string;
+  nameEn: string;
+  nationalId: string;
+  phone: string;
+  email?: string | null;
+}
+
+// Trainee Payment interface
+export interface ITraineePayment {
+  id: number;
+  amount: number;
+  status: PaymentStatus;
+  feeId: number;
+  traineeId: number;
+  trainee: ITrainee;
+  safeId: string;
+  paidAmount: number;
+  paidAt?: string | null;
+  paidById?: string | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Trainee Fee interface
+export interface ITraineeFee {
+  id: number;
+  name: string;
+  amount: number;
+  type: FeeType;
+  academicYear: string;
+  allowMultipleApply: boolean;
+  programId: number;
+  program: ITrainingProgram;
+  safeId: string;
+  safe: ISafe;
+  isApplied: boolean;
+  appliedAt?: string | null;
+  appliedById?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  
+  // Only included when getting single fee by ID
+  traineePayments?: ITraineePayment[];
+}
+
+// Response type
+export type ITraineeFeesResponse = ITraineeFee[];
+
+export interface CreateTraineeFeePayload {
+  name: string;                    // اسم الرسوم (مطلوب)
+  amount: number;                  // قيمة الرسوم (مطلوب، أكبر من 0)
+  type: FeeType;                   // نوع الرسوم (مطلوب)
+  academicYear: string;            // العام الدراسي (مطلوب)
+  allowMultipleApply?: boolean;    // السماح بتطبيق الرسوم أكثر من مرة (اختياري، افتراضي: false)
+  programId: number;               // معرف البرنامج التدريبي (مطلوب)
+  safeId: string;                  // معرف الخزينة (مطلوب)
+}
+
 // Legacy interface for backward compatibility
 export interface IStudent {
   id?: string;

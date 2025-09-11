@@ -61,6 +61,12 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
       screen: 'Treasury',
     },
     {
+      id: 'Fees',
+      title: 'الرسوم',
+      icon: 'account-balance-wallet',
+      screen: 'Fees',
+    },
+    {
       id: 'Logout',
       title: 'تسجيل الخروج',
       icon: 'logout',

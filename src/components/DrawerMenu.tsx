@@ -54,6 +54,12 @@ const DrawerMenu: React.FC<DrawerMenuProps> = ({ navigation, activeRouteName }) 
       screen: 'Reports',
     },
     {
+      id: 'Fees',
+      title: 'الرسوم',
+      icon: 'account-balance-wallet',
+      screen: 'Fees',
+    },
+    {
       id: 'Settings',
       title: 'الإعدادات',
       icon: 'settings',
