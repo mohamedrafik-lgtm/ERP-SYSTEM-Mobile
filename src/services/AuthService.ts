@@ -701,6 +701,44 @@ class AuthService {
       throw error;
     }
   }
+
+  // Create Safe (Treasury)
+  static async createSafe(safeData: import('../types/student').CreateSafePayload): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      console.log(`[AuthService] Creating safe:`, safeData);
+
+      const response = await fetch(`http://10.0.2.2:4000/api/finances/safes`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(safeData),
+      });
+
+      console.log(`[AuthService] Create safe response status: ${response.status}`);
+      console.log(`[AuthService] Create safe response headers:`, Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[AuthService] Create safe failed: ${response.status} - ${errorText}`);
+        throw new Error(`Failed to create safe: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log(`[AuthService] Safe created successfully:`, data);
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error creating safe:', error);
+      throw error;
+    }
+  }
 }
 
 export default AuthService;

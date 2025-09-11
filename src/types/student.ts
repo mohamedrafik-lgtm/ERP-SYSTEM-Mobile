@@ -211,6 +211,16 @@ export interface CreateQuestionPayload {
   options: QuestionOption[];       // خيارات السؤال (مطلوب، مصفوفة، على الأقل خيار واحد)
 }
 
+// Safe (Treasury) Types
+export interface CreateSafePayload {
+  name: string;                    // اسم الخزينة
+  description: string;             // وصف الخزينة
+  category: string;                // فئة الخزينة (UNSPECIFIED)
+  balance: number;                 // الرصيد
+  currency: string;                // العملة (مثل: EGP, USD)
+  isActive: boolean;               // حالة الخزينة
+}
+
 // Legacy interface for backward compatibility
 export interface IStudent {
   id?: string;

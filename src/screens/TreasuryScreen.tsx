@@ -374,6 +374,13 @@ const styles = StyleSheet.create({
   headerContent: {
     flex: 1,
   },
+  addButton: {
+    padding: 8,
+    backgroundColor: '#f0f9ff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#1a237e',
+  },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
