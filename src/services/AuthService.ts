@@ -801,6 +801,98 @@ class AuthService {
     }
   }
 
+  // Get Trainee Payments by Trainee ID
+  static async getTraineePaymentsByTrainee(traineeId: number): Promise<import('../types/student').TraineePaymentByTraineeResponse[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+      
+      const url = `http://10.0.2.2:4000/api/finances/trainees/${traineeId}/payments`;
+      console.log('Fetching trainee payments by trainee from URL:', url);
+      console.log('Using token:', token.substring(0, 20) + '...');
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+      
+      let data;
+      try {
+        data = await response.json();
+        console.log('Response data:', data);
+      } catch (parseError) {
+        console.error('Error parsing JSON response:', parseError);
+        const textResponse = await response.text();
+        console.log('Raw response:', textResponse);
+        throw new Error(`Invalid JSON response: ${textResponse}`);
+      }
+      
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Error fetching trainee payments by trainee in AuthService:', error);
+      throw error;
+    }
+  }
+
+  // Auto Payment
+  static async processAutoPayment(paymentData: import('../types/student').AutoPaymentRequest): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+      
+      const url = `http://10.0.2.2:4000/api/finances/auto-payment`;
+      console.log('Processing auto payment to URL:', url);
+      console.log('Payment data:', paymentData);
+      console.log('Using token:', token.substring(0, 20) + '...');
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(paymentData),
+      });
+      
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+      
+      let data;
+      try {
+        data = await response.json();
+        console.log('Response data:', data);
+      } catch (parseError) {
+        console.error('Error parsing JSON response:', parseError);
+        const textResponse = await response.text();
+        console.log('Raw response:', textResponse);
+        throw new Error(`Invalid JSON response: ${textResponse}`);
+      }
+      
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('Error processing auto payment in AuthService:', error);
+      throw error;
+    }
+  }
+
   // Get All Safes (Treasuries)
   static async getAllSafes(): Promise<import('../types/student').ISafesResponse> {
     try {

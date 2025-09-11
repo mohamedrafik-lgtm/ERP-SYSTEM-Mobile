@@ -172,7 +172,14 @@ const TraineePaymentsScreen = ({ navigation }: any) => {
           <Text style={styles.actionButtonText}>تعديل</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.paymentButton}>
+        <TouchableOpacity 
+          style={styles.paymentButton}
+          onPress={() => navigation.navigate('TraineePaymentDetails', { 
+            traineeId: payment.trainee.id,
+            traineeName: payment.trainee.nameAr,
+            paymentId: payment.id 
+          })}
+        >
           <Icon name="payment" size={16} color="#059669" />
           <Text style={styles.paymentButtonText}>دفع</Text>
         </TouchableOpacity>

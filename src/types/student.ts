@@ -398,6 +398,73 @@ export interface TraineePaymentResponse {
 
 export type ITraineePaymentsResponse = TraineePaymentResponse[];
 
+// Trainee Payment by Trainee Response
+export interface TraineePaymentByTraineeResponse {
+  id: number;                    // معرف الدفعة
+  amount: number;                // المبلغ المطلوب دفعه
+  status: PaymentStatus;         // حالة الدفع
+  paidAmount: number;            // المبلغ المدفوع فعلياً
+  paidAt?: string;                // تاريخ الدفع
+  paidById?: string;             // معرف المستخدم الذي سجل الدفع
+  notes?: string;                // ملاحظات
+  createdAt: string;             // تاريخ الإنشاء
+  updatedAt: string;             // تاريخ التحديث
+  
+  // بيانات الرسوم
+  fee: {
+    id: number;
+    name: string;                // اسم الرسوم
+    amount: number;              // قيمة الرسوم
+    type: FeeType;               // نوع الرسوم
+    academicYear: string;        // العام الدراسي
+    allowMultipleApply: boolean; // السماح بتطبيق متعدد
+    programId: number;           // معرف البرنامج
+    safeId: string;              // معرف الخزينة
+    isApplied: boolean;          // حالة التطبيق
+    appliedAt?: string;          // تاريخ التطبيق
+    appliedById?: string;        // معرف من طبق الرسوم
+    createdAt: string;          // تاريخ الإنشاء
+    updatedAt: string;           // تاريخ التحديث
+  };
+  
+  // بيانات الخزينة
+  safe: {
+    id: string;
+    name: string;                // اسم الخزينة
+    description?: string;        // وصف الخزينة
+    category: SafeCategory;      // تصنيف الخزينة
+    balance: number;             // الرصيد الحالي
+    currency: string;            // العملة
+    isActive: boolean;           // حالة الحساب
+    createdAt: string;          // تاريخ الإنشاء
+    updatedAt: string;           // تاريخ التحديث
+  };
+  
+  // المعاملات المالية المرتبطة
+  transactions: {
+    id: string;
+    amount: number;              // قيمة التحويل
+    type: TransactionType;       // نوع التحويل
+    description?: string;        // وصف التحويل
+    reference?: string;           // رقم مرجعي
+    sourceId?: string;           // الحساب المصدر
+    targetId?: string;           // الحساب الهدف
+    traineeFeeId?: number;       // معرف رسوم المتدرب
+    traineePaymentId?: number;   // معرف دفع المتدرب
+    createdById?: string;        // المستخدم الذي أنشأ التحويل
+    createdAt: string;          // تاريخ الإنشاء
+    updatedAt: string;           // تاريخ التحديث
+  }[];
+}
+
+// Auto Payment Request
+export interface AutoPaymentRequest {
+  traineeId: number;        // معرف المتدرب (مطلوب)
+  amount: number;            // المبلغ الإجمالي المدفوع (مطلوب)
+  safeId: string;           // معرف الخزينة المستلمة للدفع (مطلوب)
+  notes?: string;            // ملاحظات إضافية (اختياري)
+}
+
 export interface CreateTraineeFeePayload {
   name: string;                    // اسم الرسوم (مطلوب)
   amount: number;                  // قيمة الرسوم (مطلوب، أكبر من 0)
