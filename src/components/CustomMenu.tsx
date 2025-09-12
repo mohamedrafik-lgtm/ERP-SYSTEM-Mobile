@@ -87,6 +87,20 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
           screen: 'TargetSetting',
           priority: 5.5,
         },
+        {
+          id: 'MarketingTrainees',
+          title: 'المتدربين مع تفاصيل التسويق',
+          icon: 'people',
+          screen: 'MarketingTrainees',
+          priority: 5.7,
+        },
+        {
+          id: 'MarketingStats',
+          title: 'إحصائيات التسويق',
+          icon: 'analytics',
+          screen: 'MarketingStats',
+          priority: 5.8,
+        },
       ],
     },
     {

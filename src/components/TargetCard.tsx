@@ -12,7 +12,7 @@ import { MarketingTargetWithAchieved } from '../types/marketing';
 interface TargetCardProps {
   target: MarketingTargetWithAchieved;
   achievementRate: number;
-  onEdit: (targetData: any) => void;
+  onEdit: (target: MarketingTargetWithAchieved) => void;
   onDelete: () => void;
 }
 
@@ -36,10 +36,7 @@ const TargetCard: React.FC<TargetCardProps> = ({
 
   const handleEdit = () => {
     setShowActions(false);
-    onEdit({
-      targetAmount: target.targetAmount,
-      notes: target.notes,
-    });
+    onEdit(target);
   };
 
   const handleDelete = () => {

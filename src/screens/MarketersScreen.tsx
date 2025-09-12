@@ -74,6 +74,15 @@ const MarketersScreen = ({ navigation }: any) => {
                   <Text style={styles.footerItem}>طلبات: {emp.totalApplications}</Text>
                   <Text style={styles.footerItem}>متدربون: {emp._count?.trainees ?? 0}</Text>
                   <Text style={styles.footerItem}>مُعيّنون إجمالاً: {emp.totalAssignedTrainees}</Text>
+                  <TouchableOpacity 
+                    style={[styles.editBtn, { backgroundColor: '#dbeafe' }]} 
+                    onPress={() => navigation.navigate('EmployeeTrainees', { 
+                      employeeId: emp.id, 
+                      employeeName: emp.name 
+                    })}
+                  >
+                    <Text style={[styles.editBtnText, { color: '#1e40af' }]}>المتدربين</Text>
+                  </TouchableOpacity>
                   <TouchableOpacity style={styles.editBtn} onPress={() => navigation.navigate('EditMarketer', { employee: emp })}>
                     <Text style={styles.editBtnText}>تعديل</Text>
                   </TouchableOpacity>

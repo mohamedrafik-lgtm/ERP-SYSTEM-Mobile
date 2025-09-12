@@ -18,10 +18,12 @@ import {
   MONTHS,
   YEARS,
   CreateMarketingTargetRequest,
+  UpdateMarketingTargetRequest,
 } from '../types/marketing';
 import SelectBox from '../components/SelectBox';
 import TargetCard from '../components/TargetCard';
 import AddTargetModal from '../components/AddTargetModal';
+import EditTargetModal from '../components/EditTargetModal';
 
 const TargetSettingScreen = ({ navigation }: any) => {
   const [targets, setTargets] = useState<MarketingTargetWithAchieved[]>([]);
@@ -31,6 +33,8 @@ const TargetSettingScreen = ({ navigation }: any) => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedTarget, setSelectedTarget] = useState<MarketingTargetWithAchieved | null>(null);
   const [marketingEmployees, setMarketingEmployees] = useState<any[]>([]);
 
   const getAchievementRate = useCallback((target: MarketingTargetWithAchieved) => {
@@ -140,9 +144,16 @@ const TargetSettingScreen = ({ navigation }: any) => {
     }
   };
 
-  const handleEditTarget = async (targetId: number, targetData: any) => {
+  const handleEditTarget = (target: MarketingTargetWithAchieved) => {
+    setSelectedTarget(target);
+    setShowEditModal(true);
+  };
+
+  const handleUpdateTarget = async (targetId: number, targetData: UpdateMarketingTargetRequest) => {
     try {
       await AuthService.updateMarketingTarget(targetId, targetData);
+      setShowEditModal(false);
+      setSelectedTarget(null);
       await fetchData();
       Alert.alert('نجح', 'تم تحديث الهدف بنجاح');
     } catch (error) {
@@ -306,7 +317,7 @@ const TargetSettingScreen = ({ navigation }: any) => {
                   key={target.id}
                   target={target}
                   achievementRate={getAchievementRate(target)}
-                  onEdit={(targetData: any) => handleEditTarget(target.id, targetData)}
+                  onEdit={handleEditTarget}
                   onDelete={() => handleDeleteTarget(target.id)}
                 />
               ))}
@@ -323,6 +334,16 @@ const TargetSettingScreen = ({ navigation }: any) => {
         marketingEmployees={marketingEmployees}
         selectedMonth={selectedMonth}
         selectedYear={selectedYear}
+      />
+
+      <EditTargetModal
+        visible={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setSelectedTarget(null);
+        }}
+        onSubmit={handleUpdateTarget}
+        target={selectedTarget}
       />
     </View>
   );

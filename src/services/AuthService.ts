@@ -1351,16 +1351,22 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
+      const user = await this.getUser();
+      const payloadWithUser = {
+        ...payload,
+        setById: user?.id || undefined, // إضافة معرف المستخدم الحالي
+      };
+
       const url = `http://10.0.2.2:4000/api/marketing/targets/${id}`;
-      console.log('[AuthService] Updating marketing target', id);
+      console.log('[AuthService] Updating marketing target', id, 'with payload:', payloadWithUser);
 
       const response = await fetch(url, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payloadWithUser),
       });
 
       if (!response.ok) {
@@ -1627,6 +1633,132 @@ class AuthService {
       return data;
     } catch (error) {
       console.error('[AuthService] Error applying trainee fee:', error);
+      throw error;
+    }
+  }
+
+  // Marketing Trainees: Get marketing trainees with marketing info
+  static async getMarketingTrainees(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    marketingEmployeeId?: number;
+    programId?: number;
+    status?: string;
+  }): Promise<import('../types/marketing').MarketingTraineesResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const queryParams = new URLSearchParams();
+      if (params?.page) queryParams.append('page', params.page.toString());
+      if (params?.limit) queryParams.append('limit', params.limit.toString());
+      if (params?.search) queryParams.append('search', params.search);
+      if (params?.marketingEmployeeId) queryParams.append('marketingEmployeeId', params.marketingEmployeeId.toString());
+      if (params?.programId) queryParams.append('programId', params.programId.toString());
+      if (params?.status) queryParams.append('status', params.status);
+
+      const url = `http://10.0.2.2:4000/api/marketing/trainees?${queryParams.toString()}`;
+      console.log('[AuthService] Fetching marketing trainees from URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to fetch marketing trainees: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching marketing trainees:', error);
+      throw error;
+    }
+  }
+
+  // Employee Trainees: Get trainees for a specific marketing employee
+  static async getEmployeeTrainees(employeeId: number, params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+  }): Promise<import('../types/marketing').EmployeeTraineesResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const queryParams = new URLSearchParams();
+      if (params?.page) queryParams.append('page', params.page.toString());
+      if (params?.limit) queryParams.append('limit', params.limit.toString());
+      if (params?.search) queryParams.append('search', params.search);
+      if (params?.status) queryParams.append('status', params.status);
+
+      const url = `http://10.0.2.2:4000/api/marketing/employees/${employeeId}/trainees?${queryParams.toString()}`;
+      console.log('[AuthService] Fetching employee trainees from URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to fetch employee trainees: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching employee trainees:', error);
+      throw error;
+    }
+  }
+
+  // Marketing Stats: Get comprehensive marketing statistics
+  static async getMarketingStats(params?: {
+    month?: number;
+    year?: number;
+  }): Promise<import('../types/marketing').MarketingStatsResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const queryParams = new URLSearchParams();
+      if (params?.month) queryParams.append('month', params.month.toString());
+      if (params?.year) queryParams.append('year', params.year.toString());
+
+      const url = `http://10.0.2.2:4000/api/marketing/stats?${queryParams.toString()}`;
+      console.log('[AuthService] Fetching marketing stats from URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to fetch marketing stats: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching marketing stats:', error);
       throw error;
     }
   }
