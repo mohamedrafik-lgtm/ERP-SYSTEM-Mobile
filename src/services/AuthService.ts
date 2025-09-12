@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { WhatsAppQRCodeResponse, WhatsAppStatusResponse, WhatsAppSendMessageRequest, WhatsAppSendMessageResponse, WhatsAppLogoutResponse } from '../types/whatsapp';
 
 interface AuthData {
   token: string;
@@ -1759,6 +1760,194 @@ class AuthService {
       return response.json();
     } catch (error) {
       console.error('[AuthService] Error fetching marketing stats:', error);
+      throw error;
+    }
+  }
+
+  // WhatsApp Management: Get QR Code for WhatsApp connection
+  static async getWhatsAppQRCode(): Promise<WhatsAppQRCodeResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = 'http://10.0.2.2:4000/api/whatsapp/qr-code';
+      console.log('[AuthService] Fetching WhatsApp QR code from URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to fetch WhatsApp QR code: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('[AuthService] WhatsApp QR code response:', data);
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error fetching WhatsApp QR code:', error);
+      throw error;
+    }
+  }
+
+  // WhatsApp Management: Get detailed status of WhatsApp connection
+  static async getWhatsAppStatus(): Promise<WhatsAppStatusResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = 'http://10.0.2.2:4000/api/whatsapp/status';
+      console.log('[AuthService] Fetching WhatsApp status from URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to fetch WhatsApp status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('[AuthService] WhatsApp status response:', data);
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error fetching WhatsApp status:', error);
+      throw error;
+    }
+  }
+
+  // WhatsApp Management: Send test message
+  static async sendWhatsAppMessage(data: WhatsAppSendMessageRequest): Promise<WhatsAppSendMessageResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = 'http://10.0.2.2:4000/api/whatsapp/send-message';
+      console.log('[AuthService] Sending WhatsApp message to URL:', url);
+      console.log('[AuthService] Message data:', data);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to send WhatsApp message: ${response.status}`);
+      }
+
+      const responseData = await response.json();
+      console.log('[AuthService] WhatsApp message response:', responseData);
+      return responseData;
+    } catch (error) {
+      console.error('[AuthService] Error sending WhatsApp message:', error);
+      throw error;
+    }
+  }
+
+  // WhatsApp Management: Logout from WhatsApp
+  static async logoutWhatsApp(): Promise<WhatsAppLogoutResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = 'http://10.0.2.2:4000/api/whatsapp/logout';
+      console.log('[AuthService] Logging out from WhatsApp at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to logout from WhatsApp: ${response.status}`);
+      }
+
+      const responseData = await response.json();
+      console.log('[AuthService] WhatsApp logout response:', responseData);
+      return responseData;
+    } catch (error) {
+      console.error('[AuthService] Error logging out from WhatsApp:', error);
+      throw error;
+    }
+  }
+
+  // WhatsApp Management: Send Payment Confirmation
+  static async sendPaymentConfirmation(data: WhatsAppSendMessageRequest): Promise<WhatsAppSendMessageResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = 'http://10.0.2.2:4000/api/whatsapp/send-payment-confirmation';
+      console.log('[AuthService] Sending payment confirmation at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to send payment confirmation: ${response.status}`);
+      }
+
+      const responseData = await response.json();
+      console.log('[AuthService] Payment confirmation response:', responseData);
+      return responseData;
+    } catch (error) {
+      console.error('[AuthService] Error sending payment confirmation:', error);
       throw error;
     }
   }

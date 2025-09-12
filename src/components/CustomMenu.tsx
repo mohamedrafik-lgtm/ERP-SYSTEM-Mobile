@@ -104,6 +104,18 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
       ],
     },
     {
+      title: 'الأتمتة التلقائية',
+      items: [
+        {
+          id: 'WhatsAppManagement',
+          title: 'إدارة WhatsApp',
+          icon: 'chat',
+          screen: 'WhatsAppManagement',
+          priority: 6,
+        },
+      ],
+    },
+    {
       title: 'الإدارة المالية',
       items: [
         {
@@ -111,21 +123,21 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
           title: 'الخزائن المالية',
           icon: 'account-balance',
           screen: 'Treasury',
-          priority: 6,
+          priority: 7,
         },
         {
           id: 'Fees',
           title: 'الرسوم المالية',
           icon: 'account-balance-wallet',
           screen: 'Fees',
-          priority: 6.5,
+          priority: 7.5,
         },
         {
           id: 'TraineePayments',
           title: 'مدفوعات المتدربين',
           icon: 'payment',
           screen: 'TraineePayments',
-          priority: 7,
+          priority: 8,
         },
       ],
     },
@@ -137,14 +149,14 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
           title: 'الصلاحيات',
           icon: 'lock',
           screen: 'Permissions',
-          priority: 8,
+          priority: 9,
         },
         {
           id: 'AddUser',
           title: 'إضافة مستخدم',
           icon: 'person-add',
           screen: 'AddUser',
-          priority: 8.5,
+          priority: 9.5,
         },
         {
           id: 'Logout',
@@ -152,7 +164,7 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
           icon: 'exit-to-app',
           screen: 'Login',
           isLogout: true,
-          priority: 9,
+          priority: 10,
         },
       ],
     },
