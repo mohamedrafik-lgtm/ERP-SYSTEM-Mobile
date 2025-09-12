@@ -106,6 +106,12 @@ const MarketingTraineesScreen = ({ navigation }: any) => {
       <View style={styles.header}>
         <CustomMenu navigation={navigation} activeRouteName="MarketingTrainees" />
         <View style={styles.headerContent}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Icon name="arrow-back" size={24} color="#1a237e" />
+          </TouchableOpacity>
           <View style={styles.headerLeft}>
             <Icon name="people" size={24} color="#1a237e" />
             <Text style={styles.headerTitle}>المتدربين مع تفاصيل التسويق</Text>
@@ -254,9 +260,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
   },
+  backButton: {
+    padding: 8,
+    marginRight: 12,
+    borderRadius: 8,
+    backgroundColor: '#f0f9ff',
+    borderWidth: 1,
+    borderColor: '#1a237e',
+  },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
   headerTitle: {
     fontSize: 20,

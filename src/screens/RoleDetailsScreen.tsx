@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import CustomMenu from '../components/CustomMenu';
 import AuthService from '../services/AuthService';
@@ -34,6 +34,49 @@ const RoleDetailsScreen = ({ navigation, route }: any) => {
     loadRole();
   };
 
+  const handleAssignRole = async (userId: string) => {
+    try {
+      await AuthService.assignUserRole(userId, id);
+      Alert.alert('نجح', 'تم تعيين الدور للمستخدم بنجاح');
+      loadRole(); // إعادة تحميل البيانات
+    } catch (error: any) {
+      Alert.alert('خطأ', error.message || 'فشل في تعيين الدور');
+    }
+  };
+
+  const handleRemoveRole = async (userId: string) => {
+    Alert.alert(
+      'تأكيد الحذف',
+      'هل أنت متأكد من حذف هذا الدور من المستخدم؟',
+      [
+        { text: 'إلغاء', style: 'cancel' },
+        {
+          text: 'حذف',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await AuthService.removeUserRole(userId, id);
+              Alert.alert('نجح', 'تم حذف الدور من المستخدم بنجاح');
+              loadRole(); // إعادة تحميل البيانات
+            } catch (error: any) {
+              Alert.alert('خطأ', error.message || 'فشل في حذف الدور');
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleToggleRoleStatus = async (userId: string, currentStatus: boolean) => {
+    try {
+      await AuthService.toggleUserRoleStatus(userId, id, !currentStatus);
+      Alert.alert('نجح', `تم ${!currentStatus ? 'تفعيل' : 'إلغاء تفعيل'} الدور بنجاح`);
+      loadRole(); // إعادة تحميل البيانات
+    } catch (error: any) {
+      Alert.alert('خطأ', error.message || 'فشل في تغيير حالة الدور');
+    }
+  };
+
   const getPermissionVisuals = (action: string, resource?: string) => {
     const a = (action || '').toLowerCase();
     if (a.includes('view') || a === 'read' || a === 'list') {
@@ -61,7 +104,15 @@ const RoleDetailsScreen = ({ navigation, route }: any) => {
     <View style={styles.container}>
       <View style={styles.header}>
         <CustomMenu navigation={navigation} activeRouteName="RoleDetails" />
-        <Text style={styles.headerTitle}>تفاصيل الدور</Text>
+        <View style={styles.headerContent}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Icon name="arrow-back" size={24} color="#1a237e" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>تفاصيل الدور</Text>
+        </View>
         <View style={styles.placeholder} />
       </View>
 
@@ -156,9 +207,29 @@ const RoleDetailsScreen = ({ navigation, route }: any) => {
                       <Text style={styles.userName}>{ur.user.name}</Text>
                       <Text style={styles.userEmail}>{ur.user.email}</Text>
                     </View>
-                    <Text style={[styles.userBadge, ur.isActive ? styles.userBadgeActive : styles.userBadgeInactive]}>
-                      {ur.isActive ? 'نشط' : 'غير نشط'}
-                    </Text>
+                    <View style={styles.userActions}>
+                      <Text style={[styles.userBadge, ur.isActive ? styles.userBadgeActive : styles.userBadgeInactive]}>
+                        {ur.isActive ? 'نشط' : 'غير نشط'}
+                      </Text>
+                      <View style={styles.actionButtons}>
+                        <TouchableOpacity
+                          style={[styles.actionButton, styles.toggleButton]}
+                          onPress={() => handleToggleRoleStatus(ur.userId, ur.isActive)}
+                        >
+                          <Icon 
+                            name={ur.isActive ? 'pause' : 'play-arrow'} 
+                            size={16} 
+                            color={ur.isActive ? '#f59e0b' : '#10b981'} 
+                          />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.actionButton, styles.removeButton]}
+                          onPress={() => handleRemoveRole(ur.userId)}
+                        >
+                          <Icon name="remove" size={16} color="#dc2626" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
                   </View>
                 ))}
               </View>
@@ -189,6 +260,19 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
+  },
+  headerContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 12,
+    borderRadius: 8,
+    backgroundColor: '#f0f9ff',
+    borderWidth: 1,
+    borderColor: '#1a237e',
   },
   headerTitle: {
     fontSize: 20,
@@ -406,6 +490,30 @@ const styles = StyleSheet.create({
   userBadgeInactive: {
     backgroundColor: '#f3f4f6',
     color: '#6b7280',
+  },
+  userActions: {
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  actionButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  toggleButton: {
+    backgroundColor: '#f0f9ff',
+    borderColor: '#0ea5e9',
+  },
+  removeButton: {
+    backgroundColor: '#fef2f2',
+    borderColor: '#dc2626',
   },
 });
 

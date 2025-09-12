@@ -9,6 +9,8 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  Linking,
+  Image,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import CustomMenu from '../components/CustomMenu';
@@ -128,6 +130,76 @@ const StudentsListScreen = ({ navigation }: any) => {
   const getStatusLabel = (status: TraineeStatus) => {
     const option = statusOptions.find(opt => opt.value === status);
     return option ? option.label : status;
+  };
+
+  const getSubscriptionColor = (enrollmentType: string) => {
+    switch (enrollmentType) {
+      case 'REGULAR':
+        return '#10b981'; // أخضر للانتظام
+      case 'PART_TIME':
+        return '#3b82f6'; // أزرق للانتساب
+      default:
+        return '#6b7280'; // رمادي للقيم غير المعروفة
+    }
+  };
+
+  const getSubscriptionLabel = (enrollmentType: string) => {
+    switch (enrollmentType) {
+      case 'REGULAR':
+        return 'انتظام';
+      case 'PART_TIME':
+        return 'انتساب';
+      default:
+        return 'غير محدد';
+    }
+  };
+
+  const getGenderColor = (gender: string) => {
+    switch (gender) {
+      case 'MALE':
+        return '#1a237e'; // أزرق للذكر
+      case 'FEMALE':
+        return '#e91e63'; // وردي للأنثى
+      default:
+        return '#6b7280'; // رمادي للقيم غير المعروفة
+    }
+  };
+
+  const handleCall = (phoneNumber: string, studentName: string) => {
+    const phoneUrl = `tel:${phoneNumber}`;
+    Linking.canOpenURL(phoneUrl)
+      .then((supported) => {
+        if (supported) {
+          return Linking.openURL(phoneUrl);
+        } else {
+          Alert.alert('خطأ', 'لا يمكن فتح تطبيق الاتصال');
+        }
+      })
+      .catch((err) => {
+        console.error('Error opening phone app:', err);
+        Alert.alert('خطأ', 'حدث خطأ أثناء فتح تطبيق الاتصال');
+      });
+  };
+
+  const handleWhatsApp = (phoneNumber: string, studentName: string) => {
+    // تنظيف رقم الهاتف من المسافات والرموز
+    const cleanPhone = phoneNumber.replace(/\s+/g, '').replace(/[^\d+]/g, '');
+    const whatsappUrl = `whatsapp://send?phone=${cleanPhone}`;
+    
+    Linking.canOpenURL(whatsappUrl)
+      .then((supported) => {
+        if (supported) {
+          return Linking.openURL(whatsappUrl);
+        } else {
+          // إذا لم يكن الواتساب مثبت، افتح المتصفح
+          const webUrl = `https://wa.me/${cleanPhone}`;
+          return Linking.openURL(webUrl);
+        }
+      })
+      .catch((err) => {
+        console.error('Error opening WhatsApp:', err);
+        Alert.alert('خطأ', 'حدث خطأ أثناء فتح الواتساب');
+      });
   };
 
   const handleStudentAction = (student: ITrainee) => {
@@ -296,7 +368,15 @@ const StudentsListScreen = ({ navigation }: any) => {
     <View style={styles.container}>
       <View style={styles.header}>
         <CustomMenu navigation={navigation} activeRouteName="StudentsList" />
-        <Text style={styles.title}>قائمة الطلاب</Text>
+        <View style={styles.headerContent}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Icon name="arrow-back" size={24} color="#1a237e" />
+          </TouchableOpacity>
+          <Text style={styles.title}>قائمة الطلاب</Text>
+        </View>
         <View style={{ width: 50 }} />
       </View>
 
@@ -400,52 +480,102 @@ const StudentsListScreen = ({ navigation }: any) => {
           <View style={styles.studentsList}>
             {students.map((student) => (
               <View key={student.id} style={styles.studentCard}>
-                <View style={styles.studentInfo}>
-                  <View style={styles.studentHeader}>
+                {/* Header with Image and Basic Info */}
+                <View style={styles.cardHeader}>
+                  <View style={styles.studentImageContainer}>
+                    {student.photoUrl ? (
+                      <Image 
+                        source={{ uri: student.photoUrl }} 
+                        style={styles.studentImage}
+                        resizeMode="cover"
+                      />
+                    ) : (
+                      <View style={styles.defaultImageContainer}>
+                        <Icon name="person" size={32} color="#6b7280" />
+                      </View>
+                    )}
+                  </View>
+                  
+                  <View style={styles.studentBasicInfo}>
                     <Text style={styles.studentName}>{student.nameAr}</Text>
-                    <View style={[styles.statusBadge, { backgroundColor: getStatusColor(student.traineeStatus) + '20' }]}>
-                      <Text style={[styles.statusText, { color: getStatusColor(student.traineeStatus) }]}>
-                        {getStatusLabel(student.traineeStatus)}
-                      </Text>
+                    <View style={styles.badgesContainer}>
+                      <View style={[styles.statusBadge, { backgroundColor: getSubscriptionColor(student.enrollmentType) + '20' }]}>
+                        <Text style={[styles.statusText, { color: getSubscriptionColor(student.enrollmentType) }]}>
+                          {getSubscriptionLabel(student.enrollmentType)}
+                        </Text>
+                      </View>
+                      <View style={[styles.genderBadge, { backgroundColor: getGenderColor(student.gender) + '20' }]}>
+                        <Text style={[styles.genderText, { color: getGenderColor(student.gender) }]}>
+                          {student.gender === 'MALE' ? 'ذكر' : 'أنثى'}
+                        </Text>
+                      </View>
                     </View>
                   </View>
                   
-                  <View style={styles.studentDetails}>
-                    {student.email && (
-                      <View style={styles.detailRow}>
-                        <Icon name="email" size={16} color="#6b7280" />
-                        <Text style={styles.detailText}>{student.email}</Text>
-                      </View>
+                  <View style={styles.actionButtonsContainer}>
+                    {student.phone && (
+                      <>
+                        <TouchableOpacity 
+                          style={styles.whatsappButton}
+                          onPress={() => handleWhatsApp(student.phone, student.nameAr)}
+                        >
+                          <Icon name="chat" size={20} color="#25D366" />
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity 
+                          style={styles.callButton}
+                          onPress={() => handleCall(student.phone, student.nameAr)}
+                        >
+                          <Icon name="phone" size={20} color="#1a237e" />
+                        </TouchableOpacity>
+                      </>
                     )}
-                    <View style={styles.detailRow}>
-                      <Icon name="phone" size={16} color="#6b7280" />
-                      <Text style={styles.detailText}>{student.phone}</Text>
-                    </View>
-                    <View style={styles.detailRow}>
-                      <Icon name="book" size={16} color="#6b7280" />
-                      <Text style={styles.detailText}>{student.program.nameAr}</Text>
-                    </View>
-                    <View style={styles.detailRow}>
-                      <Icon name="calendar-today" size={16} color="#6b7280" />
-                      <Text style={styles.detailText}>
-                        تاريخ التسجيل: {new Date(student.createdAt).toLocaleDateString('ar-EG')}
-                      </Text>
-                    </View>
-                    <View style={styles.detailRow}>
-                      <Icon name="person" size={16} color="#6b7280" />
-                      <Text style={styles.detailText}>
-                        {student.gender === 'MALE' ? 'ذكر' : 'أنثى'} - {student.nationality}
-                      </Text>
-                    </View>
+                    
+                    <TouchableOpacity 
+                      style={styles.actionButton}
+                      onPress={() => handleStudentAction(student)}
+                    >
+                      <Icon name="more-vert" size={20} color="#6b7280" />
+                    </TouchableOpacity>
                   </View>
                 </View>
                 
-                <TouchableOpacity 
-                  style={styles.actionButton}
-                  onPress={() => handleStudentAction(student)}
-                >
-                  <Icon name="more-vert" size={20} color="#6b7280" />
-                </TouchableOpacity>
+                {/* Details Section */}
+                <View style={styles.studentDetails}>
+                  <View style={styles.detailRow}>
+                    <Icon name="assignment" size={16} color="#6b7280" />
+                    <Text style={styles.detailText}>
+                      {getSubscriptionLabel(student.enrollmentType)}
+                    </Text>
+                  </View>
+                  
+                  {student.educationalQualification && (
+                    <View style={styles.detailRow}>
+                      <Icon name="workspace-premium" size={16} color="#6b7280" />
+                      <Text style={styles.detailText}>
+                        {student.educationalQualification}
+                      </Text>
+                    </View>
+                  )}
+                  
+                  {student.specialization && (
+                    <View style={styles.detailRow}>
+                      <Icon name="work" size={16} color="#6b7280" />
+                      <Text style={styles.detailText}>
+                        {student.specialization}
+                      </Text>
+                    </View>
+                  )}
+                  
+                  <View style={styles.detailRow}>
+                    <Icon name="wb-sunny" size={16} color="#6b7280" />
+                    <Text style={styles.detailText}>
+                      {student.programType === 'SUMMER' ? 'صيفي' : 
+                       student.programType === 'WINTER' ? 'شتوي' : 
+                       student.programType || 'غير محدد'}
+                    </Text>
+                  </View>
+                </View>
               </View>
             ))}
           </View>
@@ -482,6 +612,19 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
+  },
+  headerContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 12,
+    borderRadius: 8,
+    backgroundColor: '#f0f9ff',
+    borderWidth: 1,
+    borderColor: '#1a237e',
   },
   title: {
     fontSize: 24,
@@ -605,43 +748,72 @@ const styles = StyleSheet.create({
   },
   studentCard: {
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
-    elevation: 2,
+    marginBottom: 16,
+    elevation: 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+  },
+  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 16,
   },
-  studentInfo: {
+  studentImageContainer: {
+    marginRight: 12,
+  },
+  studentImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#f3f4f6',
+  },
+  defaultImageContainer: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  studentBasicInfo: {
     flex: 1,
-  },
-  studentHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
   },
   studentName: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#1f2937',
-    flex: 1,
+    marginBottom: 8,
+  },
+  badgesContainer: {
+    flexDirection: 'row',
+    gap: 8,
   },
   statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
   },
   statusText: {
     fontSize: 12,
     fontWeight: '600',
   },
+  genderBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  genderText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
   studentDetails: {
-    marginTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f4f6',
+    paddingTop: 12,
   },
   detailRow: {
     flexDirection: 'row',
@@ -652,6 +824,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
     marginLeft: 8,
+  },
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  whatsappButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#E8F5E8',
+    borderWidth: 1,
+    borderColor: '#25D366',
+  },
+  callButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: '#f0f9ff',
+    borderWidth: 1,
+    borderColor: '#1a237e',
   },
   actionButton: {
     padding: 8,

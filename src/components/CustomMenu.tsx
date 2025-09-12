@@ -273,7 +273,7 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
                                 ? '#1a237e'
                                 : item.isLogout
                                 ? '#e53e3e'
-                                : '#3a4a63'
+                                : '#fff'
                             }
                             style={styles.menuIcon}
                           />
@@ -409,10 +409,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.03)',
   },
   activeMenuItem: {
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     shadowColor: '#fff',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 2,
   },
@@ -453,7 +453,7 @@ const styles = StyleSheet.create({
   },
   activeMenuText: {
     fontWeight: '700',
-    color: '#1a237e',
+    color: '#fff',
   },
   logoutText: {
     color: '#e53e3e',

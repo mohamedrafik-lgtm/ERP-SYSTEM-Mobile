@@ -2126,6 +2126,115 @@ class AuthService {
       throw error;
     }
   }
+
+  // User Role Management: Assign role to user
+  static async assignUserRole(userId: string, roleId: string): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = `http://10.0.2.2:4000/api/permissions/users/${userId}/roles/${roleId}`;
+      console.log('[AuthService] Assigning role to user at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to assign role: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error assigning user role:', error);
+      throw error;
+    }
+  }
+
+  // User Role Management: Remove role from user
+  static async removeUserRole(userId: string, roleId: string): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = `http://10.0.2.2:4000/api/permissions/users/${userId}/roles/${roleId}`;
+      console.log('[AuthService] Removing role from user at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to remove role: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error removing user role:', error);
+      throw error;
+    }
+  }
+
+  // User Role Management: Toggle role status (activate/deactivate)
+  static async toggleUserRoleStatus(userId: string, roleId: string, isActive: boolean): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = `http://10.0.2.2:4000/api/permissions/users/${userId}/roles/${roleId}`;
+      console.log('[AuthService] Toggling role status at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ isActive }),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to toggle role status: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error toggling user role status:', error);
+      throw error;
+    }
+  }
 }
 
 export default AuthService;

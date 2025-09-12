@@ -199,8 +199,16 @@ const FeesScreen = ({ navigation }: FeesScreenProps) => {
       <View style={styles.header}>
         <CustomMenu navigation={navigation} activeRouteName="Fees" />
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>الرسوم</Text>
-          <Text style={styles.headerSubtitle}>إدارة الرسوم المالية</Text>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Icon name="arrow-back" size={24} color="#1a237e" />
+          </TouchableOpacity>
+          <View style={styles.titleContainer}>
+            <Text style={styles.headerTitle}>الرسوم</Text>
+            <Text style={styles.headerSubtitle}>إدارة الرسوم المالية</Text>
+          </View>
         </View>
         <TouchableOpacity 
           style={styles.addButton}
@@ -282,6 +290,19 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   headerContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 12,
+    borderRadius: 8,
+    backgroundColor: '#f0f9ff',
+    borderWidth: 1,
+    borderColor: '#1a237e',
+  },
+  titleContainer: {
     flex: 1,
   },
   headerTitle: {

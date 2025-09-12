@@ -201,7 +201,15 @@ const TrainingContentsScreen = ({ navigation }: any) => {
     <View style={styles.container}>
       <View style={styles.header}>
         <CustomMenu navigation={navigation} activeRouteName="TrainingContents" />
-        <Text style={styles.title}>المحتوى التدريبي</Text>
+        <View style={styles.headerContent}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Icon name="arrow-back" size={24} color="#1a237e" />
+          </TouchableOpacity>
+          <Text style={styles.title}>المحتوى التدريبي</Text>
+        </View>
         <View style={{ width: 50 }} />
       </View>
 
@@ -409,6 +417,19 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
+  },
+  headerContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 12,
+    borderRadius: 8,
+    backgroundColor: '#f0f9ff',
+    borderWidth: 1,
+    borderColor: '#1a237e',
   },
   title: {
     fontSize: 24,

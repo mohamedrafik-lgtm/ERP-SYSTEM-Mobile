@@ -138,7 +138,7 @@ const DrawerMenu: React.FC<DrawerMenuProps> = ({ navigation, activeRouteName }) 
                 size={24}
                 color={
                   activeRouteName === item.screen ? '#fff' : 
-                  item.isLogout ? '#e53e3e' : '#3a4a63'
+                  item.isLogout ? '#e53e3e' : '#fff'
                 }
                 style={styles.menuIcon}
               />
@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   activeMenuItem: {
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
   },
   menuItemContent: {
     flexDirection: 'row',

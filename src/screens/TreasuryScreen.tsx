@@ -8,10 +8,12 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
+  SafeAreaView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AuthService from '../services/AuthService';
 import { ISafe, SafeCategory, ITransaction, TransactionType } from '../types/student';
+import CustomMenu from '../components/CustomMenu';
 
 interface TreasuryScreenProps {
   navigation: any;
@@ -262,12 +264,22 @@ const TreasuryScreen = ({ navigation }: TreasuryScreenProps) => {
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
+      <CustomMenu navigation={navigation} activeRouteName="Treasury" />
+      
       <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
+          <Icon name="arrow-back" size={24} color="#1a237e" />
+        </TouchableOpacity>
+        
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>الخزائن</Text>
           <Text style={styles.headerSubtitle}>إدارة الخزائن والعمليات المالية</Text>
         </View>
+        
         {!selectedTreasury && (
           <TouchableOpacity
             style={styles.addButton}
@@ -404,7 +416,7 @@ const TreasuryScreen = ({ navigation }: TreasuryScreenProps) => {
           </View>
         )}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -434,8 +446,17 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
+  backButton: {
+    padding: 8,
+    marginRight: 12,
+    borderRadius: 8,
+    backgroundColor: '#f0f9ff',
+    borderWidth: 1,
+    borderColor: '#1a237e',
+  },
   headerContent: {
     flex: 1,
+    alignItems: 'center',
   },
   addButton: {
     padding: 8,

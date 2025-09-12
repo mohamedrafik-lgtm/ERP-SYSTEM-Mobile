@@ -122,6 +122,12 @@ const MarketingStatsScreen = ({ navigation }: any) => {
       <View style={styles.header}>
         <CustomMenu navigation={navigation} activeRouteName="MarketingStats" />
         <View style={styles.headerContent}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Icon name="arrow-back" size={24} color="#1a237e" />
+          </TouchableOpacity>
           <View style={styles.headerLeft}>
             <Icon name="analytics" size={24} color="#1a237e" />
             <Text style={styles.headerTitle}>إحصائيات التسويق</Text>
@@ -375,9 +381,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 20,
   },
+  backButton: {
+    padding: 8,
+    marginRight: 12,
+    borderRadius: 8,
+    backgroundColor: '#f0f9ff',
+    borderWidth: 1,
+    borderColor: '#1a237e',
+  },
   headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
   headerTitle: {
     fontSize: 24,
