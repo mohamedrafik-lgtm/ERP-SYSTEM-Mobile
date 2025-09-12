@@ -518,3 +518,129 @@ export interface IStudent {
   enrollmentDate?: string;
   lastActivity?: string;
 }
+
+// Trainee Update Types
+export interface UpdateTraineePayload {
+  nameAr?: string;
+  nameEn?: string;
+  enrollmentType?: EnrollmentType;
+  maritalStatus?: MaritalStatus;
+  nationalId?: string;
+  idIssueDate?: string;
+  idExpiryDate?: string;
+  programType?: ProgramType;
+  nationality?: string;
+  gender?: Gender;
+  birthDate?: string;
+  residenceAddress?: string;
+  religion?: Religion;
+  programId?: number;
+  country?: string;
+  governorate?: string;
+  city?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  guardianPhone?: string;
+  guardianEmail?: string;
+  guardianJob?: string;
+  guardianRelation?: string;
+  guardianName?: string;
+  landline?: string;
+  whatsapp?: string;
+  facebook?: string;
+  educationType?: EducationType;
+  schoolName?: string;
+  graduationDate?: string;
+  totalGrade?: number;
+  gradePercentage?: number;
+  sportsActivity?: string;
+  culturalActivity?: string;
+  educationalActivity?: string;
+  notes?: string;
+  traineeStatus?: TraineeStatus;
+  classLevel?: Year;
+  academicYear?: string;
+  marketingEmployeeId?: number;
+  firstContactEmployeeId?: number;
+  secondContactEmployeeId?: number;
+}
+
+export interface UpdateTraineeResponse {
+  success: boolean;
+  message: string;
+  data?: ITrainee;
+  error?: string;
+}
+
+// Trainee Delete Types
+export interface DeleteTraineeResponse {
+  success: boolean;
+  message: string;
+  error?: string;
+}
+
+// Trainee Documents Types
+export type DocumentType = 
+  | 'NATIONAL_ID'
+  | 'PASSPORT'
+  | 'BIRTH_CERTIFICATE'
+  | 'EDUCATION_CERTIFICATE'
+  | 'MEDICAL_CERTIFICATE'
+  | 'PHOTO'
+  | 'CONTRACT'
+  | 'OTHER';
+
+export interface TraineeDocument {
+  id: string;
+  traineeId: number;
+  documentType: DocumentType;
+  fileName: string;             // اسم الملف الأصلي
+  filePath: string;             // مسار الملف المخزن
+  cloudinaryId?: string | null; // معرف الملف في Cloudinary
+  fileSize: number;             // حجم الملف بالبايت
+  mimeType: string;             // نوع الملف
+  uploadedAt: string;           // ISO date
+  notes?: string | null;        // ملاحظات
+  isVerified: boolean;          // هل تم التحقق؟
+  verifiedAt?: string | null;   // ISO date
+  verifiedById?: string | null; // معرف من تحقق
+  createdAt: string;            // ISO date
+  updatedAt: string;            // ISO date
+
+  uploadedBy: {
+    id: string;
+    name: string;
+  };
+}
+
+export interface DocumentWithStatus {
+  type: DocumentType;            // نوع الوثيقة
+  nameAr: string;               // اسم الوثيقة بالعربية
+  required: boolean;            // هل الوثيقة مطلوبة؟
+  document: TraineeDocument | null; // بيانات الوثيقة (إذا كانت مرفوعة)
+  isUploaded: boolean;          // هل الوثيقة مرفوعة؟
+  isVerified: boolean;          // هل الوثيقة محققة؟
+}
+
+export interface TraineeDocumentsResponse {
+  trainee: {
+    id: number;
+    nameAr: string;              // الاسم بالعربية
+    photoUrl?: string | null;    // رابط الصورة الشخصية
+    createdAt: string;           // ISO date
+    updatedAt: string;           // ISO date
+  };
+
+  documents: DocumentWithStatus[];
+
+  stats: {
+    totalRequired: number;       // إجمالي الوثائق المطلوبة
+    totalOptional: number;       // إجمالي الوثائق الاختيارية
+    uploadedRequired: number;    // عدد الوثائق المطلوبة المرفوعة
+    uploadedOptional: number;    // عدد الوثائق الاختيارية المرفوعة
+    verifiedCount: number;       // عدد الوثائق المحققة
+    completionPercentage: number; // نسبة إكمال الوثائق المطلوبة (%)
+    isComplete: boolean;         // هل جميع الوثائق المطلوبة مرفوعة؟
+  };
+}

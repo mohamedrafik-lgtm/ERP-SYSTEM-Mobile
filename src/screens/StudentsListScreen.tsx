@@ -14,6 +14,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import CustomMenu from '../components/CustomMenu';
 import ArabicSearchInput from '../components/ArabicSearchInput';
 import AuthService from '../services/AuthService';
+import WhatsAppAutoMessageService from '../services/WhatsAppAutoMessageService';
 import { ITrainee, IPaginatedTraineesResponse, TraineeStatus } from '../types/student';
 
 const StudentsListScreen = ({ navigation }: any) => {
@@ -127,6 +128,113 @@ const StudentsListScreen = ({ navigation }: any) => {
   const getStatusLabel = (status: TraineeStatus) => {
     const option = statusOptions.find(opt => opt.value === status);
     return option ? option.label : status;
+  };
+
+  const handleStudentAction = (student: ITrainee) => {
+    Alert.alert(
+      'إجراءات الطالب',
+      `اختر الإجراء المطلوب لـ ${student.nameAr}`,
+      [
+        {
+          text: 'تحديث البيانات',
+          onPress: () => navigation.navigate('EditTrainee', { trainee: student }),
+        },
+        {
+          text: 'عرض الوثائق',
+          onPress: () => navigation.navigate('TraineeDocuments', { trainee: { id: student.id, nameAr: student.nameAr } }),
+        },
+        {
+          text: 'عرض التفاصيل',
+          onPress: () => {
+            // يمكن إضافة شاشة عرض التفاصيل هنا
+            Alert.alert('تفاصيل الطالب', `الاسم: ${student.nameAr}\nالهاتف: ${student.phone}\nالبرنامج: ${student.program.nameAr}`);
+          },
+        },
+        {
+          text: 'حذف المتدرب',
+          style: 'destructive',
+          onPress: () => handleDeleteStudent(student),
+        },
+        {
+          text: 'إلغاء',
+          style: 'cancel',
+        },
+      ]
+    );
+  };
+
+  const handleDeleteStudent = (student: ITrainee) => {
+    Alert.alert(
+      'تأكيد الحذف',
+      `هل أنت متأكد من حذف المتدرب "${student.nameAr}"؟\n\nهذا الإجراء لا يمكن التراجع عنه.`,
+      [
+        {
+          text: 'إلغاء',
+          style: 'cancel',
+        },
+        {
+          text: 'حذف',
+          style: 'destructive',
+          onPress: () => confirmDeleteStudent(student),
+        },
+      ]
+    );
+  };
+
+  const confirmDeleteStudent = async (student: ITrainee) => {
+    try {
+      setLoading(true);
+      console.log('Deleting trainee:', student.id);
+
+      // Delete trainee
+      const response = await AuthService.deleteTrainee(student.id);
+      console.log('Delete response:', response);
+
+      if (response.success !== false) {
+        // Show success message
+        Alert.alert(
+          'تم الحذف بنجاح',
+          `تم حذف المتدرب "${student.nameAr}" بنجاح`,
+          [
+            {
+              text: 'موافق',
+              onPress: () => {
+                // Refresh the list
+                fetchStudents(currentPage, searchText, statusFilter);
+              },
+            },
+          ]
+        );
+
+        // Send WhatsApp message if phone number is available
+        if (student.phone) {
+          try {
+            await WhatsAppAutoMessageService.sendTraineeDeletionMessage(
+              student.phone,
+              student.nameAr,
+              'حذف من النظام',
+              'النظام', // You can get this from user context
+              new Date().toISOString()
+            );
+            
+            console.log('WhatsApp deletion message sent successfully');
+          } catch (messageError) {
+            console.error('Error sending WhatsApp deletion message:', messageError);
+            // Don't show error to user as deletion was successful
+          }
+        }
+      } else {
+        throw new Error(response.message || response.error || 'فشل في حذف المتدرب');
+      }
+    } catch (error: any) {
+      console.error('Error deleting trainee:', error);
+      Alert.alert(
+        'خطأ في الحذف',
+        error.message || 'حدث خطأ غير متوقع أثناء حذف المتدرب'
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const renderPagination = () => {
@@ -332,7 +440,10 @@ const StudentsListScreen = ({ navigation }: any) => {
                   </View>
                 </View>
                 
-                <TouchableOpacity style={styles.actionButton}>
+                <TouchableOpacity 
+                  style={styles.actionButton}
+                  onPress={() => handleStudentAction(student)}
+                >
                   <Icon name="more-vert" size={20} color="#6b7280" />
                 </TouchableOpacity>
               </View>

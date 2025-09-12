@@ -3,6 +3,7 @@ import { StatusBar, useColorScheme, View, ActivityIndicator } from 'react-native
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import Toast from 'react-native-toast-message';
 import TestLogin from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import ProgramsScreen from './src/screens/ProgramsScreen';
@@ -36,6 +37,8 @@ import MarketingTraineesScreen from './src/screens/MarketingTraineesScreen';
 import EmployeeTraineesScreen from './src/screens/EmployeeTraineesScreen';
 import MarketingStatsScreen from './src/screens/MarketingStatsScreen';
 import WhatsAppManagementScreen from './src/screens/WhatsAppManagementScreen';
+import EditTraineeScreen from './src/screens/EditTraineeScreen';
+import TraineeDocumentsScreen from './src/screens/TraineeDocumentsScreen';
 import AuthService from './src/services/AuthService';
 import { enableScreens } from 'react-native-screens';
 enableScreens();
@@ -114,8 +117,11 @@ function App() {
           <Stack.Screen name="EmployeeTrainees" component={EmployeeTraineesScreen} />
           <Stack.Screen name="MarketingStats" component={MarketingStatsScreen} />
           <Stack.Screen name="WhatsAppManagement" component={WhatsAppManagementScreen} />
+        <Stack.Screen name="EditTrainee" component={EditTraineeScreen} />
+        <Stack.Screen name="TraineeDocuments" component={TraineeDocumentsScreen} />
         </Stack.Navigator>
       </NavigationContainer>
+      <Toast />
     </SafeAreaProvider>
   );
 }

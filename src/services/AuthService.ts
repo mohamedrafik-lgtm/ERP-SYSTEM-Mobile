@@ -1951,6 +1951,181 @@ class AuthService {
       throw error;
     }
   }
+
+  // Trainee Management: Update Trainee
+  static async updateTrainee(traineeId: number, updateData: import('../types/student').UpdateTraineePayload): Promise<import('../types/student').UpdateTraineeResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = `http://10.0.2.2:4000/api/trainees/${traineeId}`;
+      console.log('[AuthService] Updating trainee at URL:', url);
+      console.log('[AuthService] Update data:', JSON.stringify(updateData, null, 2));
+
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData),
+      });
+
+      console.log('[AuthService] Response status:', response.status);
+      console.log('[AuthService] Response headers:', response.headers);
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          console.log('[AuthService] Error response data:', errorData);
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch (parseError) {
+          const errorText = await response.text();
+          console.log('[AuthService] Error response text:', errorText);
+          errorMessage = errorText || errorMessage;
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      const responseData = await response.json();
+      console.log('[AuthService] Trainee update response:', responseData);
+      
+      // If the API returns the trainee data directly, wrap it in our expected format
+      if (responseData && !responseData.success && !responseData.message) {
+        return {
+          success: true,
+          message: 'تم تحديث بيانات المتدرب بنجاح',
+          data: responseData
+        };
+      }
+      
+      return responseData;
+    } catch (error) {
+      console.error('[AuthService] Error updating trainee:', error);
+      throw error;
+    }
+  }
+
+  // Trainee Management: Delete Trainee
+  static async deleteTrainee(traineeId: number): Promise<import('../types/student').DeleteTraineeResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = `http://10.0.2.2:4000/api/trainees/${traineeId}`;
+      console.log('[AuthService] Deleting trainee at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('[AuthService] Response status:', response.status);
+      console.log('[AuthService] Response headers:', response.headers);
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          console.log('[AuthService] Error response data:', errorData);
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch (parseError) {
+          const errorText = await response.text();
+          console.log('[AuthService] Error response text:', errorText);
+          errorMessage = errorText || errorMessage;
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      const responseData = await response.json();
+      console.log('[AuthService] Trainee delete response:', responseData);
+      
+      // If the API returns a simple success response, wrap it in our expected format
+      if (responseData && !responseData.success && !responseData.message) {
+        return {
+          success: true,
+          message: 'تم حذف المتدرب بنجاح'
+        };
+      }
+      
+      return responseData;
+    } catch (error) {
+      console.error('[AuthService] Error deleting trainee:', error);
+      throw error;
+    }
+  }
+
+  // Trainee Management: Get Trainee Documents
+  static async getTraineeDocuments(traineeId: number): Promise<import('../types/student').TraineeDocumentsResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const url = `http://10.0.2.2:4000/api/trainees/${traineeId}/documents`;
+      console.log('[AuthService] Getting trainee documents at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('[AuthService] Response status:', response.status);
+      console.log('[AuthService] Response headers:', response.headers);
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          console.log('[AuthService] Error response data:', errorData);
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch (parseError) {
+          const errorText = await response.text();
+          console.log('[AuthService] Error response text:', errorText);
+          errorMessage = errorText || errorMessage;
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      const responseData = await response.json();
+      console.log('[AuthService] Trainee documents response:', responseData);
+      
+      return responseData;
+    } catch (error) {
+      console.error('[AuthService] Error getting trainee documents:', error);
+      throw error;
+    }
+  }
 }
 
 export default AuthService;

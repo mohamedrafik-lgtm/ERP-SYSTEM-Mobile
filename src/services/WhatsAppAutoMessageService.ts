@@ -250,6 +250,80 @@ class WhatsAppAutoMessageService {
     );
   }
 
+  // Helper method to send trainee update message with specific data
+  static async sendTraineeUpdateMessage(
+    phoneNumber: string,
+    traineeName: string,
+    updatedFields: string[],
+    updatedBy: string,
+    updateDate: string,
+    newData?: any
+  ): Promise<WhatsAppAutoMessage> {
+    const updatedFieldsText = updatedFields.join('، ');
+    const message = `📝 تم تحديث بياناتك
+
+مرحباً ${traineeName}
+
+تم تحديث الحقول التالية: ${updatedFieldsText}
+
+📅 تاريخ التحديث: ${this.formatDate(updateDate)}
+👤 تم التحديث بواسطة: ${updatedBy}
+
+إذا كان لديك أي استفسار، يرجى التواصل معنا.`;
+
+    return this.sendMessage(
+      this.formatPhoneNumber(phoneNumber),
+      message,
+      'student_management',
+      'update',
+      'normal',
+      'immediate',
+      {
+        studentName: traineeName,
+        updatedFields,
+        updatedBy,
+        updateDate,
+        newData
+      }
+    );
+  }
+
+  // Helper method to send trainee deletion message
+  static async sendTraineeDeletionMessage(
+    phoneNumber: string,
+    traineeName: string,
+    reason: string,
+    deletedBy: string,
+    deletionDate: string
+  ): Promise<WhatsAppAutoMessage> {
+    const message = `❌ إشعار حذف الحساب
+
+مرحباً ${traineeName}
+
+نأسف لإبلاغك بأنه تم حذف حسابك من النظام
+
+📝 السبب: ${reason}
+👤 تم الحذف بواسطة: ${deletedBy}
+📅 تاريخ الحذف: ${this.formatDate(deletionDate)}
+
+إذا كان لديك أي استفسار، يرجى التواصل معنا.`;
+
+    return this.sendMessage(
+      this.formatPhoneNumber(phoneNumber),
+      message,
+      'student_management',
+      'deletion',
+      'urgent',
+      'immediate',
+      {
+        studentName: traineeName,
+        reason,
+        deletedBy,
+        deletionDate
+      }
+    );
+  }
+
   static async sendStudentStatusChangeMessage(
     phoneNumber: string,
     data: StudentStatusChangeMessage
