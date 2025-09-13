@@ -1,7 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WhatsAppQRCodeResponse, WhatsAppStatusResponse, WhatsAppSendMessageRequest, WhatsAppSendMessageResponse, WhatsAppLogoutResponse } from '../types/whatsapp';
+import { AuthData, User, LegacyAuthData } from '../types/auth';
 
-interface AuthData {
+// Keep legacy interface for backward compatibility
+interface LegacyAuthDataLocal {
   token: string;
   user: {
     id: string;
@@ -16,8 +18,8 @@ class AuthService {
   private static readonly USER_KEY = 'user_data';
   private static readonly EXPIRES_KEY = 'token_expires';
 
-  // حفظ بيانات تسجيل الدخول
-  static async saveAuthData(token: string, user: any, expiresIn?: number) {
+  // حفظ بيانات تسجيل الدخول - محدث لدعم الأدوار
+  static async saveAuthData(token: string, user: User | any, expiresIn?: number) {
     try {
       // إذا لم يتم تحديد مدة الانتهاء، استخدم 7 أيام كافتراضي
       const defaultExpiresIn = 7 * 24 * 60 * 60 * 1000; // 7 أيام
@@ -30,14 +32,16 @@ class AuthService {
       ]);
       
       console.log('Auth data saved successfully');
+      console.log('User roles:', user.roles ? `${user.roles.length} roles` : 'no roles');
+      console.log('Primary role:', user.primaryRole?.displayName || 'no primary role');
     } catch (error) {
       console.error('Error saving auth data:', error);
       throw error;
     }
   }
 
-  // جلب بيانات تسجيل الدخول
-  static async getAuthData(): Promise<AuthData | null> {
+  // جلب بيانات تسجيل الدخول - محدث لدعم الأدوار
+  static async getAuthData(): Promise<AuthData | LegacyAuthDataLocal | null> {
     try {
       const [token, userData, expiresAt] = await AsyncStorage.multiGet([
         this.TOKEN_KEY,
@@ -57,9 +61,11 @@ class AuthService {
         return null;
       }
 
+      const user = JSON.parse(userData[1]);
+      
       return {
         token: token[1],
-        user: JSON.parse(userData[1]),
+        user,
         expiresAt: expires
       };
     } catch (error) {
@@ -81,9 +87,35 @@ class AuthService {
   }
 
   // جلب بيانات المستخدم
-  static async getUser(): Promise<any | null> {
+  static async getUser(): Promise<User | any | null> {
     const authData = await this.getAuthData();
     return authData?.user || null;
+  }
+
+  // جلب أدوار المستخدم الحالي
+  static async getUserRoles(): Promise<any[] | null> {
+    const user = await this.getUser();
+    return user?.roles || null;
+  }
+
+  // جلب الدور الأساسي للمستخدم
+  static async getUserPrimaryRole(): Promise<any | null> {
+    const user = await this.getUser();
+    return user?.primaryRole || null;
+  }
+
+  // التحقق من وجود دور محدد للمستخدم
+  static async hasRole(roleName: string): Promise<boolean> {
+    const roles = await this.getUserRoles();
+    if (!roles) return false;
+    return roles.some(role => role.name === roleName || role.displayName === roleName);
+  }
+
+  // التحقق من الصلاحية حسب أولوية الدور
+  static async hasMinimumRolePriority(minimumPriority: number): Promise<boolean> {
+    const primaryRole = await this.getUserPrimaryRole();
+    if (!primaryRole) return false;
+    return primaryRole.priority >= minimumPriority;
   }
 
   // مسح بيانات تسجيل الدخول

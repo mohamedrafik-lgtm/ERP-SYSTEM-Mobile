@@ -1,88 +1,450 @@
-export type RolesResponse = RoleWithRelations[];
+// Permission System Types and Configurations
 
-export interface RoleWithRelations {
+export type UserRole = 
+  | 'super_admin' 
+  | 'admin' 
+  | 'manager' 
+  | 'accountant' 
+  | 'employee' 
+  | 'trainee_entry_clerk';
+
+export interface PermissionConfig {
   id: string;
-  name: string; // unique system name
-  displayName: string; // human-friendly name
-  description?: string;
-  color?: string;
-  icon?: string;
+  title: string;
+  icon: string;
+  screen: string;
   priority: number;
-  isSystem: boolean;
-  isActive: boolean;
-  createdAt: string; // ISO
-  updatedAt: string; // ISO
-
-  rolePermissions: RolePermissionWithPermission[];
-  _count: {
-    userRoles: number;
-  };
-}
-
-export interface RolePermissionWithPermission {
-  roleId: string;
-  permissionId: string;
-  granted: boolean;
-  conditions?: any;
-  expiresAt?: string; // ISO
-  createdAt: string; // ISO
-  updatedAt: string; // ISO
-
-  permission: Permission;
-}
-
-export interface Permission {
-  id: string;
-  resource: string;
-  action: string;
-  displayName: string;
+  allowedRoles: UserRole[];
+  category: 'home' | 'academic' | 'marketing' | 'financial' | 'automation' | 'system';
   description?: string;
-  category?: string;
-  conditions?: any;
-  isSystem: boolean;
-  createdAt: string; // ISO
-  updatedAt: string; // ISO
+  isLogout?: boolean;
 }
 
-export interface RoleByIdResponse {
-  id: string;
-  name: string;
-  displayName: string;
-  description?: string;
-  color?: string;
-  icon?: string;
-  priority: number;
-  isSystem: boolean;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-  rolePermissions: Array<{
-    roleId: string;
-    permissionId: string;
-    granted: boolean;
-    conditions?: any;
-    expiresAt?: string;
-    createdAt: string;
-    updatedAt: string;
-    permission: Permission;
-  }>;
-  userRoles: Array<{
-    userId: string;
-    roleId: string;
-    assignedBy?: string;
-    assignedAt: string;
-    expiresAt?: string;
-    isActive: boolean;
-    conditions?: any;
-    user: {
-      id: string;
-      name: string;
-      email: string;
-    };
-  }>;
-  _count: {
-    userRoles: number;
-  };
+export interface MenuSection {
+  title: string;
+  category: string;
+  items: PermissionConfig[];
 }
 
+// تكوين صلاحيات جميع الصفحات
+export const SCREEN_PERMISSIONS: PermissionConfig[] = [
+  // الصفحة الرئيسية
+  {
+    id: 'Home',
+    title: 'الرئيسية',
+    icon: 'home',
+    screen: 'Home',
+    priority: 1,
+    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant', 'employee', 'trainee_entry_clerk'],
+    category: 'home',
+    description: 'الصفحة الرئيسية للنظام'
+  },
 
+  // الإدارة الأكاديمية
+  {
+    id: 'StudentsList',
+    title: 'الطلاب',
+    icon: 'people',
+    screen: 'StudentsList',
+    priority: 2,
+    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant', 'trainee_entry_clerk'],
+    category: 'academic',
+    description: 'عرض وإدارة قائمة الطلاب'
+  },
+  {
+    id: 'AddStudent',
+    title: 'إضافة طالب',
+    icon: 'person-add',
+    screen: 'AddStudent',
+    priority: 2.1,
+    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant', 'trainee_entry_clerk'],
+    category: 'academic',
+    description: 'إضافة طالب جديد للنظام'
+  },
+  {
+    id: 'UsersList',
+    title: 'المستخدمون',
+    icon: 'group',
+    screen: 'UsersList',
+    priority: 2.5,
+    allowedRoles: ['super_admin', 'admin', 'manager'],
+    category: 'academic',
+    description: 'إدارة المستخدمين'
+  },
+  {
+    id: 'AddUser',
+    title: 'إضافة مستخدم',
+    icon: 'person-add',
+    screen: 'AddUser',
+    priority: 2.6,
+    allowedRoles: ['super_admin', 'admin'],
+    category: 'academic',
+    description: 'إضافة مستخدم جديد'
+  },
+  {
+    id: 'Programs',
+    title: 'البرامج التدريبية',
+    icon: 'school',
+    screen: 'Programs',
+    priority: 3,
+    allowedRoles: ['super_admin', 'admin', 'manager'],
+    category: 'academic',
+    description: 'إدارة البرامج التدريبية'
+  },
+  {
+    id: 'AddProgram',
+    title: 'إضافة برنامج',
+    icon: 'add-box',
+    screen: 'AddProgram',
+    priority: 3.1,
+    allowedRoles: ['super_admin', 'admin', 'manager'],
+    category: 'academic',
+    description: 'إضافة برنامج تدريبي جديد'
+  },
+  {
+    id: 'TrainingContents',
+    title: 'المحتوى التدريبي',
+    icon: 'library-books',
+    screen: 'TrainingContents',
+    priority: 4,
+    allowedRoles: ['super_admin', 'admin', 'manager'],
+    category: 'academic',
+    description: 'إدارة المحتوى التدريبي'
+  },
+  {
+    id: 'AddTrainingContent',
+    title: 'إضافة محتوى تدريبي',
+    icon: 'note-add',
+    screen: 'AddTrainingContent',
+    priority: 4.1,
+    allowedRoles: ['super_admin', 'admin', 'manager'],
+    category: 'academic',
+    description: 'إضافة محتوى تدريبي جديد'
+  },
+  {
+    id: 'TraineeDocuments',
+    title: 'وثائق المتدربين',
+    icon: 'folder',
+    screen: 'TraineeDocuments',
+    priority: 4.2,
+    allowedRoles: ['super_admin', 'admin', 'manager', 'trainee_entry_clerk'],
+    category: 'academic',
+    description: 'إدارة وثائق المتدربين'
+  },
+  {
+    id: 'EmployeeTrainees',
+    title: 'متدربو الموظفين',
+    icon: 'supervisor-account',
+    screen: 'EmployeeTrainees',
+    priority: 4.3,
+    allowedRoles: ['super_admin', 'admin', 'manager', 'employee'],
+    category: 'academic',
+    description: 'عرض المتدربين حسب الموظف'
+  },
+
+  // إدارة التسويق
+  {
+    id: 'Marketers',
+    title: 'موظفي التسويق',
+    icon: 'campaign',
+    screen: 'Marketers',
+    priority: 5,
+    allowedRoles: ['super_admin', 'admin', 'manager'],
+    category: 'marketing',
+    description: 'إدارة موظفي التسويق'
+  },
+  {
+    id: 'AddMarketer',
+    title: 'إضافة مسوق',
+    icon: 'person-add-alt',
+    screen: 'AddMarketer',
+    priority: 5.1,
+    allowedRoles: ['super_admin', 'admin', 'manager'],
+    category: 'marketing',
+    description: 'إضافة مسوق جديد'
+  },
+  {
+    id: 'TargetSetting',
+    title: 'تحديد التارجيت',
+    icon: 'track-changes',
+    screen: 'TargetSetting',
+    priority: 5.5,
+    allowedRoles: ['super_admin', 'admin', 'manager'],
+    category: 'marketing',
+    description: 'تحديد أهداف التسويق'
+  },
+  {
+    id: 'MarketingTrainees',
+    title: 'المتدربين مع تفاصيل التسويق',
+    icon: 'people',
+    screen: 'MarketingTrainees',
+    priority: 5.7,
+    allowedRoles: ['super_admin', 'admin', 'manager'],
+    category: 'marketing',
+    description: 'عرض المتدربين مع بيانات التسويق'
+  },
+  {
+    id: 'MarketingStats',
+    title: 'إحصائيات التسويق',
+    icon: 'analytics',
+    screen: 'MarketingStats',
+    priority: 5.8,
+    allowedRoles: ['super_admin', 'admin', 'manager'],
+    category: 'marketing',
+    description: 'عرض إحصائيات الأداء التسويقي'
+  },
+
+  // الأتمتة التلقائية
+  {
+    id: 'WhatsAppManagement',
+    title: 'إدارة WhatsApp',
+    icon: 'chat',
+    screen: 'WhatsAppManagement',
+    priority: 6,
+    allowedRoles: ['super_admin', 'admin'],
+    category: 'automation',
+    description: 'إدارة رسائل WhatsApp التلقائية'
+  },
+
+  // الإدارة المالية
+  {
+    id: 'Treasury',
+    title: 'الخزائن المالية',
+    icon: 'account-balance',
+    screen: 'Treasury',
+    priority: 7,
+    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant'],
+    category: 'financial',
+    description: 'إدارة الخزائن المالية'
+  },
+  {
+    id: 'AddTreasury',
+    title: 'إضافة خزينة',
+    icon: 'add-business',
+    screen: 'AddTreasury',
+    priority: 7.1,
+    allowedRoles: ['super_admin', 'admin', 'accountant'],
+    category: 'financial',
+    description: 'إضافة خزينة مالية جديدة'
+  },
+  {
+    id: 'Fees',
+    title: 'الرسوم المالية',
+    icon: 'account-balance-wallet',
+    screen: 'Fees',
+    priority: 7.5,
+    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant'],
+    category: 'financial',
+    description: 'إدارة الرسوم المالية'
+  },
+  {
+    id: 'AddFee',
+    title: 'إضافة رسوم',
+    icon: 'add-card',
+    screen: 'AddFee',
+    priority: 7.6,
+    allowedRoles: ['super_admin', 'admin', 'accountant'],
+    category: 'financial',
+    description: 'إضافة رسوم مالية جديدة'
+  },
+  {
+    id: 'TraineePayments',
+    title: 'مدفوعات المتدربين',
+    icon: 'payment',
+    screen: 'TraineePayments',
+    priority: 8,
+    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant'],
+    category: 'financial',
+    description: 'إدارة مدفوعات المتدربين'
+  },
+  {
+    id: 'TraineePaymentDetails',
+    title: 'تفاصيل مدفوعات المتدرب',
+    icon: 'receipt',
+    screen: 'TraineePaymentDetails',
+    priority: 8.1,
+    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant'],
+    category: 'financial',
+    description: 'عرض تفاصيل مدفوعات متدرب محدد'
+  },
+  {
+    id: 'AddTransaction',
+    title: 'إضافة معاملة مالية',
+    icon: 'add-shopping-cart',
+    screen: 'AddTransaction',
+    priority: 8.2,
+    allowedRoles: ['super_admin', 'admin', 'accountant'],
+    category: 'financial',
+    description: 'إضافة معاملة مالية جديدة'
+  },
+
+  // إدارة النظام
+  {
+    id: 'Permissions',
+    title: 'الصلاحيات',
+    icon: 'lock',
+    screen: 'Permissions',
+    priority: 9,
+    allowedRoles: ['super_admin'],
+    category: 'system',
+    description: 'إدارة صلاحيات المستخدمين'
+  },
+  {
+    id: 'AddPermission',
+    title: 'إضافة صلاحية',
+    icon: 'lock-open',
+    screen: 'AddPermission',
+    priority: 9.1,
+    allowedRoles: ['super_admin'],
+    category: 'system',
+    description: 'إضافة صلاحية جديدة'
+  },
+  {
+    id: 'RoleDetails',
+    title: 'تفاصيل الأدوار',
+    icon: 'admin-panel-settings',
+    screen: 'RoleDetails',
+    priority: 9.2,
+    allowedRoles: ['super_admin'],
+    category: 'system',
+    description: 'عرض وتعديل تفاصيل الأدوار'
+  },
+
+  // إدارة الأسئلة والاختبارات
+  {
+    id: 'Questions',
+    title: 'الأسئلة',
+    icon: 'quiz',
+    screen: 'Questions',
+    priority: 4.5,
+    allowedRoles: ['super_admin', 'admin', 'manager'],
+    category: 'academic',
+    description: 'إدارة بنك الأسئلة'
+  },
+  {
+    id: 'AddQuestion',
+    title: 'إضافة سؤال',
+    icon: 'help-outline',
+    screen: 'AddQuestion',
+    priority: 4.6,
+    allowedRoles: ['super_admin', 'admin', 'manager'],
+    category: 'academic',
+    description: 'إضافة سؤال جديد'
+  },
+
+  // الصفحات التي لها صلاحيات خاصة
+  {
+    id: 'EditUser',
+    title: 'تعديل مستخدم',
+    icon: 'edit',
+    screen: 'EditUser',
+    priority: 2.7,
+    allowedRoles: ['super_admin', 'admin'],
+    category: 'academic',
+    description: 'تعديل بيانات المستخدمين'
+  },
+  {
+    id: 'EditTrainee',
+    title: 'تعديل متدرب',
+    icon: 'edit',
+    screen: 'EditTrainee',
+    priority: 2.2,
+    allowedRoles: ['super_admin', 'admin', 'manager', 'trainee_entry_clerk'],
+    category: 'academic',
+    description: 'تعديل بيانات المتدربين'
+  },
+  {
+    id: 'EditProgram',
+    title: 'تعديل برنامج',
+    icon: 'edit',
+    screen: 'EditProgram',
+    priority: 3.2,
+    allowedRoles: ['super_admin', 'admin', 'manager'],
+    category: 'academic',
+    description: 'تعديل البرامج التدريبية'
+  },
+  {
+    id: 'EditTrainingContent',
+    title: 'تعديل محتوى تدريبي',
+    icon: 'edit',
+    screen: 'EditTrainingContent',
+    priority: 4.2,
+    allowedRoles: ['super_admin', 'admin', 'manager'],
+    category: 'academic',
+    description: 'تعديل المحتوى التدريبي'
+  },
+  {
+    id: 'EditMarketer',
+    title: 'تعديل مسوق',
+    icon: 'edit',
+    screen: 'EditMarketer',
+    priority: 5.2,
+    allowedRoles: ['super_admin', 'admin', 'manager'],
+    category: 'marketing',
+    description: 'تعديل بيانات المسوقين'
+  }
+];
+
+// تجميع الصفحات حسب الفئات للقائمة
+export const MENU_SECTIONS: MenuSection[] = [
+  {
+    title: 'الرئيسية',
+    category: 'home',
+    items: SCREEN_PERMISSIONS.filter(item => item.category === 'home')
+  },
+  {
+    title: 'الإدارة الأكاديمية',
+    category: 'academic',
+    items: SCREEN_PERMISSIONS.filter(item => item.category === 'academic')
+  },
+  {
+    title: 'إدارة التسويق',
+    category: 'marketing',
+    items: SCREEN_PERMISSIONS.filter(item => item.category === 'marketing')
+  },
+  {
+    title: 'الأتمتة التلقائية',
+    category: 'automation',
+    items: SCREEN_PERMISSIONS.filter(item => item.category === 'automation')
+  },
+  {
+    title: 'الإدارة المالية',
+    category: 'financial',
+    items: SCREEN_PERMISSIONS.filter(item => item.category === 'financial')
+  },
+  {
+    title: 'النظام',
+    category: 'system',
+    items: SCREEN_PERMISSIONS.filter(item => item.category === 'system')
+  }
+];
+
+// ترتيب الأدوار حسب الصلاحيات (من الأعلى للأقل)
+export const ROLE_HIERARCHY: Record<UserRole, number> = {
+  super_admin: 1,
+  admin: 2,
+  manager: 3,
+  accountant: 4,
+  employee: 5,
+  trainee_entry_clerk: 6
+};
+
+// أسماء الأدوار بالعربية
+export const ROLE_DISPLAY_NAMES: Record<UserRole, string> = {
+  super_admin: 'مدير عام',
+  admin: 'مدير النظام',
+  manager: 'مدير',
+  accountant: 'محاسب',
+  employee: 'موظف',
+  trainee_entry_clerk: 'موظف إدخال بيانات المتدربين'
+};
+
+// ألوان الأدوار
+export const ROLE_COLORS: Record<UserRole, string> = {
+  super_admin: '#e53e3e',
+  admin: '#d69e2e',
+  manager: '#3182ce',
+  accountant: '#38a169',
+  employee: '#805ad5',
+  trainee_entry_clerk: '#dd6b20'
+};

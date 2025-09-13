@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -19,49 +19,18 @@ import Toast from 'react-native-toast-message';
 
 const { width } = Dimensions.get('window');
 
-interface CustomMenuProps {
+interface PermissionBasedMenuProps {
   navigation: any;
   activeRouteName?: string;
 }
 
-const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) => {
+const PermissionBasedMenu: React.FC<PermissionBasedMenuProps> = ({ 
+  navigation, 
+  activeRouteName 
+}) => {
   const [isVisible, setIsVisible] = useState(false);
   const [slideAnim] = useState(new Animated.Value(-width));
-  const { allowedMenuSections, isLoading, userRoleInfo } = usePermissions();
-
-  // إضافة عنصر تسجيل الخروج لجميع الأقسام المسموحة
-  const getMenuSectionsWithLogout = () => {
-    const sectionsWithLogout = [...allowedMenuSections];
-    
-    // البحث عن قسم النظام أو إنشاؤه
-    let systemSection = sectionsWithLogout.find(section => section.category === 'system');
-    
-    if (!systemSection) {
-      systemSection = {
-        title: 'النظام',
-        category: 'system',
-        items: []
-      };
-      sectionsWithLogout.push(systemSection);
-    }
-    
-    // إضافة عنصر تسجيل الخروج إذا لم يكن موجوداً
-    const hasLogout = systemSection.items.some(item => item.isLogout);
-    if (!hasLogout) {
-      systemSection.items.push({
-        id: 'Logout',
-        title: 'تسجيل الخروج',
-        icon: 'exit-to-app',
-        screen: 'Login',
-        priority: 999,
-        allowedRoles: ['super_admin', 'admin', 'manager', 'accountant', 'employee', 'trainee_entry_clerk'],
-        category: 'system' as const,
-        isLogout: true,
-      });
-    }
-    
-    return sectionsWithLogout;
-  };
+  const { allowedMenuSections, isLoading } = usePermissions();
 
   const showMenu = () => {
     setIsVisible(true);
@@ -80,6 +49,40 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
     }).start(() => {
       setIsVisible(false);
     });
+  };
+
+  // إضافة عنصر تسجيل الخروج لجميع الأقسام المسموحة
+  const getMenuSectionsWithLogout = () => {
+    const sectionsWithLogout = [...allowedMenuSections];
+    
+    // البحث عن قسم النظام أو إنشاؤه
+    let systemSection = sectionsWithLogout.find(section => section.category === 'system');
+    
+    if (!systemSection) {
+      systemSection = {
+        title: 'النظام',
+        category: 'system',
+        items: []
+      };
+      sectionsWithLogout.push(systemSection);
+    }
+    
+    // إضافة عنصر تسجيل الخروج إذا لم يكن موجوداً
+    const hasLogout = systemSection.items.some((item: any) => item.isLogout);
+    if (!hasLogout) {
+      systemSection.items.push({
+        id: 'Logout',
+        title: 'تسجيل الخروج',
+        icon: 'exit-to-app',
+        screen: 'Login',
+        priority: 999,
+        allowedRoles: ['super_admin', 'admin', 'manager', 'accountant', 'employee', 'trainee_entry_clerk'],
+        category: 'system' as const,
+        isLogout: true,
+      });
+    }
+    
+    return sectionsWithLogout;
   };
 
   const handleMenuPress = async (item: any) => {
@@ -124,24 +127,24 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
   return (
     <>
       <TouchableOpacity style={styles.menuButton} onPress={showMenu}>
-        <Icon name="menu" size={28} color="#1a237e" />
+        <Icon name="menu" size={28} color="#fff" />
       </TouchableOpacity>
 
       <Modal
         visible={isVisible}
-        transparent
+        transparent={true}
         animationType="none"
         onRequestClose={hideMenu}
       >
-        <View style={styles.modalContainer}>
+        <View style={styles.overlay}>
           <TouchableOpacity
-            style={styles.backdrop}
+            style={styles.overlayTouchable}
             activeOpacity={1}
             onPress={hideMenu}
           />
           <Animated.View
             style={[
-              styles.menuContainer,
+              styles.menu,
               {
                 transform: [{ translateX: slideAnim }],
               },
@@ -166,11 +169,7 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
               </TouchableOpacity>
             </View>
 
-            <ScrollView 
-              style={styles.menuItems}
-              showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.menuItemsContent}
-            >
+            <ScrollView style={styles.menuContainer}>
               {isLoading ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="large" color="#1a237e" />
@@ -181,8 +180,8 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
                   <View key={sectionIndex} style={styles.menuSection}>
                     <Text style={styles.sectionTitle}>{section.title}</Text>
                     {section.items
-                      .sort((a, b) => a.priority - b.priority)
-                      .map((item) => (
+                      .sort((a: any, b: any) => a.priority - b.priority)
+                      .map((item: any) => (
                       <TouchableOpacity
                         key={item.id}
                         style={[
@@ -243,56 +242,65 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
 
 const styles = StyleSheet.create({
   menuButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: '#f3f4f6',
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    zIndex: 1000,
+    backgroundColor: 'rgba(26, 35, 126, 0.8)',
+    padding: 12,
+    borderRadius: 25,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
-  modalContainer: {
-    flex: 1,
-    flexDirection: 'row',
-  },
-  backdrop: {
+  overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    flexDirection: 'row',
   },
-  menuContainer: {
-    width: width * 0.85,
-    backgroundColor: '#1a237e',
+  overlayTouchable: {
+    flex: 1,
+  },
+  menu: {
+    width: width * 0.8,
+    maxWidth: 320,
     height: '100%',
+    backgroundColor: '#1a237e',
     shadowColor: '#000',
-    shadowOffset: { width: 2, height: 0 },
+    shadowOffset: {
+      width: 2,
+      height: 0,
+    },
     shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   header: {
-    padding: 20,
+    backgroundColor: '#1a237e',
     paddingTop: 50,
-    alignItems: 'center',
+    paddingBottom: 20,
+    paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.15)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
     position: 'relative',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   logo: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#fff',
-    marginBottom: 12,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    width: 60,
+    height: 60,
+    alignSelf: 'center',
+    marginBottom: 10,
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 6,
     textAlign: 'center',
-    letterSpacing: 0.5,
+    marginBottom: 4,
   },
   headerSubtitle: {
     fontSize: 14,
@@ -307,6 +315,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 8,
   },
+  closeButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    padding: 8,
+  },
+  menuContainer: {
+    flex: 1,
+    backgroundColor: '#1a237e',
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -319,54 +337,29 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
   },
-  closeButton: {
-    position: 'absolute',
-    top: 40,
-    right: 20,
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  menuItems: {
-    flex: 1,
-  },
-  menuItemsContent: {
-    paddingTop: 10,
-    paddingBottom: 20,
-  },
   menuSection: {
-    marginBottom: 28,
+    marginVertical: 8,
+    paddingHorizontal: 16,
   },
   sectionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 16,
-    marginLeft: 24,
-    marginRight: 24,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-    paddingBottom: 8,
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 8,
+    paddingHorizontal: 8,
+    opacity: 0.9,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 18,
-    paddingHorizontal: 24,
-    marginHorizontal: 16,
-    borderRadius: 14,
-    marginBottom: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginVertical: 2,
+    borderRadius: 8,
+    position: 'relative',
   },
   activeMenuItem: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    shadowColor: '#fff',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 2,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
   },
   menuItemContent: {
     flexDirection: 'row',
@@ -378,77 +371,51 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
+    alignItems: 'center',
+    marginRight: 12,
   },
   activeIconContainer: {
     backgroundColor: '#fff',
-    shadowColor: '#1a237e',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
   },
   logoutIconContainer: {
-    backgroundColor: 'rgba(229, 62, 62, 0.15)',
+    backgroundColor: 'rgba(229, 62, 62, 0.2)',
   },
   menuIcon: {
-    // Remove marginRight as it's now handled by iconContainer
+    textAlign: 'center',
   },
   menuText: {
     fontSize: 16,
     color: '#fff',
     fontWeight: '500',
-    letterSpacing: 0.3,
     flex: 1,
   },
   activeMenuText: {
-    fontWeight: '700',
-    color: '#fff',
+    color: '#1a237e',
+    fontWeight: '600',
   },
   logoutText: {
-    color: '#e53e3e',
-    fontWeight: '600',
+    color: '#ff6b6b',
   },
   activeIndicator: {
     width: 4,
-    height: 32,
-    backgroundColor: '#1a237e',
+    height: 30,
+    backgroundColor: '#fff',
     borderRadius: 2,
-    marginLeft: 8,
-  },
-  subMenuItem: {
-    marginLeft: 20,
-    paddingVertical: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 8,
-    marginHorizontal: 10,
-    marginBottom: 4,
-  },
-  subMenuIcon: {
-    marginRight: 12,
-  },
-  subMenuText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontWeight: '400',
+    position: 'absolute',
+    right: 0,
   },
   footer: {
-    padding: 20,
+    padding: 16,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.15)',
+    borderTopColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   footerText: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.7)',
     textAlign: 'center',
-    marginBottom: 6,
-    fontWeight: '600',
-    letterSpacing: 0.5,
   },
 });
 
-export default CustomMenu;
+export default PermissionBasedMenu;

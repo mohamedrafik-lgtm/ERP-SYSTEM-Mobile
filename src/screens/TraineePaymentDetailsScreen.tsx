@@ -82,7 +82,9 @@ const TraineePaymentDetailsScreen = ({ route, navigation }: TraineePaymentDetail
 
   const handlePaymentPress = (payment: TraineePaymentByTraineeResponse) => {
     setSelectedPayment(payment);
-    setPaymentAmount(payment.amount.toString());
+    // عرض المبلغ المتبقي بدلاً من المبلغ الكامل
+    const remainingAmount = payment.amount - payment.paidAmount;
+    setPaymentAmount(remainingAmount.toString());
     setSelectedSafeId('');
     setPaymentNotes('');
     setShowPaymentModal(true);
@@ -97,6 +99,13 @@ const TraineePaymentDetailsScreen = ({ route, navigation }: TraineePaymentDetail
     const amount = parseFloat(paymentAmount);
     if (isNaN(amount) || amount <= 0) {
       Alert.alert('خطأ', 'يرجى إدخال مبلغ صحيح');
+      return;
+    }
+
+    // التحقق من أن المبلغ لا يتجاوز المبلغ المتبقي
+    const remainingAmount = selectedPayment.amount - selectedPayment.paidAmount;
+    if (amount > remainingAmount) {
+      Alert.alert('خطأ', `المبلغ المدخل (${amount.toLocaleString()} ج.م) يتجاوز المبلغ المتبقي (${remainingAmount.toLocaleString()} ج.م)`);
       return;
     }
 
@@ -264,13 +273,15 @@ const TraineePaymentDetailsScreen = ({ route, navigation }: TraineePaymentDetail
           <Text style={styles.actionButtonText}>تعديل</Text>
         </TouchableOpacity>
 
-        {payment.status === 'PENDING' && (
+        {(payment.status === 'PENDING' || payment.status === 'PARTIALLY_PAID') && (
           <TouchableOpacity 
             style={styles.paymentButton}
             onPress={() => handlePaymentPress(payment)}
           >
             <Icon name="payment" size={16} color="#059669" />
-            <Text style={styles.paymentButtonText}>دفع</Text>
+            <Text style={styles.paymentButtonText}>
+              {payment.status === 'PARTIALLY_PAID' ? 'دفع المتبقي' : 'دفع'}
+            </Text>
           </TouchableOpacity>
         )}
 
@@ -368,9 +379,14 @@ const TraineePaymentDetailsScreen = ({ route, navigation }: TraineePaymentDetail
                   style={styles.textInput}
                   value={paymentAmount}
                   onChangeText={setPaymentAmount}
-                  placeholder="أدخل المبلغ"
+                  placeholder={`أدخل المبلغ (الحد الأقصى: ${selectedPayment ? (selectedPayment.amount - selectedPayment.paidAmount).toLocaleString() : '0'} ج.م)`}
                   keyboardType="numeric"
                 />
+                {selectedPayment && (
+                  <Text style={styles.helperText}>
+                    المبلغ المتبقي: {(selectedPayment.amount - selectedPayment.paidAmount).toLocaleString()} ج.م
+                  </Text>
+                )}
               </View>
 
               <View style={styles.inputGroup}>
@@ -830,6 +846,12 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
     backgroundColor: '#fff',
+  },
+  helperText: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   textArea: {
     height: 80,
