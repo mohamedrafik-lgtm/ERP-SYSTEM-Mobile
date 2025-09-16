@@ -1,4 +1,5 @@
 import AuthService from './AuthService';
+import { API_CONFIG } from '../config/api';
 import {
   WhatsAppAutoMessage,
   MessagePriority,
@@ -45,7 +46,7 @@ import {
 } from '../types/whatsapp';
 
 class WhatsAppAutoMessageService {
-  private static readonly BASE_URL = 'http://10.0.2.2:4000/api/whatsapp';
+  private static readonly BASE_URL = `${API_CONFIG.BASE_URL}/api/whatsapp`;
 
   // Helper method to send message
   private static async sendMessage(

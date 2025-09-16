@@ -23,7 +23,7 @@ const TestLogin = ({ navigation }: any) => {
 
     setLoading(true);
     try {
-      const response = await fetch("http://10.0.2.2:4000/api/auth/login", {
+      const response = await fetch("https://erpproductionbackend-production.up.railway.app/api/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

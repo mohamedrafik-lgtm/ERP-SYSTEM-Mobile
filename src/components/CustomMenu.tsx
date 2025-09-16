@@ -87,15 +87,17 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
     
     if (item.isLogout) {
       try {
-        await AuthService.logout();
+        // تسجيل الخروج ومسح بيانات الفرع للعودة لشاشة اختيار الفرع
+        await AuthService.logout(true);
         Toast.show({
           type: 'success',
           text1: 'تم تسجيل الخروج بنجاح',
+          text2: 'اختر الفرع لتسجيل الدخول مرة أخرى',
           position: 'bottom',
         });
         navigation.reset({
           index: 0,
-          routes: [{ name: 'Login' }],
+          routes: [{ name: 'BranchSelection' }],
         });
       } catch (error) {
         console.error('Logout error:', error);
@@ -160,6 +162,7 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
               <View style={styles.userSection}>
                 <UserRoleDisplay compact={true} showPrimaryRoleOnly={true} />
               </View>
+
               
               <TouchableOpacity style={styles.closeButton} onPress={hideMenu}>
                 <Icon name="close" size={24} color="#fff" />
@@ -433,6 +436,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.8)',
     fontWeight: '400',
+  },
+  branchSection: {
+    marginBottom: 16,
+    paddingHorizontal: 20,
   },
   footer: {
     padding: 20,

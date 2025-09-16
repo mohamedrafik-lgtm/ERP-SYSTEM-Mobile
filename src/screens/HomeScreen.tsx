@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, ActivityIn
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import CustomMenu from '../components/CustomMenu';
 import AuthService from '../services/AuthService';
+import BranchService from '../services/BranchService';
 
 const HomeScreen = ({ navigation }: any) => {
   const [stats, setStats] = useState({
@@ -15,10 +16,23 @@ const HomeScreen = ({ navigation }: any) => {
     totalBalance: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [branchName, setBranchName] = useState('');
 
   useEffect(() => {
     fetchStats();
+    fetchBranchInfo();
   }, []);
+
+  const fetchBranchInfo = async () => {
+    try {
+      const branch = await BranchService.getSelectedBranch();
+      if (branch) {
+        setBranchName(branch.name);
+      }
+    } catch (error) {
+      console.error('Error fetching branch info:', error);
+    }
+  };
 
   const fetchStats = async () => {
     try {
@@ -92,7 +106,12 @@ const HomeScreen = ({ navigation }: any) => {
     <View style={styles.container}>
       <View style={styles.header}>
         <CustomMenu navigation={navigation} activeRouteName="Home" />
-        <Text style={styles.headerTitle}>الرئيسية</Text>
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>الرئيسية</Text>
+          {branchName ? (
+            <Text style={styles.branchIndicator}>{branchName}</Text>
+          ) : null}
+        </View>
         <View style={styles.placeholder} />
       </View>
 
@@ -257,10 +276,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 2,
   },
+  headerCenter: {
+    alignItems: 'center',
+    flex: 1,
+  },
   headerTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#1a237e',
+  },
+  branchIndicator: {
+    fontSize: 12,
+    color: '#059669',
+    fontWeight: '500',
+    backgroundColor: '#e8f5e8',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginTop: 4,
   },
   placeholder: {
     width: 44,

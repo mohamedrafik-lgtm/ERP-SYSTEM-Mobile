@@ -135,7 +135,7 @@ const AddProgramScreen = ({ navigation }: any) => {
         price: Number(formData.price),
         description: formData.description.trim(),
       };
-      const response = await fetch('http://10.0.2.2:4000/api/programs', {
+      const response = await fetch('https://erpproductionbackend-production.up.railway.app/api/programs', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -121,26 +121,6 @@ export const SCREEN_PERMISSIONS: PermissionConfig[] = [
     category: 'academic',
     description: 'إضافة محتوى تدريبي جديد'
   },
-  {
-    id: 'TraineeDocuments',
-    title: 'وثائق المتدربين',
-    icon: 'folder',
-    screen: 'TraineeDocuments',
-    priority: 4.2,
-    allowedRoles: ['super_admin', 'admin', 'manager', 'trainee_entry_clerk'],
-    category: 'academic',
-    description: 'إدارة وثائق المتدربين'
-  },
-  {
-    id: 'EmployeeTrainees',
-    title: 'متدربو الموظفين',
-    icon: 'supervisor-account',
-    screen: 'EmployeeTrainees',
-    priority: 4.3,
-    allowedRoles: ['super_admin', 'admin', 'manager', 'employee'],
-    category: 'academic',
-    description: 'عرض المتدربين حسب الموظف'
-  },
 
   // إدارة التسويق
   {
@@ -267,16 +247,6 @@ export const SCREEN_PERMISSIONS: PermissionConfig[] = [
     category: 'financial',
     description: 'عرض تفاصيل مدفوعات متدرب محدد'
   },
-  {
-    id: 'AddTransaction',
-    title: 'إضافة معاملة مالية',
-    icon: 'add-shopping-cart',
-    screen: 'AddTransaction',
-    priority: 8.2,
-    allowedRoles: ['super_admin', 'admin', 'accountant'],
-    category: 'financial',
-    description: 'إضافة معاملة مالية جديدة'
-  },
 
   // إدارة النظام
   {
@@ -298,16 +268,6 @@ export const SCREEN_PERMISSIONS: PermissionConfig[] = [
     allowedRoles: ['super_admin'],
     category: 'system',
     description: 'إضافة صلاحية جديدة'
-  },
-  {
-    id: 'RoleDetails',
-    title: 'تفاصيل الأدوار',
-    icon: 'admin-panel-settings',
-    screen: 'RoleDetails',
-    priority: 9.2,
-    allowedRoles: ['super_admin'],
-    category: 'system',
-    description: 'عرض وتعديل تفاصيل الأدوار'
   },
 
   // إدارة الأسئلة والاختبارات
@@ -332,57 +292,6 @@ export const SCREEN_PERMISSIONS: PermissionConfig[] = [
     description: 'إضافة سؤال جديد'
   },
 
-  // الصفحات التي لها صلاحيات خاصة
-  {
-    id: 'EditUser',
-    title: 'تعديل مستخدم',
-    icon: 'edit',
-    screen: 'EditUser',
-    priority: 2.7,
-    allowedRoles: ['super_admin', 'admin'],
-    category: 'academic',
-    description: 'تعديل بيانات المستخدمين'
-  },
-  {
-    id: 'EditTrainee',
-    title: 'تعديل متدرب',
-    icon: 'edit',
-    screen: 'EditTrainee',
-    priority: 2.2,
-    allowedRoles: ['super_admin', 'admin', 'manager', 'trainee_entry_clerk'],
-    category: 'academic',
-    description: 'تعديل بيانات المتدربين'
-  },
-  {
-    id: 'EditProgram',
-    title: 'تعديل برنامج',
-    icon: 'edit',
-    screen: 'EditProgram',
-    priority: 3.2,
-    allowedRoles: ['super_admin', 'admin', 'manager'],
-    category: 'academic',
-    description: 'تعديل البرامج التدريبية'
-  },
-  {
-    id: 'EditTrainingContent',
-    title: 'تعديل محتوى تدريبي',
-    icon: 'edit',
-    screen: 'EditTrainingContent',
-    priority: 4.2,
-    allowedRoles: ['super_admin', 'admin', 'manager'],
-    category: 'academic',
-    description: 'تعديل المحتوى التدريبي'
-  },
-  {
-    id: 'EditMarketer',
-    title: 'تعديل مسوق',
-    icon: 'edit',
-    screen: 'EditMarketer',
-    priority: 5.2,
-    allowedRoles: ['super_admin', 'admin', 'manager'],
-    category: 'marketing',
-    description: 'تعديل بيانات المسوقين'
-  }
 ];
 
 // تجميع الصفحات حسب الفئات للقائمة

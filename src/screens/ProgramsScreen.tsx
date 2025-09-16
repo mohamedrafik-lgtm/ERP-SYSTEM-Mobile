@@ -61,7 +61,8 @@ const ProgramsScreen = ({ navigation }: any) => {
         headers.Authorization = `Bearer ${token}`;
       }
       
-      const response = await fetch('http://10.0.2.2:4000/api/programs', {
+      const baseUrl = await AuthService.getCurrentApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/programs`, {
         method: 'GET',
         headers,
         signal: controller.signal,

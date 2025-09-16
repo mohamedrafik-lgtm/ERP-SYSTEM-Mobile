@@ -39,7 +39,9 @@ import MarketingStatsScreen from './src/screens/MarketingStatsScreen';
 import WhatsAppManagementScreen from './src/screens/WhatsAppManagementScreen';
 import EditTraineeScreen from './src/screens/EditTraineeScreen';
 import TraineeDocumentsScreen from './src/screens/TraineeDocumentsScreen';
+import BranchSelectionScreen from './src/screens/BranchSelectionScreen';
 import AuthService from './src/services/AuthService';
+import BranchService from './src/services/BranchService';
 import { enableScreens } from 'react-native-screens';
 enableScreens();
 
@@ -49,18 +51,33 @@ function App() {
   const isDarkMode = useColorScheme() === 'dark';
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [hasBranchSelected, setHasBranchSelected] = useState(false);
 
   useEffect(() => {
-    checkAuthStatus();
+    checkInitialStatus();
   }, []);
 
-  const checkAuthStatus = async () => {
+  const checkInitialStatus = async () => {
     try {
-      const authenticated = await AuthService.isAuthenticated();
-      setIsAuthenticated(authenticated);
+      // أولاً تحقق من اختيار الفرع
+      const branchSelected = await BranchService.hasSavedBranch();
+      console.log('🔍 App startup - Branch selected:', branchSelected);
+      
+      setHasBranchSelected(branchSelected);
+      
+      if (branchSelected) {
+        // إذا تم اختيار الفرع، تحقق من المصادقة
+        const authenticated = await AuthService.isAuthenticated();
+        console.log('🔍 App startup - User authenticated:', authenticated);
+        setIsAuthenticated(authenticated);
+      } else {
+        console.log('🔍 App startup - No branch selected, going to BranchSelection');
+        setIsAuthenticated(false);
+      }
     } catch (error) {
-      console.error('Error checking auth status:', error);
+      console.error('Error checking initial status:', error);
       setIsAuthenticated(false);
+      setHasBranchSelected(false);
     } finally {
       setIsLoading(false);
     }
@@ -81,9 +98,17 @@ function App() {
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <NavigationContainer>
         <Stack.Navigator 
-          initialRouteName={isAuthenticated ? "Home" : "Login"} 
+          initialRouteName={(() => {
+            const route = !hasBranchSelected ? "BranchSelection" : 
+                         isAuthenticated ? "Home" : "Login";
+            console.log('🚀 App navigator - Initial route:', route, 
+                       'hasBranchSelected:', hasBranchSelected, 
+                       'isAuthenticated:', isAuthenticated);
+            return route;
+          })()} 
           screenOptions={{ headerShown: false }}
         >
+          <Stack.Screen name="BranchSelection" component={BranchSelectionScreen} />
           <Stack.Screen name="Login" component={TestLogin} />
           <Stack.Screen name="Home" component={HomeScreen} />
           <Stack.Screen name="Programs" component={ProgramsScreen} />

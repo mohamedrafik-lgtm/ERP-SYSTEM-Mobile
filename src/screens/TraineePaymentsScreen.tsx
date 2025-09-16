@@ -16,28 +16,64 @@ import AuthService from '../services/AuthService';
 import { TraineePaymentResponse, PaymentStatus, FeeType, SafeCategory } from '../types/student';
 
 const TraineePaymentsScreen = ({ navigation }: any) => {
+  console.log('=== TraineePaymentsScreen Component Initialized ===');
   const [payments, setPayments] = useState<TraineePaymentResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
+  console.log('Initial state - loading:', true, 'payments:', []);
+  
+  // إضافة useEffect للتأكد من أن الـ component تم mount
+  useEffect(() => {
+    console.log('=== COMPONENT MOUNTED ===');
+    return () => {
+      console.log('=== COMPONENT UNMOUNTED ===');
+    };
+  }, []);
 
   useEffect(() => {
+    console.log('=== INITIAL useEffect ===');
+    console.log('Initial useEffect triggered - fetching payments');
     fetchPayments();
+    console.log('=== END INITIAL useEffect ===');
   }, []);
 
   // إعادة تحميل البيانات عند تغيير البحث أو الفلتر
   useEffect(() => {
+    console.log('=== SEARCH/FILTER useEffect ===');
+    console.log('useEffect triggered for search/filter change', { searchText, filterStatus });
+    
+    // لا نعيد تحميل البيانات في المرة الأولى (عندما تكون القيم الافتراضية)
+    if (searchText === '' && filterStatus === 'ALL') {
+      console.log('Skipping search/filter effect - initial values');
+      console.log('=== END SEARCH/FILTER useEffect (skipped) ===');
+      return;
+    }
+    
+    console.log('Fetching payments due to search/filter change');
     const timeoutId = setTimeout(() => {
-      fetchPayments();
+      fetchPayments(false); // عدم إظهار loading عند البحث
     }, 500); // تأخير 500ms لتجنب الطلبات المتكررة
 
+    console.log('=== END SEARCH/FILTER useEffect ===');
     return () => clearTimeout(timeoutId);
   }, [searchText, filterStatus]);
 
-  const fetchPayments = async () => {
+  const fetchPayments = async (showLoading = true) => {
+    console.log('fetchPayments called with showLoading:', showLoading);
     try {
-      setLoading(true);
+      if (showLoading) {
+        console.log('Setting loading to true');
+        setLoading(true);
+        console.log('Loading state should be true now');
+        
+        // إضافة callback للتأكد من أن الـ state تم تحديثه
+        setLoading((prevLoading) => {
+          console.log('setLoading(true) callback - prevLoading:', prevLoading);
+          return true;
+        });
+      }
       console.log('Fetching trainee payments...');
       
       const data = await AuthService.getTraineePayments({
@@ -45,23 +81,72 @@ const TraineePaymentsScreen = ({ navigation }: any) => {
         status: filterStatus !== 'ALL' ? filterStatus : undefined,
       });
       
+      console.log('=== Screen Response Processing ===');
       console.log('Fetched payments:', data);
-      setPayments(data);
+      console.log('Data type:', typeof data);
+      console.log('Is array:', Array.isArray(data));
+      
+      // التأكد من أن البيانات عبارة عن array
+      if (Array.isArray(data)) {
+        console.log('Setting payments array with length:', data.length);
+        setPayments(data);
+        console.log('Payments array set successfully');
+      } else if (data && data.data && Array.isArray(data.data)) {
+        // في حالة إن البيانات جاية في wrapper object
+        console.log('Setting payments from data.data with length:', data.data.length);
+        setPayments(data.data);
+        console.log('Payments from data.data set successfully');
+      } else {
+        console.warn('Received non-array data:', data);
+        setPayments([]);
+        console.log('Empty payments array set due to invalid data');
+      }
+      
+      console.log('Payments set successfully, loading will be set to false');
+      console.log('=== End Screen Response Processing ===');
+      
+      // إضافة timeout للتأكد من أن الـ state تم تحديثه
+      setTimeout(() => {
+        console.log('After setting payments - loading should be false soon');
+        console.log('Current loading state after setting payments:', loading);
+        console.log('Payments length after setting payments:', payments.length);
+      }, 50);
     } catch (error) {
+      console.error('=== ERROR in fetchPayments ===');
       console.error('Error fetching payments:', error);
       Alert.alert('خطأ', 'فشل في تحميل المدفوعات');
       
       // Fallback to empty array on error
       setPayments([]);
+      console.log('Empty payments array set due to error');
+      console.log('=== END ERROR in fetchPayments ===');
     } finally {
+      // تأكد من إيقاف الـ loading في جميع الحالات
+      console.log('Finally block - setting loading to false');
       setLoading(false);
+      console.log('Loading set to false');
+      
+      // إضافة callback للتأكد من أن الـ state تم تحديثه
+      setLoading((prevLoading) => {
+        console.log('setLoading(false) callback - prevLoading:', prevLoading);
+        return false;
+      });
+      
+      // إضافة timeout للتأكد من أن الـ state تم تحديثه
+      setTimeout(() => {
+        console.log('After timeout - loading should be false now');
+        console.log('Current loading state after timeout:', loading);
+        console.log('Payments length after timeout:', payments.length);
+      }, 100);
     }
   };
 
   const onRefresh = async () => {
+    console.log('=== onRefresh triggered ===');
     setRefreshing(true);
-    await fetchPayments();
+    await fetchPayments(false); // عدم إظهار loading عند الـ refresh
     setRefreshing(false);
+    console.log('=== onRefresh completed ===');
   };
 
   const getStatusColor = (status: PaymentStatus) => {
@@ -192,7 +277,17 @@ const TraineePaymentsScreen = ({ navigation }: any) => {
     </View>
   );
 
+  console.log('=== RENDER ===');
+  console.log('Current loading state:', loading);
+  console.log('Current payments length:', payments.length);
+  console.log('Current refreshing state:', refreshing);
+  console.log('Search text:', searchText);
+  console.log('Filter status:', filterStatus);
+  console.log('Payments data:', payments);
+  console.log('=== END RENDER ===');
+
   if (loading) {
+    console.log('Showing loading screen');
     return (
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.loadingContainer}>

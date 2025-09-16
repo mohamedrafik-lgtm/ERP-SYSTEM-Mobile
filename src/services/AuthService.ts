@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WhatsAppQRCodeResponse, WhatsAppStatusResponse, WhatsAppSendMessageRequest, WhatsAppSendMessageResponse, WhatsAppLogoutResponse } from '../types/whatsapp';
-import { AuthData, User, LegacyAuthData } from '../types/auth';
+import { AuthData, User } from '../types/auth';
+import { getCurrentApiBaseUrl } from '../config/api';
 
 // Keep legacy interface for backward compatibility
 interface LegacyAuthDataLocal {
@@ -17,6 +18,25 @@ class AuthService {
   private static readonly TOKEN_KEY = 'auth_token';
   private static readonly USER_KEY = 'user_data';
   private static readonly EXPIRES_KEY = 'token_expires';
+
+  // Helper method to get the current API base URL
+  private static async getApiBaseUrl(): Promise<string> {
+    try {
+      const baseUrl = await getCurrentApiBaseUrl();
+      console.log('🔍 AuthService.getApiBaseUrl() - Retrieved base URL:', baseUrl);
+      return baseUrl;
+    } catch (error) {
+      console.error('Error getting API base URL:', error);
+      const fallbackUrl = 'https://erpproductionbackend-production.up.railway.app';
+      console.log('🔍 AuthService.getApiBaseUrl() - Using fallback URL:', fallbackUrl);
+      return fallbackUrl; // fallback to default
+    }
+  }
+
+  // Public method to get the current API base URL for external use
+  static async getCurrentApiBaseUrl(): Promise<string> {
+    return this.getApiBaseUrl();
+  }
 
   // حفظ بيانات تسجيل الدخول - محدث لدعم الأدوار
   static async saveAuthData(token: string, user: User | any, expiresIn?: number) {
@@ -163,7 +183,8 @@ class AuthService {
       const token = await this.getToken();
       if (!token) return false;
 
-      const response = await fetch('http://10.0.2.2:4000/api/auth/validate', {
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/auth/validate`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -179,14 +200,15 @@ class AuthService {
   }
 
   // تسجيل الخروج مع إشعار الـ API
-  static async logout() {
+  static async logout(clearBranch = false) {
     try {
       const token = await this.getToken();
       
       // إشعار الـ API بتسجيل الخروج (اختياري)
       if (token) {
         try {
-          await fetch('http://10.0.2.2:4000/api/auth/logout', {
+          const baseUrl = await this.getApiBaseUrl();
+          await fetch(`${baseUrl}/api/auth/logout`, {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -200,10 +222,32 @@ class AuthService {
 
       // مسح البيانات المحلية
       await this.clearAuthData();
+      
+      // مسح بيانات الفرع إذا طُلب ذلك
+      if (clearBranch) {
+        console.log('🔓 AuthService.logout() - Clearing branch data as requested');
+        const BranchService = require('./BranchService').default;
+        await BranchService.clearBranchData();
+      } else {
+        console.log('🔓 AuthService.logout() - Not clearing branch data (clearBranch=false)');
+      }
     } catch (error) {
       console.error('Error during logout:', error);
       // مسح البيانات المحلية حتى لو فشل الـ API call
       await this.clearAuthData();
+      
+      // مسح بيانات الفرع إذا طُلب ذلك
+      if (clearBranch) {
+        try {
+          console.log('🔓 AuthService.logout() - Clearing branch data in catch block');
+          const BranchService = require('./BranchService').default;
+          await BranchService.clearBranchData();
+        } catch (branchError) {
+          console.error('Error clearing branch data:', branchError);
+        }
+      } else {
+        console.log('🔓 AuthService.logout() - Not clearing branch data in catch block (clearBranch=false)');
+      }
     }
   }
 
@@ -215,7 +259,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const response = await fetch(`http://10.0.2.2:4000/api/programs/${programId}`, {
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/programs/${programId}`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -246,7 +291,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const response = await fetch(`http://10.0.2.2:4000/api/programs/${programId}`, {
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/programs/${programId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -285,7 +331,8 @@ class AuthService {
       if (params.status) queryParams.append('status', params.status);
       if (params.includeDetails) queryParams.append('includeDetails', 'true');
 
-      const url = `http://10.0.2.2:4000/api/trainees?${queryParams.toString()}`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/trainees?${queryParams.toString()}`;
       console.log('Fetching trainees from URL:', url);
       console.log('Using token:', token.substring(0, 20) + '...');
       console.log('Query params:', queryParams.toString());
@@ -331,7 +378,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const response = await fetch(`http://10.0.2.2:4000/api/trainees`, {
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/trainees`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -361,7 +409,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const response = await fetch(`http://10.0.2.2:4000/api/programs`, {
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/programs`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -390,7 +439,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      let url = `http://10.0.2.2:4000/api/users`;
+      const baseUrl = await this.getApiBaseUrl();
+      let url = `${baseUrl}/api/users`;
       if (role) {
         url += `?role=${role}`;
       }
@@ -424,7 +474,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const response = await fetch(`http://10.0.2.2:4000/api/training-content`, {
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/training-content`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -467,7 +518,8 @@ class AuthService {
         throw new Error('لم يتم العثور على رمز المصادقة');
       }
 
-      const response = await fetch(`http://10.0.2.2:4000/api/training-contents/generate-code`, {
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/training-contents/generate-code`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -529,7 +581,8 @@ class AuthService {
       if (params?.year) queryParams.append('year', params.year);
       if (params?.includeQuestionCount) queryParams.append('includeQuestionCount', 'true');
 
-      const url = `http://10.0.2.2:4000/api/training-contents?${queryParams.toString()}`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/training-contents?${queryParams.toString()}`;
       console.log('Fetching training contents from URL:', url);
       console.log('Using token:', token.substring(0, 20) + '...');
 
@@ -574,7 +627,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = `http://10.0.2.2:4000/api/training-contents/${contentId}`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/training-contents/${contentId}`;
       console.log('Updating training content at URL:', url);
       console.log('Update data:', JSON.stringify(contentData, null, 2));
 
@@ -620,7 +674,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = `http://10.0.2.2:4000/api/training-contents/${contentId}`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/training-contents/${contentId}`;
       console.log('Deleting training content at URL:', url);
 
       const response = await fetch(url, {
@@ -670,7 +725,8 @@ class AuthService {
 
       console.log(`[AuthService] Fetching questions for content ID: ${contentId}`);
 
-      const response = await fetch(`http://10.0.2.2:4000/api/questions/content/${contentId}`, {
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/questions/content/${contentId}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -707,7 +763,8 @@ class AuthService {
 
       console.log(`[AuthService] Creating question for content ID: ${questionData.contentId}`);
 
-      const response = await fetch(`http://10.0.2.2:4000/api/questions`, {
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/questions`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -745,7 +802,8 @@ class AuthService {
 
       console.log(`[AuthService] Creating safe:`, safeData);
 
-      const response = await fetch(`http://10.0.2.2:4000/api/finances/safes`, {
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/finances/safes`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -797,7 +855,8 @@ class AuthService {
       if (params?.traineeId) queryParams.append('traineeId', params.traineeId.toString());
       if (params?.feeId) queryParams.append('feeId', params.feeId.toString());
 
-      const url = `http://10.0.2.2:4000/api/finances/trainee-payments?${queryParams.toString()}`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/finances/trainee-payments?${queryParams.toString()}`;
       console.log('Fetching trainee payments from URL:', url);
       console.log('Using token:', token.substring(0, 20) + '...');
 
@@ -827,6 +886,17 @@ class AuthService {
         throw new Error(data.message || `HTTP error! status: ${response.status}`);
       }
 
+      console.log('=== AuthService Response ===');
+      console.log('AuthService: Returning data:', data);
+      console.log('AuthService: Data type:', typeof data);
+      console.log('AuthService: Is array:', Array.isArray(data));
+      if (Array.isArray(data)) {
+        console.log('AuthService: Array length:', data.length);
+      } else if (data && typeof data === 'object') {
+        console.log('AuthService: Object keys:', Object.keys(data));
+      }
+      console.log('=== End AuthService Response ===');
+      
       return data;
     } catch (error) {
       console.error('Error fetching trainee payments in AuthService:', error);
@@ -842,7 +912,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
       
-      const url = `http://10.0.2.2:4000/api/finances/trainees/${traineeId}/payments`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/finances/trainees/${traineeId}/payments`;
       console.log('Fetching trainee payments by trainee from URL:', url);
       console.log('Using token:', token.substring(0, 20) + '...');
       
@@ -887,7 +958,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
       
-      const url = `http://10.0.2.2:4000/api/finances/auto-payment`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/finances/auto-payment`;
       console.log('Processing auto payment to URL:', url);
       console.log('Payment data:', paymentData);
       console.log('Using token:', token.substring(0, 20) + '...');
@@ -936,7 +1008,8 @@ class AuthService {
 
       console.log(`[AuthService] Fetching all safes`);
 
-      const response = await fetch(`http://10.0.2.2:4000/api/finances/safes`, {
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/finances/safes`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -971,7 +1044,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = `http://10.0.2.2:4000/api/permissions/roles`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/permissions/roles`;
       console.log('[AuthService] Fetching roles from URL:', url);
 
       const response = await fetch(url, {
@@ -1006,7 +1080,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = `http://10.0.2.2:4000/api/permissions/roles/${roleId}`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/permissions/roles/${roleId}`;
       console.log('[AuthService] Fetching role by id from URL:', url);
 
       const response = await fetch(url, {
@@ -1041,7 +1116,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = `http://10.0.2.2:4000/api/users`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/users`;
       console.log('[AuthService] Creating user');
 
       const response = await fetch(url, {
@@ -1073,7 +1149,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = `http://10.0.2.2:4000/api/users`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/users`;
       console.log('[AuthService] Fetching users');
 
       const response = await fetch(url, {
@@ -1104,7 +1181,7 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = `http://10.0.2.2:4000/api/users/${userId}`;
+      const url = `https://erpproductionbackend-production.up.railway.app/api/users/${userId}`;
       // Sanitize payload: drop undefined/empty string fields
       const cleanedEntries = Object.entries(payload).filter(([key, value]) => value !== undefined && value !== '');
       const cleanedPayload = cleanedEntries.reduce((acc: any, [k, v]) => {
@@ -1153,7 +1230,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = `http://10.0.2.2:4000/api/users/${userId}`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/users/${userId}`;
       console.log('[AuthService] Deleting user', userId);
 
       const response = await fetch(url, {
@@ -1184,7 +1262,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = `http://10.0.2.2:4000/api/marketing/employees`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/marketing/employees`;
       console.log('[AuthService] Fetching marketing employees');
 
       const response = await fetch(url, {
@@ -1215,7 +1294,7 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = `http://10.0.2.2:4000/api/marketing/employees`;
+      const url = `https://erpproductionbackend-production.up.railway.app/api/marketing/employees`;
       console.log('[AuthService] Creating marketing employee');
 
       const response = await fetch(url, {
@@ -1247,7 +1326,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = `http://10.0.2.2:4000/api/marketing/employees/${id}`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/marketing/employees/${id}`;
       console.log('[AuthService] Updating marketing employee', id);
 
       const response = await fetch(url, {
@@ -1279,7 +1359,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = `http://10.0.2.2:4000/api/marketing/employees/${id}`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/marketing/employees/${id}`;
       console.log('[AuthService] Deleting marketing employee', id);
 
       const response = await fetch(url, {
@@ -1314,7 +1395,7 @@ class AuthService {
       if (params?.month) queryParams.append('month', params.month.toString());
       if (params?.year) queryParams.append('year', params.year.toString());
 
-      const url = `http://10.0.2.2:4000/api/marketing/targets?${queryParams.toString()}`;
+      const url = `https://erpproductionbackend-production.up.railway.app/api/marketing/targets?${queryParams.toString()}`;
       console.log('[AuthService] Fetching marketing targets from URL:', url);
 
       const response = await fetch(url, {
@@ -1352,7 +1433,8 @@ class AuthService {
         setById: user?.id || undefined, // إضافة معرف المستخدم الحالي
       };
 
-      const url = `http://10.0.2.2:4000/api/marketing/targets`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/marketing/targets`;
       console.log('[AuthService] Creating marketing target with payload:', payloadWithUser);
 
       const response = await fetch(url, {
@@ -1390,7 +1472,8 @@ class AuthService {
         setById: user?.id || undefined, // إضافة معرف المستخدم الحالي
       };
 
-      const url = `http://10.0.2.2:4000/api/marketing/targets/${id}`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/marketing/targets/${id}`;
       console.log('[AuthService] Updating marketing target', id, 'with payload:', payloadWithUser);
 
       const response = await fetch(url, {
@@ -1422,7 +1505,7 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = `http://10.0.2.2:4000/api/marketing/targets/${id}`;
+      const url = `https://erpproductionbackend-production.up.railway.app/api/marketing/targets/${id}`;
       console.log('[AuthService] Deleting marketing target', id);
 
       const response = await fetch(url, {
@@ -1460,7 +1543,8 @@ class AuthService {
       if (params?.month) queryParams.append('month', params.month.toString());
       if (params?.year) queryParams.append('year', params.year.toString());
 
-      const url = `http://10.0.2.2:4000/api/marketing/targets/stats?${queryParams.toString()}`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/marketing/targets/stats?${queryParams.toString()}`;
       console.log('[AuthService] Fetching marketing target stats from URL:', url);
 
       const response = await fetch(url, {
@@ -1493,7 +1577,8 @@ class AuthService {
 
       console.log(`[AuthService] Fetching transactions for safe: ${safeId}`);
 
-      const response = await fetch(`http://10.0.2.2:4000/api/finances/safes/${safeId}/transactions`, {
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/finances/safes/${safeId}/transactions`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1530,7 +1615,8 @@ class AuthService {
 
       console.log(`[AuthService] Creating transaction:`, transactionData);
 
-      const response = await fetch(`http://10.0.2.2:4000/api/finances/transactions`, {
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/finances/transactions`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1568,7 +1654,8 @@ class AuthService {
 
       console.log(`[AuthService] Creating trainee fee:`, feeData);
 
-      const response = await fetch(`http://10.0.2.2:4000/api/finances/trainee-fees`, {
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/finances/trainee-fees`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1606,7 +1693,7 @@ class AuthService {
 
       console.log(`[AuthService] Fetching all trainee fees`);
 
-      const response = await fetch(`http://10.0.2.2:4000/api/finances/trainee-fees`, {
+      const response = await fetch(`https://erpproductionbackend-production.up.railway.app/api/finances/trainee-fees`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1643,7 +1730,8 @@ class AuthService {
 
       console.log(`[AuthService] Applying trainee fee: ${feeId}`);
 
-      const response = await fetch(`http://10.0.2.2:4000/api/finances/trainee-fees/${feeId}/apply`, {
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/finances/trainee-fees/${feeId}/apply`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -1693,7 +1781,8 @@ class AuthService {
       if (params?.programId) queryParams.append('programId', params.programId.toString());
       if (params?.status) queryParams.append('status', params.status);
 
-      const url = `http://10.0.2.2:4000/api/marketing/trainees?${queryParams.toString()}`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/marketing/trainees?${queryParams.toString()}`;
       console.log('[AuthService] Fetching marketing trainees from URL:', url);
 
       const response = await fetch(url, {
@@ -1735,7 +1824,8 @@ class AuthService {
       if (params?.search) queryParams.append('search', params.search);
       if (params?.status) queryParams.append('status', params.status);
 
-      const url = `http://10.0.2.2:4000/api/marketing/employees/${employeeId}/trainees?${queryParams.toString()}`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/marketing/employees/${employeeId}/trainees?${queryParams.toString()}`;
       console.log('[AuthService] Fetching employee trainees from URL:', url);
 
       const response = await fetch(url, {
@@ -1773,7 +1863,8 @@ class AuthService {
       if (params?.month) queryParams.append('month', params.month.toString());
       if (params?.year) queryParams.append('year', params.year.toString());
 
-      const url = `http://10.0.2.2:4000/api/marketing/stats?${queryParams.toString()}`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/marketing/stats?${queryParams.toString()}`;
       console.log('[AuthService] Fetching marketing stats from URL:', url);
 
       const response = await fetch(url, {
@@ -1804,7 +1895,7 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = 'http://10.0.2.2:4000/api/whatsapp/qr-code';
+      const url = 'https://erpproductionbackend-production.up.railway.app/api/whatsapp/qr-code';
       console.log('[AuthService] Fetching WhatsApp QR code from URL:', url);
 
       const response = await fetch(url, {
@@ -1841,7 +1932,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = 'http://10.0.2.2:4000/api/whatsapp/status';
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/whatsapp/status`;
       console.log('[AuthService] Fetching WhatsApp status from URL:', url);
 
       const response = await fetch(url, {
@@ -1878,7 +1970,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = 'http://10.0.2.2:4000/api/whatsapp/send-message';
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/whatsapp/send-message`;
       console.log('[AuthService] Sending WhatsApp message to URL:', url);
       console.log('[AuthService] Message data:', data);
 
@@ -1917,7 +2010,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = 'http://10.0.2.2:4000/api/whatsapp/logout';
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/whatsapp/logout`;
       console.log('[AuthService] Logging out from WhatsApp at URL:', url);
 
       const response = await fetch(url, {
@@ -1954,7 +2048,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = 'http://10.0.2.2:4000/api/whatsapp/send-payment-confirmation';
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/whatsapp/send-payment-confirmation`;
       console.log('[AuthService] Sending payment confirmation at URL:', url);
 
       const response = await fetch(url, {
@@ -1992,7 +2087,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = `http://10.0.2.2:4000/api/trainees/${traineeId}`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/trainees/${traineeId}`;
       console.log('[AuthService] Updating trainee at URL:', url);
       console.log('[AuthService] Update data:', JSON.stringify(updateData, null, 2));
 
@@ -2055,7 +2151,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = `http://10.0.2.2:4000/api/trainees/${traineeId}`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/trainees/${traineeId}`;
       console.log('[AuthService] Deleting trainee at URL:', url);
 
       const response = await fetch(url, {
@@ -2115,7 +2212,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = `http://10.0.2.2:4000/api/trainees/${traineeId}/documents`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/trainees/${traineeId}/documents`;
       console.log('[AuthService] Getting trainee documents at URL:', url);
 
       const response = await fetch(url, {
@@ -2167,7 +2265,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = `http://10.0.2.2:4000/api/permissions/users/${userId}/roles/${roleId}`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/permissions/users/${userId}/roles/${roleId}`;
       console.log('[AuthService] Assigning role to user at URL:', url);
 
       const response = await fetch(url, {
@@ -2203,7 +2302,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = `http://10.0.2.2:4000/api/permissions/users/${userId}/roles/${roleId}`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/permissions/users/${userId}/roles/${roleId}`;
       console.log('[AuthService] Removing role from user at URL:', url);
 
       const response = await fetch(url, {
@@ -2239,7 +2339,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = `http://10.0.2.2:4000/api/permissions/users/${userId}/roles/${roleId}`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/permissions/users/${userId}/roles/${roleId}`;
       console.log('[AuthService] Toggling role status at URL:', url);
 
       const response = await fetch(url, {
