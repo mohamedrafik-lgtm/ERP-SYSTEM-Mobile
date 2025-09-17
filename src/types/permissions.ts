@@ -237,16 +237,8 @@ export const SCREEN_PERMISSIONS: PermissionConfig[] = [
     category: 'financial',
     description: 'إدارة مدفوعات المتدربين'
   },
-  {
-    id: 'TraineePaymentDetails',
-    title: 'تفاصيل مدفوعات المتدرب',
-    icon: 'receipt',
-    screen: 'TraineePaymentDetails',
-    priority: 8.1,
-    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant'],
-    category: 'financial',
-    description: 'عرض تفاصيل مدفوعات متدرب محدد'
-  },
+
+
 
   // إدارة النظام
   {
@@ -270,27 +262,7 @@ export const SCREEN_PERMISSIONS: PermissionConfig[] = [
     description: 'إضافة صلاحية جديدة'
   },
 
-  // إدارة الأسئلة والاختبارات
-  {
-    id: 'Questions',
-    title: 'الأسئلة',
-    icon: 'quiz',
-    screen: 'Questions',
-    priority: 4.5,
-    allowedRoles: ['super_admin', 'admin', 'manager'],
-    category: 'academic',
-    description: 'إدارة بنك الأسئلة'
-  },
-  {
-    id: 'AddQuestion',
-    title: 'إضافة سؤال',
-    icon: 'help-outline',
-    screen: 'AddQuestion',
-    priority: 4.6,
-    allowedRoles: ['super_admin', 'admin', 'manager'],
-    category: 'academic',
-    description: 'إضافة سؤال جديد'
-  },
+
 
 ];
 

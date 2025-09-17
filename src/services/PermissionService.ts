@@ -60,11 +60,23 @@ export class PermissionService {
     try {
       const allowedScreens = await this.getAllowedScreens();
       const allowedScreenIds = allowedScreens.map(screen => screen.id);
+      
+      console.log('🔍 PermissionService - Allowed screen IDs:', allowedScreenIds);
+      console.log('🔍 PermissionService - Looking for TraineePaymentDetails:', allowedScreenIds.includes('TraineePaymentDetails'));
 
-      return MENU_SECTIONS.map(section => ({
+      const sections = MENU_SECTIONS.map(section => ({
         ...section,
-        items: section.items.filter(item => allowedScreenIds.includes(item.id))
+        items: section.items.filter(item => {
+          const isAllowed = allowedScreenIds.includes(item.id);
+          if (item.id === 'TraineePaymentDetails') {
+            console.log('🔍 TraineePaymentDetails filter result:', isAllowed);
+          }
+          return isAllowed;
+        })
       })).filter(section => section.items.length > 0);
+      
+      console.log('🔍 PermissionService - Final sections:', sections);
+      return sections;
     } catch (error) {
       console.error('Error getting allowed menu sections:', error);
       return [];

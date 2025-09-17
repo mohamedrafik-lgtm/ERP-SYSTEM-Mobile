@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,147 +7,93 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
-  ActivityIndicator,
   RefreshControl,
   SafeAreaView,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AuthService from '../services/AuthService';
-import { TraineePaymentResponse, PaymentStatus, FeeType, SafeCategory } from '../types/student';
+import { TraineePaymentResponse, PaymentStatus } from '../types/student';
 
 const TraineePaymentsScreen = ({ navigation }: any) => {
-  console.log('=== TraineePaymentsScreen Component Initialized ===');
   const [payments, setPayments] = useState<TraineePaymentResponse[]>([]);
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
-  console.log('Initial state - loading:', true, 'payments:', []);
-  
-  // إضافة useEffect للتأكد من أن الـ component تم mount
-  useEffect(() => {
-    console.log('=== COMPONENT MOUNTED ===');
-    return () => {
-      console.log('=== COMPONENT UNMOUNTED ===');
-    };
-  }, []);
 
-  useEffect(() => {
-    console.log('=== INITIAL useEffect ===');
-    console.log('Initial useEffect triggered - fetching payments');
-    fetchPayments();
-    console.log('=== END INITIAL useEffect ===');
-  }, []);
+  // Pagination states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(20);
+  const [totalItems, setTotalItems] = useState(0);
 
-  // إعادة تحميل البيانات عند تغيير البحث أو الفلتر
-  useEffect(() => {
-    console.log('=== SEARCH/FILTER useEffect ===');
-    console.log('useEffect triggered for search/filter change', { searchText, filterStatus });
-    
-    // لا نعيد تحميل البيانات في المرة الأولى (عندما تكون القيم الافتراضية)
-    if (searchText === '' && filterStatus === 'ALL') {
-      console.log('Skipping search/filter effect - initial values');
-      console.log('=== END SEARCH/FILTER useEffect (skipped) ===');
-      return;
-    }
-    
-    console.log('Fetching payments due to search/filter change');
-    const timeoutId = setTimeout(() => {
-      fetchPayments(false); // عدم إظهار loading عند البحث
-    }, 500); // تأخير 500ms لتجنب الطلبات المتكررة
-
-    console.log('=== END SEARCH/FILTER useEffect ===');
-    return () => clearTimeout(timeoutId);
-  }, [searchText, filterStatus]);
-
-  const fetchPayments = async (showLoading = true) => {
-    console.log('fetchPayments called with showLoading:', showLoading);
+  // دالة لجلب البيانات
+  const loadPayments = useCallback(async () => {
     try {
-      if (showLoading) {
-        console.log('Setting loading to true');
-        setLoading(true);
-        console.log('Loading state should be true now');
-        
-        // إضافة callback للتأكد من أن الـ state تم تحديثه
-        setLoading((prevLoading) => {
-          console.log('setLoading(true) callback - prevLoading:', prevLoading);
-          return true;
-        });
-      }
-      console.log('Fetching trainee payments...');
-      
+      console.log('📡 loadPayments called with params:', { searchText, filterStatus });
+
       const data = await AuthService.getTraineePayments({
         search: searchText || undefined,
         status: filterStatus !== 'ALL' ? filterStatus : undefined,
       });
-      
-      console.log('=== Screen Response Processing ===');
-      console.log('Fetched payments:', data);
-      console.log('Data type:', typeof data);
-      console.log('Is array:', Array.isArray(data));
-      
-      // التأكد من أن البيانات عبارة عن array
-      if (Array.isArray(data)) {
-        console.log('Setting payments array with length:', data.length);
-        setPayments(data);
-        console.log('Payments array set successfully');
-      } else if (data && data.data && Array.isArray(data.data)) {
-        // في حالة إن البيانات جاية في wrapper object
-        console.log('Setting payments from data.data with length:', data.data.length);
-        setPayments(data.data);
-        console.log('Payments from data.data set successfully');
-      } else {
-        console.warn('Received non-array data:', data);
-        setPayments([]);
-        console.log('Empty payments array set due to invalid data');
-      }
-      
-      console.log('Payments set successfully, loading will be set to false');
-      console.log('=== End Screen Response Processing ===');
-      
-      // إضافة timeout للتأكد من أن الـ state تم تحديثه
-      setTimeout(() => {
-        console.log('After setting payments - loading should be false soon');
-        console.log('Current loading state after setting payments:', loading);
-        console.log('Payments length after setting payments:', payments.length);
-      }, 50);
-    } catch (error) {
-      console.error('=== ERROR in fetchPayments ===');
-      console.error('Error fetching payments:', error);
-      Alert.alert('خطأ', 'فشل في تحميل المدفوعات');
-      
-      // Fallback to empty array on error
-      setPayments([]);
-      console.log('Empty payments array set due to error');
-      console.log('=== END ERROR in fetchPayments ===');
-    } finally {
-      // تأكد من إيقاف الـ loading في جميع الحالات
-      console.log('Finally block - setting loading to false');
-      setLoading(false);
-      console.log('Loading set to false');
-      
-      // إضافة callback للتأكد من أن الـ state تم تحديثه
-      setLoading((prevLoading) => {
-        console.log('setLoading(false) callback - prevLoading:', prevLoading);
-        return false;
-      });
-      
-      // إضافة timeout للتأكد من أن الـ state تم تحديثه
-      setTimeout(() => {
-        console.log('After timeout - loading should be false now');
-        console.log('Current loading state after timeout:', loading);
-        console.log('Payments length after timeout:', payments.length);
-      }, 100);
-    }
-  };
 
-  const onRefresh = async () => {
-    console.log('=== onRefresh triggered ===');
+      console.log('📦 Received data:', data);
+      console.log('📊 Data type:', typeof data, 'Is array:', Array.isArray(data));
+
+      if (Array.isArray(data)) {
+        console.log('✅ Setting payments array with length:', data.length);
+        setPayments(data);
+        setTotalItems(data.length);
+        console.log('✅ setPayments called with array of length:', data.length);
+      } else if (data && typeof data === 'object' && 'data' in data && Array.isArray(data.data)) {
+        console.log('✅ Setting payments from data.data with length:', data.data.length);
+        setPayments(data.data);
+        setTotalItems(data.data.length);
+        console.log('✅ setPayments called with data.data of length:', data.data.length);
+      } else {
+        console.warn('❌ Invalid data format:', data);
+        setPayments([]);
+        setTotalItems(0);
+        console.log('✅ setPayments called with empty array');
+      }
+
+    } catch (error) {
+      console.error('💥 Error loading payments:', error);
+      Alert.alert('خطأ', 'فشل في تحميل المدفوعات');
+      setPayments([]);
+    }
+  }, [searchText, filterStatus]);
+
+  // التحميل الأولي
+  useEffect(() => {
+    console.log('🚀 Initial load useEffect triggered');
+    loadPayments();
+  }, []);
+
+  // البحث والفلتر مع debounce
+  useEffect(() => {
+    console.log('🔍 Search/Filter useEffect triggered with:', { searchText, filterStatus });
+
+    const timeoutId = setTimeout(() => {
+      console.log('⏰ Timeout executed - calling loadPayments');
+      loadPayments();
+    }, 500);
+
+    return () => {
+      console.log('🧹 Cleanup timeout');
+      clearTimeout(timeoutId);
+    };
+  }, [searchText, filterStatus, loadPayments]);
+
+  // تتبع تغييرات payments state (reduced logging)
+  useEffect(() => {
+    console.log('🔄 Payments state updated - Length:', payments.length);
+  }, [payments]);
+
+  // دالة التحديث
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchPayments(false); // عدم إظهار loading عند الـ refresh
+    await loadPayments();
     setRefreshing(false);
-    console.log('=== onRefresh completed ===');
-  };
+  }, [loadPayments]);
 
   const getStatusColor = (status: PaymentStatus) => {
     switch (status) {
@@ -180,7 +126,47 @@ const TraineePaymentsScreen = ({ navigation }: any) => {
   };
 
   // البيانات مفلترة بالفعل من الـ API
-  const filteredPayments = payments;
+  const filteredPayments = payments || [];
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredPayments.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentPageData = filteredPayments.slice(startIndex, endIndex);
+
+  // Pagination functions
+  const goToPage = useCallback((page: number) => {
+    console.log('🔄 Going to page:', page, 'Total pages:', totalPages);
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  }, [totalPages]);
+
+  const goToNextPage = useCallback(() => {
+    console.log('➡️ Next page - Current:', currentPage, 'Total:', totalPages);
+    if (currentPage < totalPages) {
+      setCurrentPage(prev => prev + 1);
+    }
+  }, [currentPage, totalPages]);
+
+  const goToPrevPage = useCallback(() => {
+    console.log('⬅️ Previous page - Current:', currentPage);
+    if (currentPage > 1) {
+      setCurrentPage(prev => prev - 1);
+    }
+  }, [currentPage]);
+
+  // Change items per page
+  const changeItemsPerPage = useCallback((newItemsPerPage: number) => {
+    console.log('📊 Changing items per page to:', newItemsPerPage);
+    setItemsPerPage(newItemsPerPage);
+    setCurrentPage(1); // Reset to first page
+  }, []);
+
+  // Reset to first page when search/filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchText, filterStatus]);
 
   const renderPaymentCard = (payment: TraineePaymentResponse) => (
     <View key={payment.id} style={styles.paymentCard}>
@@ -206,7 +192,7 @@ const TraineePaymentsScreen = ({ navigation }: any) => {
           <Text style={styles.amountLabel}>المبلغ المطلوب:</Text>
           <Text style={styles.amountValue}>{payment.amount.toLocaleString()} ج.م</Text>
         </View>
-        
+
         <View style={styles.amountRow}>
           <Text style={styles.amountLabel}>المبلغ المدفوع:</Text>
           <Text style={[styles.amountValue, { color: getStatusColor(payment.status) }]}>
@@ -257,12 +243,12 @@ const TraineePaymentsScreen = ({ navigation }: any) => {
           <Text style={styles.actionButtonText}>تعديل</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.paymentButton}
-          onPress={() => navigation.navigate('TraineePaymentDetails', { 
+          onPress={() => navigation.navigate('TraineePaymentDetails', {
             traineeId: payment.trainee.id,
             traineeName: payment.trainee.nameAr,
-            paymentId: payment.id 
+            paymentId: payment.id
           })}
         >
           <Icon name="payment" size={16} color="#059669" />
@@ -277,101 +263,249 @@ const TraineePaymentsScreen = ({ navigation }: any) => {
     </View>
   );
 
-  console.log('=== RENDER ===');
-  console.log('Current loading state:', loading);
-  console.log('Current payments length:', payments.length);
-  console.log('Current refreshing state:', refreshing);
-  console.log('Search text:', searchText);
-  console.log('Filter status:', filterStatus);
-  console.log('Payments data:', payments);
-  console.log('=== END RENDER ===');
-
-  if (loading) {
-    console.log('Showing loading screen');
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#1a237e" />
-          <Text style={styles.loadingText}>جاري تحميل المدفوعات...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
+  // Render info (reduced logging for performance)
+  console.log('🎨 Render - Payments:', payments.length, 'Filtered:', filteredPayments.length);
+  console.log('🎨 Pagination - Current page:', currentPage, 'Total pages:', totalPages, 'Items per page:', itemsPerPage);
+  console.log('🎨 Current page data length:', currentPageData.length);
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Icon name="arrow-back" size={24} color="#1a237e" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>مدفوعات المتدربين</Text>
-        <TouchableOpacity style={styles.addButton}>
-          <Icon name="add" size={24} color="#1a237e" />
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.searchContainer}>
-        <View style={styles.searchInputContainer}>
-          <Icon name="search" size={20} color="#6b7280" style={styles.searchIcon} />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="البحث بالاسم أو الرقم القومي..."
-            value={searchText}
-            onChangeText={setSearchText}
-            placeholderTextColor="#9CA3AF"
-          />
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Icon name="arrow-back" size={24} color="#1a237e" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>مدفوعات المتدربين</Text>
+          <TouchableOpacity style={styles.addButton}>
+            <Icon name="add" size={24} color="#1a237e" />
+          </TouchableOpacity>
         </View>
-      </View>
 
-      <View style={styles.filtersContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {['ALL', 'PENDING', 'PAID', 'PARTIALLY_PAID', 'CANCELLED'].map((status) => (
-            <TouchableOpacity
-              key={status}
-              style={[
-                styles.filterButton,
-                filterStatus === status && styles.activeFilterButton,
-              ]}
-              onPress={() => setFilterStatus(status)}
-            >
-              <Text
-                style={[
-                  styles.filterButtonText,
-                  filterStatus === status && styles.activeFilterButtonText,
-                ]}
-              >
-                {status === 'ALL' ? 'الكل' : getStatusLabel(status as PaymentStatus)}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
-      <ScrollView
-        style={styles.content}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-        showsVerticalScrollIndicator={false}
-      >
-        {filteredPayments.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Icon name="receipt" size={64} color="#d1d5db" />
-            <Text style={styles.emptyTitle}>لا توجد مدفوعات</Text>
-            <Text style={styles.emptySubtitle}>
-              {searchText || filterStatus !== 'ALL'
-                ? 'لا توجد مدفوعات تطابق البحث'
-                : 'لم يتم إضافة أي مدفوعات بعد'}
-            </Text>
+        <View style={styles.searchContainer}>
+          <View style={styles.searchInputContainer}>
+            <Icon name="search" size={20} color="#6b7280" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="البحث بالاسم أو الرقم القومي..."
+              value={searchText}
+              onChangeText={(text) => {
+                console.log('Search text changed to:', text);
+                setSearchText(text);
+              }}
+              placeholderTextColor="#9CA3AF"
+            />
           </View>
-        ) : (
-          filteredPayments.map(renderPaymentCard)
-        )}
-      </ScrollView>
+        </View>
+
+        <View style={styles.filtersContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {['ALL', 'PENDING', 'PAID', 'PARTIALLY_PAID', 'CANCELLED'].map((status) => (
+              <TouchableOpacity
+                key={status}
+                style={[
+                  styles.filterButton,
+                  filterStatus === status && styles.activeFilterButton,
+                ]}
+                onPress={() => {
+                  console.log('Filter status changed to:', status);
+                  setFilterStatus(status);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.filterButtonText,
+                    filterStatus === status && styles.activeFilterButtonText,
+                  ]}
+                >
+                  {status === 'ALL' ? 'الكل' : getStatusLabel(status as PaymentStatus)}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+
+        <ScrollView
+          style={styles.content}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Stats and Controls */}
+          <View style={styles.statsContainer}>
+            <Text style={styles.statsTitle}>📊 إحصائيات المدفوعات</Text>
+            <View style={styles.statsRow}>
+              <Text style={styles.statsLabel}>إجمالي المدفوعات:</Text>
+              <Text style={styles.statsValue}>{filteredPayments.length.toLocaleString()}</Text>
+            </View>
+            <View style={styles.statsRow}>
+              <Text style={styles.statsLabel}>الصفحة الحالية:</Text>
+              <Text style={styles.statsValue}>{currentPage} من {totalPages}</Text>
+            </View>
+            <View style={styles.statsRow}>
+              <Text style={styles.statsLabel}>المعروضة:</Text>
+              <Text style={styles.statsValue}>
+                {startIndex + 1} - {Math.min(endIndex, filteredPayments.length)} من {filteredPayments.length}
+              </Text>
+            </View>
+            {searchText && (
+              <View style={styles.statsRow}>
+                <Text style={styles.statsLabel}>البحث:</Text>
+                <Text style={styles.statsValue}>"{searchText}"</Text>
+              </View>
+            )}
+            {filterStatus !== 'ALL' && (
+              <View style={styles.statsRow}>
+                <Text style={styles.statsLabel}>الفلتر:</Text>
+                <Text style={styles.statsValue}>{getStatusLabel(filterStatus as PaymentStatus)}</Text>
+              </View>
+            )}
+
+            {/* Items per page selector */}
+            <View style={styles.itemsPerPageContainer}>
+              <Text style={styles.itemsPerPageLabel}>عدد العناصر في الصفحة:</Text>
+              <View style={styles.itemsPerPageButtons}>
+                {[10, 20, 50, 100].map((count) => (
+                  <TouchableOpacity
+                    key={count}
+                    style={[
+                      styles.itemsPerPageButton,
+                      itemsPerPage === count && styles.itemsPerPageButtonActive
+                    ]}
+                    onPress={() => changeItemsPerPage(count)}
+                  >
+                    <Text style={[
+                      styles.itemsPerPageButtonText,
+                      itemsPerPage === count && styles.itemsPerPageButtonTextActive
+                    ]}>
+                      {count}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          </View>
+
+          {filteredPayments.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Icon name="receipt" size={64} color="#d1d5db" />
+              <Text style={styles.emptyTitle}>لا توجد مدفوعات</Text>
+              <Text style={styles.emptySubtitle}>
+                {searchText || filterStatus !== 'ALL'
+                  ? 'لا توجد مدفوعات تطابق البحث'
+                  : 'لم يتم إضافة أي مدفوعات بعد'}
+              </Text>
+            </View>
+          ) : (
+            <>
+              {/* Payment Cards */}
+              {currentPageData.map(renderPaymentCard)}
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <View style={styles.paginationContainer}>
+                  <View style={styles.paginationInfo}>
+                    <Text style={styles.paginationText}>
+                      صفحة {currentPage} من {totalPages}
+                    </Text>
+                    <Text style={styles.paginationSubtext}>
+                      ({startIndex + 1}-{Math.min(endIndex, filteredPayments.length)} من {filteredPayments.length})
+                    </Text>
+                  </View>
+
+                  <View style={styles.paginationButtons}>
+                    {/* First Page */}
+                    <TouchableOpacity
+                      style={[styles.paginationButton, currentPage === 1 && styles.paginationButtonDisabled]}
+                      onPress={() => {
+                        console.log('🔄 First page button pressed');
+                        goToPage(1);
+                      }}
+                      disabled={currentPage === 1}
+                    >
+                      <Icon name="first-page" size={20} color={currentPage === 1 ? '#9ca3af' : '#1a237e'} />
+                    </TouchableOpacity>
+
+                    {/* Previous Page */}
+                    <TouchableOpacity
+                      style={[styles.paginationButton, currentPage === 1 && styles.paginationButtonDisabled]}
+                      onPress={() => {
+                        console.log('⬅️ Previous page button pressed');
+                        goToPrevPage();
+                      }}
+                      disabled={currentPage === 1}
+                    >
+                      <Icon name="chevron-right" size={20} color={currentPage === 1 ? '#9ca3af' : '#1a237e'} />
+                    </TouchableOpacity>
+
+                    {/* Page Numbers */}
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+
+                      return (
+                        <TouchableOpacity
+                          key={pageNum}
+                          style={[
+                            styles.paginationButton,
+                            styles.paginationNumberButton,
+                            currentPage === pageNum && styles.paginationButtonActive
+                          ]}
+                          onPress={() => {
+                            console.log('🔢 Page number button pressed:', pageNum);
+                            goToPage(pageNum);
+                          }}
+                        >
+                          <Text style={[
+                            styles.paginationButtonText,
+                            currentPage === pageNum && styles.paginationButtonTextActive
+                          ]}>
+                            {pageNum}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+
+                    {/* Next Page */}
+                    <TouchableOpacity
+                      style={[styles.paginationButton, currentPage === totalPages && styles.paginationButtonDisabled]}
+                      onPress={() => {
+                        console.log('➡️ Next page button pressed');
+                        goToNextPage();
+                      }}
+                      disabled={currentPage === totalPages}
+                    >
+                      <Icon name="chevron-left" size={20} color={currentPage === totalPages ? '#9ca3af' : '#1a237e'} />
+                    </TouchableOpacity>
+
+                    {/* Last Page */}
+                    <TouchableOpacity
+                      style={[styles.paginationButton, currentPage === totalPages && styles.paginationButtonDisabled]}
+                      onPress={() => {
+                        console.log('🔄 Last page button pressed');
+                        goToPage(totalPages);
+                      }}
+                      disabled={currentPage === totalPages}
+                    >
+                      <Icon name="last-page" size={20} color={currentPage === totalPages ? '#9ca3af' : '#1a237e'} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+            </>
+          )}
+        </ScrollView>
       </View>
     </SafeAreaView>
   );
@@ -387,18 +521,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f8fafc',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f8fafc',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#6b7280',
-    fontWeight: '500',
-  },
+
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -703,6 +826,167 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     textAlign: 'center',
     lineHeight: 24,
+  },
+  statsContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    borderLeftWidth: 4,
+    borderLeftColor: '#1a237e',
+  },
+  statsTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1a237e',
+    marginBottom: 12,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statsLabel: {
+    fontSize: 14,
+    color: '#6b7280',
+    fontWeight: '500',
+  },
+  statsValue: {
+    fontSize: 14,
+    color: '#1f2937',
+    fontWeight: 'bold',
+  },
+  loadMoreContainer: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 20,
+    marginTop: 16,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+    borderStyle: 'dashed',
+  },
+  loadMoreText: {
+    fontSize: 16,
+    color: '#1a237e',
+    fontWeight: '600',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  loadMoreHint: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  // Pagination Styles
+  paginationContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    marginTop: 20,
+    marginBottom: 10,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  paginationInfo: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  paginationText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1a237e',
+    marginBottom: 4,
+  },
+  paginationSubtext: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  paginationButtons: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  paginationButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  paginationNumberButton: {
+    minWidth: 40,
+  },
+  paginationButtonActive: {
+    backgroundColor: '#1a237e',
+    borderColor: '#1a237e',
+  },
+  paginationButtonDisabled: {
+    backgroundColor: '#f9fafb',
+    borderColor: '#f3f4f6',
+  },
+  paginationButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  paginationButtonTextActive: {
+    color: '#fff',
+  },
+  // Items per page styles
+  itemsPerPageContainer: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  itemsPerPageLabel: {
+    fontSize: 14,
+    color: '#6b7280',
+    fontWeight: '600',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  itemsPerPageButtons: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  itemsPerPageButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#f3f4f6',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    minWidth: 50,
+    alignItems: 'center',
+  },
+  itemsPerPageButtonActive: {
+    backgroundColor: '#1a237e',
+    borderColor: '#1a237e',
+  },
+  itemsPerPageButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  itemsPerPageButtonTextActive: {
+    color: '#fff',
   },
 });
 

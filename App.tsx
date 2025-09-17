@@ -119,8 +119,8 @@ function App() {
           <Stack.Screen name="TrainingContents" component={TrainingContentsScreen} />
           <Stack.Screen name="AddTrainingContent" component={AddTrainingContentScreen} />
           <Stack.Screen name="EditTrainingContent" component={EditTrainingContentScreen} />
-          <Stack.Screen name="QuestionsScreen" component={QuestionsScreen} />
-          <Stack.Screen name="AddQuestionScreen" component={AddQuestionScreen} />
+          <Stack.Screen name="Questions" component={QuestionsScreen} />
+          <Stack.Screen name="AddQuestion" component={AddQuestionScreen} />
           <Stack.Screen name="Treasury" component={TreasuryScreen} />
           <Stack.Screen name="AddTreasuryScreen" component={AddTreasuryScreen} />
           <Stack.Screen name="AddTransactionScreen" component={AddTransactionScreen} />
