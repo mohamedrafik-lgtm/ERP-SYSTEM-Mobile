@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -36,6 +37,13 @@ const QuestionsScreen = ({ route, navigation }: QuestionsScreenProps) => {
   useEffect(() => {
     fetchQuestions();
   }, []);
+
+  // إعادة تحميل الأسئلة عند العودة للصفحة
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchQuestions();
+    }, [])
+  );
 
   const fetchQuestions = async () => {
     try {
@@ -190,7 +198,7 @@ const QuestionsScreen = ({ route, navigation }: QuestionsScreenProps) => {
         </View>
         <TouchableOpacity
           style={styles.addButton}
-          onPress={() => navigation.navigate('AddQuestionScreen', { content })}
+          onPress={() => navigation.navigate('AddQuestion', { content })}
         >
           <Icon name="add" size={24} color="#1a237e" />
         </TouchableOpacity>

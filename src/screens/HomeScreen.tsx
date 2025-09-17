@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ScrollView, ActivityIndicator, Dimensions, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Dimensions, Animated } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import CustomMenu from '../components/CustomMenu';
 import AuthService from '../services/AuthService';
@@ -42,7 +42,7 @@ const HomeScreen = ({ navigation }: any) => {
     fetchStats();
     fetchBranchInfo();
     startAnimations();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const startAnimations = () => {
     // Welcome section animation
@@ -114,28 +114,77 @@ const HomeScreen = ({ navigation }: any) => {
       setLoading(true);
       
       // جلب البرامج
-      const programs = await AuthService.getAllPrograms().catch(() => []);
+      const programs = await AuthService.getAllPrograms().catch((error) => {
+        console.warn('🔍 HomeScreen.fetchStats() - Error fetching programs:', error);
+        return [];
+      });
       
-      // جلب الطلاب مع pagination
-      const studentsResponse = await AuthService.getTrainees({ 
-        page: 1, 
-        limit: 1, 
-        includeDetails: false 
-      }).catch(() => ({ data: [], pagination: { total: 0 } }));
+      // جلب الطلاب مع pagination - مع معالجة أفضل للأخطاء
+      let studentsResponse: import('../types/student').IPaginatedTraineesResponse = { 
+        data: [], 
+        pagination: { 
+          total: 0, 
+          page: 1, 
+          totalPages: 1, 
+          limit: 1, 
+          hasNext: false, 
+          hasPrev: false 
+        } 
+      };
+      try {
+        studentsResponse = await AuthService.getTrainees({ 
+          page: 1, 
+          limit: 1, 
+          includeDetails: false 
+        });
+        console.log('🔍 HomeScreen.fetchStats() - Students response:', studentsResponse);
+      } catch (error) {
+        console.warn('🔍 HomeScreen.fetchStats() - Error fetching students:', error);
+        // إذا كان الخطأ من الخادم، لا نعرض إشعار للمستخدم في الصفحة الرئيسية
+        if (error instanceof Error && !error.message.includes('Internal server error')) {
+          console.error('Non-server error in HomeScreen:', error);
+        }
+      }
       
       // جلب الرسوم
-      const fees = await AuthService.getAllTraineeFees().catch(() => []);
+      const fees = await AuthService.getAllTraineeFees().catch((error) => {
+        console.warn('🔍 HomeScreen.fetchStats() - Error fetching fees:', error);
+        return [];
+      });
       
       // جلب الخزائن
-      const safes = await AuthService.getAllSafes().catch(() => []);
+      const safes = await AuthService.getAllSafes().catch((error) => {
+        console.warn('🔍 HomeScreen.fetchStats() - Error fetching safes:', error);
+        return [];
+      });
 
-      // حساب الطلاب النشطين
-      const activeStudentsResponse = await AuthService.getTrainees({ 
-        page: 1, 
-        limit: 1, 
-        includeDetails: false,
-        status: 'ACTIVE'
-      }).catch(() => ({ data: [], pagination: { total: 0 } }));
+      // حساب الطلاب النشطين - مع معالجة أفضل للأخطاء
+      let activeStudentsResponse: import('../types/student').IPaginatedTraineesResponse = { 
+        data: [], 
+        pagination: { 
+          total: 0, 
+          page: 1, 
+          totalPages: 1, 
+          limit: 1, 
+          hasNext: false, 
+          hasPrev: false 
+        } 
+      };
+      try {
+        activeStudentsResponse = await AuthService.getTrainees({ 
+          page: 1, 
+          limit: 1, 
+          includeDetails: false,
+          status: 'ACTIVE'
+        });
+        console.log('🔍 HomeScreen.fetchStats() - Active students response:', activeStudentsResponse);
+      } catch (error) {
+        console.warn('🔍 HomeScreen.fetchStats() - Error fetching active students:', error);
+        // إذا كان الخطأ من الخادم، لا نعرض إشعار للمستخدم في الصفحة الرئيسية
+        if (error instanceof Error && !error.message.includes('Internal server error')) {
+          console.error('Non-server error in HomeScreen:', error);
+        }
+      }
 
       // حساب الرسوم المطبقة
       const appliedFees = fees.filter(fee => fee.isApplied).length;
@@ -153,7 +202,7 @@ const HomeScreen = ({ navigation }: any) => {
         totalBalance: totalBalance,
       });
     } catch (error) {
-      console.error('Error fetching stats:', error);
+      console.error('🔍 HomeScreen.fetchStats() - General error:', error);
     } finally {
       setLoading(false);
     }

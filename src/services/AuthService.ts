@@ -33,6 +33,20 @@ class AuthService {
     }
   }
 
+  // التحقق من صحة API endpoint
+  private static async validateApiEndpoint(baseUrl: string): Promise<boolean> {
+    try {
+      const response = await fetch(`${baseUrl}/health`, {
+        method: 'GET',
+      });
+      
+      return response.ok;
+    } catch (error) {
+      console.warn('🔍 AuthService.validateApiEndpoint() - Validation failed:', error);
+      return false;
+    }
+  }
+
   // Public method to get the current API base URL for external use
   static async getCurrentApiBaseUrl(): Promise<string> {
     return this.getApiBaseUrl();
@@ -333,9 +347,9 @@ class AuthService {
 
       const baseUrl = await this.getApiBaseUrl();
       const url = `${baseUrl}/api/trainees?${queryParams.toString()}`;
-      console.log('Fetching trainees from URL:', url);
-      console.log('Using token:', token.substring(0, 20) + '...');
-      console.log('Query params:', queryParams.toString());
+      console.log('🔍 AuthService.getTrainees() - Fetching from URL:', url);
+      console.log('🔍 AuthService.getTrainees() - Using token:', token.substring(0, 20) + '...');
+      console.log('🔍 AuthService.getTrainees() - Query params:', queryParams.toString());
 
       const response = await fetch(url, {
         method: 'GET',
@@ -345,27 +359,58 @@ class AuthService {
         },
       });
 
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
+      console.log('🔍 AuthService.getTrainees() - Response status:', response.status);
+      console.log('🔍 AuthService.getTrainees() - Response headers:', Object.fromEntries(response.headers.entries()));
+
+      // التحقق من حالة الاستجابة
+      if (!response.ok) {
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        let errorData;
+        
+        try {
+          errorData = await response.json();
+          errorMessage = errorData.message || errorData.error || errorMessage;
+          console.log('🔍 AuthService.getTrainees() - Error response data:', errorData);
+        } catch (parseError) {
+          const textResponse = await response.text();
+          console.log('🔍 AuthService.getTrainees() - Error response text:', textResponse);
+          errorMessage = textResponse || errorMessage;
+        }
+        
+        throw new Error(errorMessage);
+      }
 
       let data;
       try {
         data = await response.json();
-        console.log('Response data:', data);
+        console.log('🔍 AuthService.getTrainees() - Success response data:', data);
       } catch (parseError) {
-        console.error('Error parsing JSON response:', parseError);
+        console.error('🔍 AuthService.getTrainees() - Error parsing JSON response:', parseError);
         const textResponse = await response.text();
-        console.log('Raw response:', textResponse);
+        console.log('🔍 AuthService.getTrainees() - Raw response:', textResponse);
         throw new Error(`Invalid JSON response: ${textResponse}`);
-      }
-
-      if (!response.ok) {
-        throw new Error(data.message || `HTTP error! status: ${response.status}`);
       }
 
       return data;
     } catch (error) {
-      console.error('Error fetching trainees in AuthService:', error);
+      console.error('🔍 AuthService.getTrainees() - Error fetching trainees:', error);
+      
+      // معالجة أنواع مختلفة من الأخطاء
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          throw new Error('انتهت مهلة الطلب. يرجى المحاولة مرة أخرى.');
+        } else if (error.message.includes('Network request failed')) {
+          throw new Error('فشل في الاتصال بالخادم. يرجى التحقق من الاتصال بالإنترنت.');
+        } else if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+          throw new Error('انتهت صلاحية الجلسة. يرجى تسجيل الدخول مرة أخرى.');
+        } else if (error.message.includes('500') || error.message.includes('Internal server error')) {
+          // إرجاع خطأ مخصص للخادم الداخلي
+          const serverError = new Error('خطأ في الخادم. يرجى المحاولة مرة أخرى لاحقاً.');
+          serverError.name = 'InternalServerError';
+          throw serverError;
+        }
+      }
+      
       throw error;
     }
   }

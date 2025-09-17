@@ -127,7 +127,10 @@ const AddQuestionScreen = ({ route, navigation }: AddQuestionScreenProps) => {
       Alert.alert('نجح', 'تم إضافة السؤال بنجاح', [
         {
           text: 'حسناً',
-          onPress: () => navigation.goBack(),
+          onPress: () => {
+            // العودة للصفحة السابقة وإعادة تحميل الأسئلة
+            navigation.goBack();
+          },
         },
       ]);
     } catch (error) {

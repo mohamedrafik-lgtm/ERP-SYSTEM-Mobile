@@ -29,6 +29,7 @@ const StudentsListScreen = ({ navigation }: any) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+  const [expandedStudents, setExpandedStudents] = useState<Set<number>>(new Set());
 
   const statusOptions = [
     { value: 'all', label: 'جميع الحالات' },
@@ -67,19 +68,68 @@ const StudentsListScreen = ({ navigation }: any) => {
       
       console.log('Students loaded:', result.data?.length || 0, 'students');
     } catch (error) {
-      console.error('Error fetching students:', error);
+      console.error('🔍 StudentsListScreen.fetchStudents() - Error fetching students:', error);
       const errorMessage = error instanceof Error ? error.message : 'فشل في تحميل بيانات الطلاب';
 
-      if (errorMessage.includes('401') || errorMessage.toLowerCase().includes('unauthorized')) {
-        Alert.alert('خطأ في المصادقة', 'انتهت صلاحية الجلسة، يرجى تسجيل الدخول مرة أخرى.');
-        AuthService.clearAuthData().then(() => {
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Login' }],
-          });
-        });
+      // معالجة أنواع مختلفة من الأخطاء
+      if (errorMessage.includes('401') || errorMessage.toLowerCase().includes('unauthorized') || errorMessage.includes('انتهت صلاحية الجلسة')) {
+        Alert.alert('خطأ في المصادقة', 'انتهت صلاحية الجلسة، يرجى تسجيل الدخول مرة أخرى.', [
+          {
+            text: 'تسجيل الدخول',
+            onPress: () => {
+              AuthService.clearAuthData().then(() => {
+                navigation.reset({
+                  index: 0,
+                  routes: [{ name: 'Login' }],
+                });
+              });
+            }
+          }
+        ]);
+      } else if (errorMessage.includes('500') || errorMessage.includes('Internal server error') || errorMessage.includes('خطأ في الخادم')) {
+        Alert.alert('خطأ في الخادم', 'حدث خطأ في الخادم. يرجى المحاولة مرة أخرى لاحقاً.', [
+          {
+            text: 'إعادة المحاولة',
+            onPress: () => fetchStudents(currentPage, searchText, statusFilter)
+          },
+          {
+            text: 'إلغاء',
+            style: 'cancel'
+          }
+        ]);
+      } else if (errorMessage.includes('Network request failed') || errorMessage.includes('فشل في الاتصال')) {
+        Alert.alert('خطأ في الاتصال', 'فشل في الاتصال بالخادم. يرجى التحقق من الاتصال بالإنترنت.', [
+          {
+            text: 'إعادة المحاولة',
+            onPress: () => fetchStudents(currentPage, searchText, statusFilter)
+          },
+          {
+            text: 'إلغاء',
+            style: 'cancel'
+          }
+        ]);
+      } else if (errorMessage.includes('انتهت مهلة الطلب')) {
+        Alert.alert('انتهت مهلة الطلب', 'انتهت مهلة الطلب. يرجى المحاولة مرة أخرى.', [
+          {
+            text: 'إعادة المحاولة',
+            onPress: () => fetchStudents(currentPage, searchText, statusFilter)
+          },
+          {
+            text: 'إلغاء',
+            style: 'cancel'
+          }
+        ]);
       } else {
-        Alert.alert('خطأ', errorMessage);
+        Alert.alert('خطأ', errorMessage, [
+          {
+            text: 'إعادة المحاولة',
+            onPress: () => fetchStudents(currentPage, searchText, statusFilter)
+          },
+          {
+            text: 'إلغاء',
+            style: 'cancel'
+          }
+        ]);
       }
     } finally {
       setLoading(false);
@@ -110,6 +160,18 @@ const StudentsListScreen = ({ navigation }: any) => {
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
     fetchStudents(page, searchText, statusFilter);
+  };
+
+  const toggleStudentExpansion = (studentId: number) => {
+    setExpandedStudents(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(studentId)) {
+        newSet.delete(studentId);
+      } else {
+        newSet.add(studentId);
+      }
+      return newSet;
+    });
   };
 
   const getStatusColor = (status: TraineeStatus) => {
@@ -212,15 +274,8 @@ const StudentsListScreen = ({ navigation }: any) => {
           onPress: () => navigation.navigate('EditTrainee', { trainee: student }),
         },
         {
-          text: 'عرض الوثائق',
-          onPress: () => navigation.navigate('TraineeDocuments', { trainee: { id: student.id, nameAr: student.nameAr } }),
-        },
-        {
-          text: 'عرض التفاصيل',
-          onPress: () => {
-            // يمكن إضافة شاشة عرض التفاصيل هنا
-            Alert.alert('تفاصيل الطالب', `الاسم: ${student.nameAr}\nالهاتف: ${student.phone}\nالبرنامج: ${student.program.nameAr}`);
-          },
+          text: 'مدفوعات المتدرب',
+          onPress: () => navigation.navigate('TraineePaymentDetails', { traineeId: student.id, traineeName: student.nameAr }),
         },
         {
           text: 'حذف المتدرب',
@@ -540,7 +595,7 @@ const StudentsListScreen = ({ navigation }: any) => {
                   </View>
                 </View>
                 
-                {/* Details Section */}
+                {/* Basic Details Section */}
                 <View style={styles.studentDetails}>
                   <View style={styles.detailRow}>
                     <Icon name="assignment" size={16} color="#6b7280" />
@@ -548,24 +603,6 @@ const StudentsListScreen = ({ navigation }: any) => {
                       {getSubscriptionLabel(student.enrollmentType)}
                     </Text>
                   </View>
-                  
-                  {student.educationalQualification && (
-                    <View style={styles.detailRow}>
-                      <Icon name="workspace-premium" size={16} color="#6b7280" />
-                      <Text style={styles.detailText}>
-                        {student.educationalQualification}
-                      </Text>
-                    </View>
-                  )}
-                  
-                  {student.specialization && (
-                    <View style={styles.detailRow}>
-                      <Icon name="work" size={16} color="#6b7280" />
-                      <Text style={styles.detailText}>
-                        {student.specialization}
-                      </Text>
-                    </View>
-                  )}
                   
                   <View style={styles.detailRow}>
                     <Icon name="wb-sunny" size={16} color="#6b7280" />
@@ -575,7 +612,111 @@ const StudentsListScreen = ({ navigation }: any) => {
                        student.programType || 'غير محدد'}
                     </Text>
                   </View>
+
+                  {/* Expand/Collapse Button */}
+                  <TouchableOpacity 
+                    style={styles.expandButton}
+                    onPress={() => toggleStudentExpansion(student.id)}
+                  >
+                    <Icon 
+                      name={expandedStudents.has(student.id) ? "expand-less" : "expand-more"} 
+                      size={20} 
+                      color="#1a237e" 
+                    />
+                    <Text style={styles.expandButtonText}>
+                      {expandedStudents.has(student.id) ? 'إخفاء التفاصيل' : 'عرض التفاصيل'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
+
+                {/* Expanded Details Section */}
+                {expandedStudents.has(student.id) && (
+                  <View style={styles.expandedDetails}>
+                    {/* Personal Information */}
+                    <View style={styles.detailsSection}>
+                      <Text style={styles.sectionTitle}>المعلومات الشخصية</Text>
+                      
+                      {student.email && (
+                        <View style={styles.detailRow}>
+                          <Icon name="email" size={16} color="#6b7280" />
+                          <Text style={styles.detailText}>{student.email}</Text>
+                        </View>
+                      )}
+                      
+                      {student.nationalId && (
+                        <View style={styles.detailRow}>
+                          <Icon name="badge" size={16} color="#6b7280" />
+                          <Text style={styles.detailText}>{student.nationalId}</Text>
+                        </View>
+                      )}
+                      
+                      {student.address && (
+                        <View style={styles.detailRow}>
+                          <Icon name="location-on" size={16} color="#6b7280" />
+                          <Text style={styles.detailText}>{student.address}</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Educational Information */}
+                    <View style={styles.detailsSection}>
+                      <Text style={styles.sectionTitle}>المعلومات التعليمية</Text>
+                      
+                      {student.educationalQualification && (
+                        <View style={styles.detailRow}>
+                          <Icon name="workspace-premium" size={16} color="#6b7280" />
+                          <Text style={styles.detailText}>{student.educationalQualification}</Text>
+                        </View>
+                      )}
+                      
+                      {student.specialization && (
+                        <View style={styles.detailRow}>
+                          <Icon name="work" size={16} color="#6b7280" />
+                          <Text style={styles.detailText}>{student.specialization}</Text>
+                        </View>
+                      )}
+                      
+                      {student.program && (
+                        <View style={styles.detailRow}>
+                          <Icon name="school" size={16} color="#6b7280" />
+                          <Text style={styles.detailText}>{student.program.nameAr}</Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Action Buttons */}
+                    <View style={styles.expandedActions}>
+                      <TouchableOpacity 
+                        style={styles.actionButtonExpanded}
+                        onPress={() => navigation.navigate('TraineeDocuments', { 
+                          trainee: { id: student.id, nameAr: student.nameAr } 
+                        })}
+                      >
+                        <Icon name="description" size={18} color="#1a237e" />
+                        <Text style={styles.actionButtonText}>الوثائق</Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity 
+                        style={styles.actionButtonExpanded}
+                        onPress={() => navigation.navigate('TraineePaymentDetails', { 
+                          traineeId: student.id, 
+                          traineeName: student.nameAr 
+                        })}
+                      >
+                        <Icon name="payment" size={18} color="#10b981" />
+                        <Text style={styles.actionButtonText}>المدفوعات</Text>
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity 
+                        style={styles.actionButtonExpanded}
+                        onPress={() => navigation.navigate('EditTrainee', { trainee: student })}
+                      >
+                        <Icon name="edit" size={18} color="#f59e0b" />
+                        <Text style={styles.actionButtonText}>تعديل</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
               </View>
             ))}
           </View>
@@ -926,6 +1067,67 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 16,
     fontFamily: 'monospace',
+  },
+  expandButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    marginTop: 8,
+    backgroundColor: '#f0f9ff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#1a237e',
+  },
+  expandButtonText: {
+    fontSize: 14,
+    color: '#1a237e',
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  expandedDetails: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  detailsSection: {
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1f2937',
+    marginBottom: 8,
+    paddingBottom: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  expandedActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  actionButtonExpanded: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f9fafb',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    minWidth: 80,
+  },
+  actionButtonText: {
+    fontSize: 12,
+    color: '#374151',
+    fontWeight: '600',
+    marginLeft: 4,
   },
 });
 
