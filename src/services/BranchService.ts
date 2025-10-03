@@ -27,7 +27,7 @@ export const AVAILABLE_BRANCHES: BranchConfig[] = [
     city: 'المنصورة',
     icon: 'location-city',
     color: '#1a237e',
-    apiEndpoint: 'https://erpproductionbackend-production.up.railway.app',
+    apiEndpoint: 'https://mansapi.tiba29.com',
   },
   {
     id: 'zagazig',
@@ -36,7 +36,7 @@ export const AVAILABLE_BRANCHES: BranchConfig[] = [
     city: 'الزقازيق',
     icon: 'business',
     color: '#059669',
-    apiEndpoint: 'https://betaerpv1backend-production.up.railway.app',
+    apiEndpoint: 'https://zagapi.tiba29.com',
   },
 ];
 
@@ -103,6 +103,16 @@ class BranchService {
       console.log('🔍 BranchService.getCurrentApiEndpoint() - Selected branch:', branch);
       
       if (branch) {
+        // تأكد من مزامنة endpoint المحفوظ مع القيم الحالية في AVAILABLE_BRANCHES
+        const currentConfig = this.getBranchConfig(branch.id);
+        if (currentConfig && currentConfig.apiEndpoint !== branch.apiEndpoint) {
+          console.log('🔄 BranchService.getCurrentApiEndpoint() - Migrating saved branch endpoint to new value from config');
+          const updatedBranch = { ...branch, apiEndpoint: currentConfig.apiEndpoint };
+          await this.saveBranch(updatedBranch);
+          console.log('🔍 BranchService.getCurrentApiEndpoint() - Using migrated branch endpoint:', updatedBranch.apiEndpoint);
+          return updatedBranch.apiEndpoint;
+        }
+
         console.log('🔍 BranchService.getCurrentApiEndpoint() - Using branch endpoint:', branch.apiEndpoint);
         return branch.apiEndpoint;
       }
@@ -220,10 +230,13 @@ class BranchService {
       }
 
       // يمكن إضافة فحص connection هنا إذا لزم الأمر
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), 5000);
       const response = await fetch(`${config.apiEndpoint}/health`, {
         method: 'GET',
-        timeout: 5000,
+        signal: controller.signal,
       }).catch(() => null);
+      clearTimeout(id);
 
       return response?.ok || false;
     } catch (error) {

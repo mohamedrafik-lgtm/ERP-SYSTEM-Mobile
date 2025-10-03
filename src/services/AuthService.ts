@@ -2124,6 +2124,138 @@ class AuthService {
     }
   }
 
+  // Lectures: Create lecture
+  static async createLecture(payload: import('../types/lectures').CreateLectureRequest): Promise<import('../types/lectures').LectureResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/lectures`;
+      console.log('[AuthService] Creating lecture at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to create lecture: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error creating lecture:', error);
+      throw error;
+    }
+  }
+
+  // Lectures: Get lectures (optionally filter by contentId)
+  static async getLectures(params?: { contentId?: number }): Promise<import('../types/lectures').LectureListItem[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const query = new URLSearchParams();
+      if (params?.contentId) query.append('contentId', String(params.contentId));
+      const url = `${baseUrl}/api/lectures${query.toString() ? `?${query.toString()}` : ''}`;
+      console.log('[AuthService] Fetching lectures from URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to fetch lectures: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching lectures:', error);
+      throw error;
+    }
+  }
+
+  // Lectures: Update lecture (PATCH)
+  static async updateLecture(id: number, payload: import('../types/lectures').UpdateLectureRequest): Promise<import('../types/lectures').LectureResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/lectures/${id}`;
+      console.log('[AuthService] Updating lecture at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to update lecture: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error updating lecture:', error);
+      throw error;
+    }
+  }
+
+  // Lectures: Delete lecture
+  static async deleteLecture(id: number): Promise<{ success: boolean } | any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/lectures/${id}`;
+      console.log('[AuthService] Deleting lecture at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to delete lecture: ${response.status}`);
+      }
+
+      try { return await response.json(); } catch { return { success: true }; }
+    } catch (error) {
+      console.error('[AuthService] Error deleting lecture:', error);
+      throw error;
+    }
+  }
+
   // Trainee Management: Update Trainee
   static async updateTrainee(traineeId: number, updateData: import('../types/student').UpdateTraineePayload): Promise<import('../types/student').UpdateTraineeResponse> {
     try {

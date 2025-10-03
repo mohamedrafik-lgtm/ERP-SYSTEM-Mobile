@@ -377,6 +377,13 @@ const TrainingContentsScreen = ({ navigation }: any) => {
                   </TouchableOpacity>
                   <TouchableOpacity 
                     style={styles.questionsButton}
+                    onPress={() => navigation.navigate('Lectures', { content })}
+                  >
+                    <Icon name="video-library" size={16} color="#059669" />
+                    <Text style={styles.questionsButtonText}>المحاضرات</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.questionsButton}
                     onPress={() => navigation.navigate('Questions', { content })}
                   >
                     <Icon name="quiz" size={16} color="#059669" />
@@ -597,64 +604,68 @@ const styles = StyleSheet.create({
   },
   cardActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
     backgroundColor: '#f8fafc',
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
   actionButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#e3f2fd',
     borderWidth: 1,
     borderColor: '#1a237e',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    flexBasis: '32%',
+    marginBottom: 8,
   },
   actionButtonText: {
     color: '#1a237e',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     marginLeft: 4,
   },
   questionsButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#f0fdf4',
     borderWidth: 1,
     borderColor: '#059669',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    flexBasis: '32%',
+    marginBottom: 8,
   },
   questionsButtonText: {
     color: '#059669',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     marginLeft: 4,
   },
   deleteActionButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#fef2f2',
     borderWidth: 1,
     borderColor: '#dc2626',
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    flexBasis: '32%',
+    marginBottom: 8,
   },
   deleteActionButtonText: {
     color: '#dc2626',
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     marginLeft: 4,
   },

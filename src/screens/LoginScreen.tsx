@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Image, KeyboardAvo
 import Toast from 'react-native-toast-message';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AuthService from '../services/AuthService';
+import { getCurrentApiBaseUrl } from '../config/api';
 import { LoginResponse, User } from '../types/auth';
 
 const TestLogin = ({ navigation }: any) => {
@@ -23,7 +24,9 @@ const TestLogin = ({ navigation }: any) => {
 
     setLoading(true);
     try {
-      const response = await fetch("https://erpproductionbackend-production.up.railway.app/api/auth/login", {
+      const baseUrl = await getCurrentApiBaseUrl();
+      console.log('[Login] Using baseUrl:', baseUrl);
+      const response = await fetch(`${baseUrl}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -190,6 +193,14 @@ const TestLogin = ({ navigation }: any) => {
           >
             <Text style={styles.buttonText}>{loading ? "...جاري الدخول" : "دخول"}</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => navigation.navigate('BranchSelection')}
+            disabled={loading}
+          >
+            <Text style={styles.secondaryButtonText}>اختيار/تغيير الفرع</Text>
+          </TouchableOpacity>
         </View>
         <Toast />
       </ScrollView>
@@ -295,5 +306,20 @@ const styles = StyleSheet.create({
   },
   buttonLoading: {
     opacity: 0.7,
+  },
+  secondaryButton: {
+    width: "100%",
+    backgroundColor: "#ffffff",
+    padding: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+  },
+  secondaryButtonText: {
+    color: "#1a237e",
+    fontSize: 16,
+    fontWeight: "600",
   },
 });
