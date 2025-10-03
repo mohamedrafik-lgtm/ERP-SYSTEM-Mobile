@@ -1932,6 +1932,113 @@ class AuthService {
     }
   }
 
+  // Trainee Distribution: Create new distribution
+  static async createTraineeDistribution(payload: import('../types/distribution').CreateTraineeDistributionRequest): Promise<import('../types/distribution').CreateTraineeDistributionResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/trainee-distribution`;
+      console.log('[AuthService] Creating trainee distribution at URL:', url);
+      console.log('[AuthService] Payload:', payload);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to create trainee distribution: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error creating trainee distribution:', error);
+      throw error;
+    }
+  }
+
+  // Trainee Distribution: Get distribution details by ID
+  static async getTraineeDistribution(distributionId: string): Promise<import('../types/distribution').TraineeDistributionDetail> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/trainee-distribution/${distributionId}`;
+      console.log('[AuthService] Getting trainee distribution at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to get trainee distribution: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error getting trainee distribution:', error);
+      throw error;
+    }
+  }
+
+  // Trainee Distribution: Get all distributions with filters
+  static async getTraineeDistributions(params?: {
+    programId?: number;
+    type?: import('../types/distribution').DistributionType;
+    academicYear?: string;
+  }): Promise<import('../types/distribution').TraineeDistributionsResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const queryParams = new URLSearchParams();
+      if (params?.programId) queryParams.append('programId', params.programId.toString());
+      if (params?.type) queryParams.append('type', params.type);
+      if (params?.academicYear) queryParams.append('academicYear', params.academicYear);
+
+      const url = `${baseUrl}/api/trainee-distribution?${queryParams.toString()}`;
+      console.log('[AuthService] Getting trainee distributions at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to get trainee distributions: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error getting trainee distributions:', error);
+      throw error;
+    }
+  }
+
   // WhatsApp Management: Get QR Code for WhatsApp connection
   static async getWhatsAppQRCode(): Promise<WhatsAppQRCodeResponse> {
     try {

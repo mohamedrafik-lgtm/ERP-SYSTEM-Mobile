@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, TextInput, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator, Alert } from 'react-native';
-import DocumentPicker from 'react-native-document-picker';
 import Toast from 'react-native-toast-message';
 import SelectBox from '../components/SelectBox';
 import { LectureType, CreateLectureRequest } from '../types/lectures';
@@ -24,6 +23,7 @@ const AddLectureScreen = ({ route, navigation }: any) => {
 
   const handlePickPdf = async () => {
     try {
+      const DocumentPicker = (await import('react-native-document-picker')).default as any;
       const res = await DocumentPicker.pick({
         type: [DocumentPicker.types.pdf],
         allowMultiSelection: false,

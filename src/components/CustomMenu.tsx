@@ -29,9 +29,32 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
   const [slideAnim] = useState(new Animated.Value(-width));
   const { allowedMenuSections, isLoading, userRoleInfo } = usePermissions();
 
-  // إضافة عنصر تسجيل الخروج لجميع الأقسام المسموحة
+  // إضافة عناصر مخصصة (إدارة التوزيع + تسجيل الخروج) لجميع الأقسام المسموحة
   const getMenuSectionsWithLogout = () => {
     const sectionsWithLogout = [...allowedMenuSections];
+    
+    // إضافة قسم/عنصر إدارة التوزيع إذا لم يكن موجوداً
+    let distributionSection = sectionsWithLogout.find((section: any) => section.category === 'distribution');
+    if (!distributionSection) {
+      distributionSection = {
+        title: 'التوزيع',
+        category: 'distribution',
+        items: [],
+      };
+      sectionsWithLogout.push(distributionSection);
+    }
+    const hasDistributionItem = distributionSection.items.some((item: any) => item.id === 'DistributionManagement');
+    if (!hasDistributionItem) {
+      distributionSection.items.push({
+        id: 'DistributionManagement',
+        title: 'إدارة التوزيع',
+        icon: 'groups',
+        screen: 'DistributionManagement',
+        priority: 50,
+        allowedRoles: ['super_admin', 'admin', 'manager', 'employee'],
+        category: 'distribution' as const,
+      });
+    }
     
     // البحث عن قسم النظام أو إنشاؤه
     let systemSection = sectionsWithLogout.find(section => section.category === 'system');

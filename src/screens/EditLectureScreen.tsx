@@ -4,7 +4,6 @@ import Toast from 'react-native-toast-message';
 import SelectBox from '../components/SelectBox';
 import { LectureType, UpdateLectureRequest, LectureListItem } from '../types/lectures';
 import AuthService from '../services/AuthService';
-import DocumentPicker from 'react-native-document-picker';
 
 const EditLectureScreen = ({ route, navigation }: any) => {
   const { lecture } = route.params as { lecture: LectureListItem };
@@ -24,6 +23,7 @@ const EditLectureScreen = ({ route, navigation }: any) => {
 
   const handlePickPdf = async () => {
     try {
+      const DocumentPicker = (await import('react-native-document-picker')).default as any;
       const res = await DocumentPicker.pick({ type: [DocumentPicker.types.pdf], allowMultiSelection: false, copyTo: 'cachesDirectory' });
       const file = Array.isArray(res) ? res[0] : (res as any);
       const pickedName = file?.name || 'selected.pdf';

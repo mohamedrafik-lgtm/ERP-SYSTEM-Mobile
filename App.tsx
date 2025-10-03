@@ -42,6 +42,10 @@ import TraineeDocumentsScreen from './src/screens/TraineeDocumentsScreen';
 import LecturesScreen from './src/screens/LecturesScreen';
 import AddLectureScreen from './src/screens/AddLectureScreen';
 import EditLectureScreen from './src/screens/EditLectureScreen';
+import DistributionManagementScreen from './src/screens/DistributionManagementScreen';
+import AddDistributionScreen from './src/screens/AddDistributionScreen';
+import DistributionDetailsScreen from './src/screens/DistributionDetailsScreen';
+import ProgramDistributionsScreen from './src/screens/ProgramDistributionsScreen';
 import BranchSelectionScreen from './src/screens/BranchSelectionScreen';
 import AuthService from './src/services/AuthService';
 import BranchService from './src/services/BranchService';
@@ -150,6 +154,10 @@ function App() {
         <Stack.Screen name="Lectures" component={LecturesScreen} />
         <Stack.Screen name="AddLecture" component={AddLectureScreen} />
         <Stack.Screen name="EditLecture" component={EditLectureScreen} />
+        <Stack.Screen name="DistributionManagement" component={DistributionManagementScreen} />
+        <Stack.Screen name="AddDistribution" component={AddDistributionScreen} />
+        <Stack.Screen name="DistributionDetails" component={DistributionDetailsScreen} />
+        <Stack.Screen name="ProgramDistributions" component={ProgramDistributionsScreen} />
         </Stack.Navigator>
       </NavigationContainer>
       <Toast />
