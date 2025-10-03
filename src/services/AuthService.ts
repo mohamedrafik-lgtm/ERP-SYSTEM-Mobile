@@ -2652,6 +2652,279 @@ class AuthService {
       throw error;
     }
   }
+
+  // Quiz Management Functions
+  static async createQuiz(quizData: import('../types/quiz').CreateQuizRequest): Promise<import('../types/quiz').QuizResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/quizzes`;
+      console.log('[AuthService] Creating quiz at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(quizData),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to create quiz: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error creating quiz:', error);
+      throw error;
+    }
+  }
+
+  static async getAllQuizzes(params?: {
+    page?: number;
+    limit?: number;
+    trainingContentId?: number;
+    isActive?: boolean;
+    isPublished?: boolean;
+  }): Promise<import('../types/quiz').QuizListResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const queryParams = new URLSearchParams();
+      if (params?.page) queryParams.append('page', params.page.toString());
+      if (params?.limit) queryParams.append('limit', params.limit.toString());
+      if (params?.trainingContentId) queryParams.append('trainingContentId', params.trainingContentId.toString());
+      if (params?.isActive !== undefined) queryParams.append('isActive', params.isActive.toString());
+      if (params?.isPublished !== undefined) queryParams.append('isPublished', params.isPublished.toString());
+
+      const url = `${baseUrl}/api/quizzes?${queryParams.toString()}`;
+      console.log('[AuthService] Getting quizzes at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to get quizzes: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error getting quizzes:', error);
+      throw error;
+    }
+  }
+
+  static async getQuizById(quizId: number): Promise<import('../types/quiz').QuizResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/quizzes/${quizId}`;
+      console.log('[AuthService] Getting quiz by ID at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to get quiz: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error getting quiz by ID:', error);
+      throw error;
+    }
+  }
+
+  static async updateQuiz(quizId: number, quizData: import('../types/quiz').UpdateQuizRequest): Promise<import('../types/quiz').QuizResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/quizzes/${quizId}`;
+      console.log('[AuthService] Updating quiz at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(quizData),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to update quiz: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error updating quiz:', error);
+      throw error;
+    }
+  }
+
+  static async deleteQuiz(quizId: number): Promise<void> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/quizzes/${quizId}`;
+      console.log('[AuthService] Deleting quiz at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to delete quiz: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('[AuthService] Error deleting quiz:', error);
+      throw error;
+    }
+  }
+
+  static async getQuizStats(): Promise<import('../types/quiz').QuizStats> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/quizzes/stats`;
+      console.log('[AuthService] Getting quiz stats at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to get quiz stats: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error getting quiz stats:', error);
+      throw error;
+    }
+  }
+
+  static async getQuizAttempts(quizId: number, params?: {
+    page?: number;
+    limit?: number;
+  }): Promise<import('../types/quiz').QuizAttemptsResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const queryParams = new URLSearchParams();
+      if (params?.page) queryParams.append('page', params.page.toString());
+      if (params?.limit) queryParams.append('limit', params.limit.toString());
+
+      const url = `${baseUrl}/api/quizzes/${quizId}/attempts?${queryParams.toString()}`;
+      console.log('[AuthService] Getting quiz attempts at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to get quiz attempts: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error getting quiz attempts:', error);
+      throw error;
+    }
+  }
 }
 
 export default AuthService;

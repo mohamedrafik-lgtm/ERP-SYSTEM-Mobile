@@ -60,6 +60,12 @@ const DrawerMenu: React.FC<DrawerMenuProps> = ({ navigation, activeRouteName }) 
       screen: 'Courses',
     },
     {
+      id: 'QuizManagement',
+      title: 'إدارة الاختبارات المصغرة',
+      icon: 'assignment',
+      screen: 'QuizManagement',
+    },
+    {
       id: 'Teachers',
       title: 'المدربين',
       icon: 'person',

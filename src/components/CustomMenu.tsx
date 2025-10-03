@@ -19,6 +19,24 @@ import Toast from 'react-native-toast-message';
 
 const { width } = Dimensions.get('window');
 
+// Types
+interface MenuItem {
+  id: string;
+  title: string;
+  icon: string;
+  screen: string;
+  priority: number;
+  allowedRoles: string[];
+  category: string;
+  isLogout?: boolean;
+}
+
+interface MenuSection {
+  title: string;
+  category: string;
+  items: MenuItem[];
+}
+
 interface CustomMenuProps {
   navigation: any;
   activeRouteName?: string;
@@ -69,7 +87,7 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
     }
     
     // إضافة عنصر تسجيل الخروج إذا لم يكن موجوداً
-    const hasLogout = systemSection.items.some(item => item.isLogout);
+    const hasLogout = systemSection.items.some((item: MenuItem) => item.isLogout);
     if (!hasLogout) {
       systemSection.items.push({
         id: 'Logout',
@@ -207,8 +225,8 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
                   <View key={sectionIndex} style={styles.menuSection}>
                     <Text style={styles.sectionTitle}>{section.title}</Text>
                     {section.items
-                      .sort((a, b) => a.priority - b.priority)
-                      .map((item) => (
+                      .sort((a: MenuItem, b: MenuItem) => a.priority - b.priority)
+                      .map((item: MenuItem) => (
                       <TouchableOpacity
                         key={item.id}
                         style={[
