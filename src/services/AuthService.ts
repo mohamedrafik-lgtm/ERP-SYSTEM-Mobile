@@ -3579,6 +3579,113 @@ class AuthService {
     }
   }
 
+  // ==================== GRADES MANAGEMENT APIs ====================
+
+  /**
+   * جلب المتدربين للدرجات
+   */
+  static async getTraineesForGrades(params: {
+    limit?: string;
+    search?: string;
+    programId?: string;
+  } = {}) {
+    try {
+      console.log('🔍 AuthService.getTraineesForGrades() - Fetching trainees for grades with params:', params);
+      
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      console.log('🔍 AuthService.getTraineesForGrades() - Token found:', token.substring(0, 20) + '...');
+
+      const apiBaseUrl = await getCurrentApiBaseUrl();
+      
+      // Build query parameters
+      const queryParams = new URLSearchParams();
+      if (params.limit) queryParams.append('limit', params.limit);
+      if (params.search) queryParams.append('search', params.search);
+      if (params.programId) queryParams.append('programId', params.programId);
+      
+      const queryString = queryParams.toString();
+      const url = `${apiBaseUrl}/api/grades/trainees${queryString ? `?${queryString}` : ''}`;
+      
+      console.log('🔍 AuthService.getTraineesForGrades() - API Base URL:', apiBaseUrl);
+      console.log('🔍 AuthService.getTraineesForGrades() - Full URL:', url);
+
+      // Test network connectivity first
+      console.log('🔍 AuthService.getTraineesForGrades() - Testing network connectivity...');
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        const testResponse = await fetch(apiBaseUrl, {
+          method: 'HEAD',
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        console.log('🔍 AuthService.getTraineesForGrades() - Network test response:', testResponse.status);
+      } catch (networkError) {
+        console.error('🔍 AuthService.getTraineesForGrades() - Network test failed:', networkError);
+        throw new Error(`Network connection failed: ${(networkError as Error).message}`);
+      }
+
+      console.log('🔍 AuthService.getTraineesForGrades() - Making API request...');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+
+      console.log('🔍 AuthService.getTraineesForGrades() - Response status:', response.status);
+      console.log('🔍 AuthService.getTraineesForGrades() - Response ok:', response.ok);
+      console.log('🔍 AuthService.getTraineesForGrades() - Response headers:', Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log('🔍 AuthService.getTraineesForGrades() - Error response:', errorText);
+        console.log('🔍 AuthService.getTraineesForGrades() - Error status:', response.status);
+        console.log('🔍 AuthService.getTraineesForGrades() - Error statusText:', response.statusText);
+        
+        if (response.status === 401) {
+          throw new Error('غير مصرح - يرجى تسجيل الدخول مرة أخرى');
+        } else {
+          throw new Error(`API Error ${response.status}: ${errorText || response.statusText}`);
+        }
+      }
+
+      const data = await response.json();
+      console.log('🔍 AuthService.getTraineesForGrades() - Response data:', JSON.stringify(data, null, 2));
+      console.log('🔍 AuthService.getTraineesForGrades() - Response data type:', typeof data);
+      console.log('🔍 AuthService.getTraineesForGrades() - Response data is array?', Array.isArray(data));
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error fetching trainees for grades:', error);
+      console.error('[AuthService] Error details:', {
+        message: (error as Error).message,
+        stack: (error as Error).stack,
+        name: (error as Error).name
+      });
+      
+      // Provide more specific error messages
+      if ((error as Error).message.includes('Network request failed')) {
+        throw new Error('فشل في الاتصال بالخادم. تحقق من اتصال الإنترنت.');
+      } else if ((error as Error).message.includes('timeout')) {
+        throw new Error('انتهت مهلة الاتصال. حاول مرة أخرى.');
+      } else {
+        throw error;
+      }
+    }
+  }
+
   // ==================== SCHEDULE MANAGEMENT APIs ====================
 
   /**

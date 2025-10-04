@@ -15,7 +15,7 @@ export interface PermissionConfig {
   screen: string;
   priority: number;
   allowedRoles: UserRole[];
-  category: 'home' | 'academic' | 'marketing' | 'financial' | 'automation' | 'system' | 'exams' | 'student_platform' | 'schedules';
+  category: 'home' | 'academic' | 'marketing' | 'financial' | 'automation' | 'system' | 'exams' | 'student_platform' | 'schedules' | 'grades';
   description?: string;
   isLogout?: boolean;
 }
@@ -328,6 +328,38 @@ export const SCREEN_PERMISSIONS: PermissionConfig[] = [
     description: 'إدارة الجداول الدراسية والمواعيد'
   },
 
+  // إدارة الدرجات للمتدربين
+  {
+    id: 'TraineeGrades',
+    title: 'درجات المتدربين',
+    icon: 'grade',
+    screen: 'TraineeGrades',
+    priority: 1,
+    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant', 'employee', 'trainee_entry_clerk'],
+    category: 'grades',
+    description: 'إدارة درجات المتدربين والتقييمات'
+  },
+  {
+    id: 'GradeReports',
+    title: 'تقارير الدرجات',
+    icon: 'assessment',
+    screen: 'GradeReports',
+    priority: 2,
+    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant'],
+    category: 'grades',
+    description: 'تقارير وإحصائيات الدرجات'
+  },
+  {
+    id: 'GradeSettings',
+    title: 'إعدادات التقييم',
+    icon: 'settings',
+    screen: 'GradeSettings',
+    priority: 3,
+    allowedRoles: ['super_admin', 'admin', 'manager'],
+    category: 'grades',
+    description: 'إعدادات نظام التقييم والدرجات'
+  },
+
 ];
 
 // تجميع الصفحات حسب الفئات للقائمة
@@ -356,6 +388,11 @@ export const MENU_SECTIONS: MenuSection[] = [
     title: 'الجداول الدراسية',
     category: 'schedules',
     items: SCREEN_PERMISSIONS.filter(item => item.category === 'schedules')
+  },
+  {
+    title: 'درجات المتدربين',
+    category: 'grades',
+    items: SCREEN_PERMISSIONS.filter(item => item.category === 'grades')
   },
   {
     title: 'إدارة التسويق',
