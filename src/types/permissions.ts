@@ -15,7 +15,7 @@ export interface PermissionConfig {
   screen: string;
   priority: number;
   allowedRoles: UserRole[];
-  category: 'home' | 'academic' | 'marketing' | 'financial' | 'automation' | 'system' | 'exams';
+  category: 'home' | 'academic' | 'marketing' | 'financial' | 'automation' | 'system' | 'exams' | 'student_platform';
   description?: string;
   isLogout?: boolean;
 }
@@ -304,6 +304,18 @@ export const SCREEN_PERMISSIONS: PermissionConfig[] = [
     description: 'إضافة اختبار مصغر جديد'
   },
 
+  // إدارة منصة الطلاب
+  {
+    id: 'TraineeAccounts',
+    title: 'حسابات المتدربين',
+    icon: 'account-circle',
+    screen: 'TraineeAccounts',
+    priority: 1,
+    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant', 'employee', 'trainee_entry_clerk'],
+    category: 'student_platform',
+    description: 'إدارة حسابات المتدربين في المنصة'
+  },
+
 ];
 
 // تجميع الصفحات حسب الفئات للقائمة
@@ -322,6 +334,11 @@ export const MENU_SECTIONS: MenuSection[] = [
     title: 'إدارة الاختبارات',
     category: 'exams',
     items: SCREEN_PERMISSIONS.filter(item => item.category === 'exams')
+  },
+  {
+    title: 'إدارة منصة الطلاب',
+    category: 'student_platform',
+    items: SCREEN_PERMISSIONS.filter(item => item.category === 'student_platform')
   },
   {
     title: 'إدارة التسويق',

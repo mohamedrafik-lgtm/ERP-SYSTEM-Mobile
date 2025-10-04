@@ -3022,6 +3022,224 @@ class AuthService {
       throw error;
     }
   }
+
+  /**
+   * جلب حسابات المتدربين من منصة الطلاب
+   */
+  static async getTraineeAccounts(params?: {
+    search?: string;
+    isActive?: boolean;
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: 'asc' | 'desc';
+  }): Promise<{
+    data: Array<{
+      id: string;
+      nationalId: string;
+      birthDate: string;
+      password: string | null;
+      isActive: boolean;
+      lastLoginAt: string | null;
+      resetCode: string | null;
+      resetCodeExpiresAt: string | null;
+      resetCodeGeneratedAt: string | null;
+      traineeId: number;
+      createdAt: string;
+      updatedAt: string;
+      trainee: {
+        id: number;
+        nameAr: string;
+        nameEn: string;
+        nationalId: string;
+        email: string | null;
+        phone: string;
+        photoUrl: string | null;
+        traineeStatus: string;
+        classLevel: string | null;
+        academicYear: string | null;
+        program: {
+          id: number;
+          nameAr: string;
+          nameEn: string;
+        };
+      };
+    }>;
+    meta: {
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+      hasNext: boolean;
+      hasPrev: boolean;
+    };
+  }> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const queryParams = new URLSearchParams();
+
+      if (params?.search) queryParams.append('search', params.search);
+      if (params?.isActive !== undefined) queryParams.append('isActive', params.isActive.toString());
+      if (params?.page) queryParams.append('page', params.page.toString());
+      if (params?.limit) queryParams.append('limit', params.limit.toString());
+      if (params?.sortBy) queryParams.append('sortBy', params.sortBy);
+      if (params?.sortOrder) queryParams.append('sortOrder', params.sortOrder);
+
+      const url = `${baseUrl}/api/trainee-platform/accounts?${queryParams.toString()}`;
+      console.log('🔍 AuthService.getTraineeAccounts() - Fetching from URL:', url);
+      console.log('🔍 AuthService.getTraineeAccounts() - Query params:', queryParams.toString());
+      console.log('🔍 AuthService.getTraineeAccounts() - Using token:', token.substring(0, 20) + '...');
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        console.log('🔍 AuthService.getTraineeAccounts() - Response not OK:', response.status, response.statusText);
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        const errorText = await response.text();
+        console.log('🔍 AuthService.getTraineeAccounts() - Error response:', errorText);
+        throw new Error(errorText || `Failed to get trainee accounts: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('🔍 AuthService.getTraineeAccounts() - Response:', data);
+      console.log('🔍 AuthService.getTraineeAccounts() - Data length:', data.data?.length || 0);
+      console.log('🔍 AuthService.getTraineeAccounts() - Meta:', data.meta);
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error getting trainee accounts:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * جلب تفاصيل حساب متدرب معين
+   */
+  static async getTraineeAccountDetails(accountId: string): Promise<{
+    id: string;
+    nationalId: string;
+    birthDate: string;
+    password: string | null;
+    isActive: boolean;
+    lastLoginAt: string | null;
+    resetCode: string | null;
+    resetCodeExpiresAt: string | null;
+    resetCodeGeneratedAt: string | null;
+    traineeId: number;
+    createdAt: string;
+    updatedAt: string;
+    trainee: {
+      id: number;
+      nameAr: string;
+      nameEn: string;
+      nationalId: string;
+      email: string | null;
+      phone: string;
+      photoUrl: string | null;
+      photoCloudinaryId: string | null;
+      enrollmentType: string;
+      maritalStatus: string;
+      gender: string;
+      nationality: string;
+      religion: string;
+      birthDate: string;
+      idIssueDate: string;
+      idExpiryDate: string;
+      programType: string;
+      programId: number;
+      country: string;
+      governorate: string | null;
+      city: string;
+      address: string;
+      residenceAddress: string;
+      guardianName: string;
+      guardianPhone: string;
+      guardianEmail: string | null;
+      guardianJob: string | null;
+      guardianRelation: string;
+      landline: string | null;
+      whatsapp: string | null;
+      facebook: string | null;
+      educationType: string;
+      schoolName: string;
+      graduationDate: string;
+      totalGrade: number | null;
+      gradePercentage: number | null;
+      sportsActivity: string | null;
+      culturalActivity: string | null;
+      educationalActivity: string | null;
+      traineeStatus: string;
+      classLevel: string;
+      academicYear: string | null;
+      marketingEmployeeId: number | null;
+      firstContactEmployeeId: number | null;
+      secondContactEmployeeId: number | null;
+      createdById: string | null;
+      updatedById: string | null;
+      createdAt: string;
+      updatedAt: string;
+      notes: string | null;
+      program: {
+        id: number;
+        nameAr: string;
+        nameEn: string;
+      };
+    };
+  }> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/trainee-platform/accounts/${accountId}`;
+      console.log('🔍 AuthService.getTraineeAccountDetails() - Fetching from URL:', url);
+      console.log('🔍 AuthService.getTraineeAccountDetails() - Account ID:', accountId);
+      console.log('🔍 AuthService.getTraineeAccountDetails() - Using token:', token.substring(0, 20) + '...');
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        console.log('🔍 AuthService.getTraineeAccountDetails() - Response not OK:', response.status, response.statusText);
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        const errorText = await response.text();
+        console.log('🔍 AuthService.getTraineeAccountDetails() - Error response:', errorText);
+        throw new Error(errorText || `Failed to get trainee account details: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('🔍 AuthService.getTraineeAccountDetails() - Response:', data);
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error getting trainee account details:', error);
+      throw error;
+    }
+  }
 }
 
 export default AuthService;

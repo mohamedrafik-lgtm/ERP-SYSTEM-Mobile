@@ -48,6 +48,8 @@ import DistributionDetailsScreen from './src/screens/DistributionDetailsScreen';
 import ProgramDistributionsScreen from './src/screens/ProgramDistributionsScreen';
 import QuizManagementScreen from './src/screens/QuizManagementScreen';
 import AddQuizScreen from './src/screens/AddQuizScreen';
+import TraineeAccountsScreen from './src/screens/TraineeAccountsScreen';
+import TraineeAccountDetailsScreen from './src/screens/TraineeAccountDetailsScreen';
 import BranchSelectionScreen from './src/screens/BranchSelectionScreen';
 import AuthService from './src/services/AuthService';
 import BranchService from './src/services/BranchService';
@@ -162,6 +164,8 @@ function App() {
         <Stack.Screen name="ProgramDistributions" component={ProgramDistributionsScreen} />
         <Stack.Screen name="QuizManagement" component={QuizManagementScreen} />
         <Stack.Screen name="AddQuiz" component={AddQuizScreen} />
+        <Stack.Screen name="TraineeAccounts" component={TraineeAccountsScreen} />
+        <Stack.Screen name="TraineeAccountDetails" component={TraineeAccountDetailsScreen} />
         </Stack.Navigator>
       </NavigationContainer>
       <Toast />
