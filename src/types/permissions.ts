@@ -15,7 +15,7 @@ export interface PermissionConfig {
   screen: string;
   priority: number;
   allowedRoles: UserRole[];
-  category: 'home' | 'academic' | 'marketing' | 'financial' | 'automation' | 'system';
+  category: 'home' | 'academic' | 'marketing' | 'financial' | 'automation' | 'system' | 'exams';
   description?: string;
   isLogout?: boolean;
 }
@@ -262,7 +262,47 @@ export const SCREEN_PERMISSIONS: PermissionConfig[] = [
     description: 'إضافة صلاحية جديدة'
   },
 
-
+  // إدارة الاختبارات
+  {
+    id: 'Questions',
+    title: 'بنك الأسئلة',
+    icon: 'help',
+    screen: 'Questions',
+    priority: 1,
+    allowedRoles: ['super_admin', 'admin', 'manager'],
+    category: 'exams',
+    description: 'إدارة بنك الأسئلة'
+  },
+  {
+    id: 'AddQuestion',
+    title: 'إضافة سؤال',
+    icon: 'help-outline',
+    screen: 'AddQuestion',
+    priority: 2,
+    allowedRoles: ['super_admin', 'admin', 'manager'],
+    category: 'exams',
+    description: 'إضافة سؤال جديد لبنك الأسئلة'
+  },
+  {
+    id: 'QuizManagement',
+    title: 'إدارة الاختبارات المصغرة',
+    icon: 'assignment',
+    screen: 'QuizManagement',
+    priority: 3,
+    allowedRoles: ['super_admin', 'admin', 'manager'],
+    category: 'exams',
+    description: 'إدارة الاختبارات المصغرة والامتحانات'
+  },
+  {
+    id: 'AddQuiz',
+    title: 'إضافة اختبار مصغر',
+    icon: 'add-box',
+    screen: 'AddQuiz',
+    priority: 4,
+    allowedRoles: ['super_admin', 'admin', 'manager'],
+    category: 'exams',
+    description: 'إضافة اختبار مصغر جديد'
+  },
 
 ];
 
@@ -277,6 +317,11 @@ export const MENU_SECTIONS: MenuSection[] = [
     title: 'الإدارة الأكاديمية',
     category: 'academic',
     items: SCREEN_PERMISSIONS.filter(item => item.category === 'academic')
+  },
+  {
+    title: 'إدارة الاختبارات',
+    category: 'exams',
+    items: SCREEN_PERMISSIONS.filter(item => item.category === 'exams')
   },
   {
     title: 'إدارة التسويق',

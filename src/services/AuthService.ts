@@ -760,6 +760,103 @@ class AuthService {
     }
   }
 
+  // Get All Questions (Question Bank)
+  static async getAllQuestions(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    contentId?: number;
+    type?: string;
+    skill?: string;
+    difficulty?: string;
+  }): Promise<import('../types/student').IQuestion[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      
+      // محاولة الـ API endpoint الجديد أولاً
+      try {
+        const queryParams = new URLSearchParams();
+        if (params?.page) queryParams.append('page', params.page.toString());
+        if (params?.limit) queryParams.append('limit', params.limit.toString());
+        if (params?.search) queryParams.append('search', params.search);
+        if (params?.contentId) queryParams.append('contentId', params.contentId.toString());
+        if (params?.type) queryParams.append('type', params.type);
+        if (params?.skill) queryParams.append('skill', params.skill);
+        if (params?.difficulty) queryParams.append('difficulty', params.difficulty);
+
+        const url = `${baseUrl}/api/questions?${queryParams.toString()}`;
+        console.log('Fetching all questions from URL:', url);
+
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        console.log('Get all questions response status:', response.status);
+
+        if (response.ok) {
+          let data;
+          try {
+            data = await response.json();
+            console.log('Get all questions response data:', data);
+          } catch (parseError) {
+            console.error('Error parsing JSON response:', parseError);
+            const textResponse = await response.text();
+            console.log('Raw response:', textResponse);
+            throw new Error(`Invalid JSON response: ${textResponse}`);
+          }
+
+          // معالجة البيانات إذا كانت في بنية pagination
+          if (Array.isArray(data)) {
+            return data;
+          } else if (data && Array.isArray(data.data)) {
+            return data.data;
+          } else if (data && Array.isArray(data.questions)) {
+            return data.questions;
+          } else if (data && Array.isArray(data.items)) {
+            return data.items;
+          } else {
+            console.warn('Unexpected data structure:', data);
+            return [];
+          }
+        } else {
+          console.warn('Question bank API failed, falling back to content-specific endpoint');
+          throw new Error(`Question bank API failed: ${response.status}`);
+        }
+      } catch (apiError) {
+        console.warn('Question bank API not available, trying alternative approach:', apiError);
+        
+        // إذا فشل الـ API الجديد، جرب الـ API القديم
+        if (params?.contentId) {
+          console.log('Falling back to content-specific questions endpoint');
+          const contentData = await this.getQuestionsByContent(params.contentId);
+          
+          // معالجة البيانات من الـ API القديم
+          if (Array.isArray(contentData)) {
+            return contentData;
+          } else if (contentData && Array.isArray(contentData.data)) {
+            return contentData.data;
+          } else if (contentData && Array.isArray(contentData.questions)) {
+            return contentData.questions;
+          }
+        }
+        
+        throw apiError;
+      }
+    } catch (error) {
+      console.error('Error fetching all questions in AuthService:', error);
+      throw error;
+    }
+  }
+
   // Get Questions by Content ID
   static async getQuestionsByContent(contentId: number): Promise<import('../types/student').IQuestionsByContentResponse> {
     try {

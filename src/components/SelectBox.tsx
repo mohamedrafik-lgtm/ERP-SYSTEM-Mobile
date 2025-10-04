@@ -46,9 +46,9 @@ function SelectBox<T>({
           {loading ? 'جاري التحميل...' : (selectedItem ? selectedItem.label : placeholder)}
         </Text>
         {loading ? (
-          <ActivityIndicator size="small" color="#666" />
+          <ActivityIndicator size="small" color="#1a237e" />
         ) : (
-          <Icon name="arrow-drop-down" size={24} color="#666" />
+          <Icon name="keyboard-arrow-down" size={24} color="#6b7280" />
         )}
       </TouchableOpacity>
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -63,8 +63,11 @@ function SelectBox<T>({
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>{label}</Text>
-              <TouchableOpacity onPress={() => setModalVisible(false)}>
-                <Icon name="close" size={24} color="#333" />
+              <TouchableOpacity 
+                onPress={() => setModalVisible(false)}
+                style={styles.closeButton}
+              >
+                <Icon name="close" size={24} color="#6b7280" />
               </TouchableOpacity>
             </View>
             <FlatList
@@ -83,7 +86,7 @@ function SelectBox<T>({
                 >
                   <Text style={styles.optionText}>{item.label}</Text>
                   {selectedValue === item.value && (
-                    <Icon name="check" size={20} color="#1a73e8" />
+                    <Icon name="check-circle" size={24} color="#10b981" />
                   )}
                 </TouchableOpacity>
               )}
@@ -102,78 +105,113 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    color: '#333',
+    color: '#374151',
     marginBottom: 8,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   selectContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
+    borderColor: '#d1d5db',
+    borderRadius: 12,
+    padding: 16,
     backgroundColor: '#fff',
+    minHeight: 56,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   selectedValue: {
     flex: 1,
     fontSize: 16,
-    color: '#333',
+    color: '#374151',
+    fontWeight: '500',
   },
   placeholder: {
-    color: '#999',
+    color: '#9ca3af',
+    fontWeight: '400',
   },
   errorBorder: {
-    borderColor: '#ff3b30',
+    borderColor: '#ef4444',
+    borderWidth: 2,
   },
   errorText: {
-    color: '#ff3b30',
+    color: '#ef4444',
     fontSize: 12,
-    marginTop: 4,
+    marginTop: 6,
+    fontWeight: '500',
   },
   disabled: {
-    backgroundColor: '#f5f5f5',
-    opacity: 0.7,
+    backgroundColor: '#f9fafb',
+    opacity: 0.6,
+    borderColor: '#e5e7eb',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'flex-end',
   },
   modalContent: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    maxHeight: '60%',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '70%',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 10,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: '#f3f4f6',
+    backgroundColor: '#fafafa',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: '700',
+    color: '#1f2937',
+  },
+  closeButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#f3f4f6',
   },
   option: {
-    padding: 16,
+    padding: 18,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f9fafb',
   },
   optionText: {
     fontSize: 16,
-    color: '#333',
+    color: '#374151',
+    fontWeight: '500',
+    flex: 1,
   },
   separator: {
     height: 1,
-    backgroundColor: '#f0f0f0',
-    marginLeft: 16,
+    backgroundColor: '#f3f4f6',
+    marginLeft: 18,
   },
 });
 

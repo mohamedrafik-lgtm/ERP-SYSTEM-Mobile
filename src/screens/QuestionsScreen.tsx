@@ -17,8 +17,8 @@ import { IQuestion, QuestionType, QuestionSkill, QuestionDifficulty } from '../t
 
 interface QuestionsScreenProps {
   route: {
-    params: {
-      content: {
+    params?: {
+      content?: {
         id: number;
         name: string;
         code: string;
@@ -29,10 +29,38 @@ interface QuestionsScreenProps {
 }
 
 const QuestionsScreen = ({ route, navigation }: QuestionsScreenProps) => {
-  const { content } = route.params;
+  // معالجة آمنة للـ params
+  const content = route?.params?.content;
   const [questions, setQuestions] = useState<IQuestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // التحقق من وجود المحتوى
+  if (!content) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Icon name="arrow-back" size={24} color="#333" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>خطأ</Text>
+        </View>
+        <View style={styles.errorContainer}>
+          <Icon name="error" size={64} color="#ff3b30" />
+          <Text style={styles.errorTitle}>خطأ في البيانات</Text>
+          <Text style={styles.errorMessage}>
+            لم يتم العثور على معلومات المحتوى التدريبي
+          </Text>
+          <TouchableOpacity 
+            style={styles.retryButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.retryButtonText}>العودة</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   useEffect(() => {
     fetchQuestions();
@@ -48,12 +76,74 @@ const QuestionsScreen = ({ route, navigation }: QuestionsScreenProps) => {
   const fetchQuestions = async () => {
     try {
       setLoading(true);
-      const data = await AuthService.getQuestionsByContent(content.id);
-      setQuestions(data);
+      console.log('=== FETCHING QUESTIONS DEBUG ===');
+      console.log('Content ID:', content.id);
+      console.log('Content:', content);
+      
+      // محاولة جلب الأسئلة من بنك الأسئلة أولاً
+      try {
+        console.log('Attempting to load from question bank...');
+        const bankData = await AuthService.getAllQuestions({ 
+          contentId: content.id,
+          limit: 100
+        });
+        console.log('Question bank response:', bankData);
+        console.log('Question bank response type:', typeof bankData);
+        console.log('Question bank response is array:', Array.isArray(bankData));
+        console.log('Question bank response length:', Array.isArray(bankData) ? bankData.length : 'N/A');
+        
+        if (Array.isArray(bankData) && bankData.length > 0) {
+          console.log('✅ Successfully loaded from question bank:', bankData.length, 'questions');
+          setQuestions(bankData);
+          return;
+        } else {
+          console.log('⚠️ Question bank returned empty or invalid data');
+        }
+      } catch (bankError) {
+        console.warn('❌ Failed to load from question bank:', bankError);
+        console.warn('Error details:', (bankError as Error).message);
+      }
+      
+      // إذا فشل، جرب الـ API endpoint القديم
+      try {
+        console.log('Attempting to load from content-specific endpoint...');
+        const data = await AuthService.getQuestionsByContent(content.id);
+        console.log('Content endpoint response:', data);
+        console.log('Content endpoint response type:', typeof data);
+        console.log('Content endpoint response is array:', Array.isArray(data));
+        
+        // معالجة البيانات من الـ API القديم
+        let questions: IQuestion[] = [];
+        if (Array.isArray(data)) {
+          questions = data;
+        } else if (data && typeof data === 'object' && 'data' in data && Array.isArray((data as any).data)) {
+          questions = (data as any).data;
+        } else if (data && typeof data === 'object' && 'questions' in data && Array.isArray((data as any).questions)) {
+          questions = (data as any).questions;
+        }
+        
+        console.log('Processed questions:', questions);
+        console.log('Processed questions length:', questions.length);
+        
+        if (questions.length > 0) {
+          console.log('✅ Successfully loaded from content endpoint:', questions.length, 'questions');
+          setQuestions(questions);
+        } else {
+          console.log('⚠️ Content endpoint returned no questions');
+          setQuestions([]);
+        }
+      } catch (contentError) {
+        console.error('❌ Failed to load questions from content endpoint:', contentError);
+        console.error('Error details:', (contentError as Error).message);
+        throw contentError;
+      }
+      
     } catch (error) {
-      console.error('Error fetching questions:', error);
+      console.error('❌ Final error fetching questions:', error);
       Alert.alert('خطأ', 'فشل في تحميل الأسئلة');
+      setQuestions([]);
     } finally {
+      console.log('=== END FETCHING QUESTIONS DEBUG ===');
       setLoading(false);
     }
   };
@@ -118,67 +208,84 @@ const QuestionsScreen = ({ route, navigation }: QuestionsScreenProps) => {
     }
   };
 
-  const renderQuestion = ({ item }: { item: IQuestion }) => (
-    <View style={styles.questionCard}>
-      <View style={styles.questionHeader}>
-        <View style={styles.questionInfo}>
-          <Text style={styles.questionText}>{item.text}</Text>
-          <View style={styles.questionMeta}>
-            <Text style={styles.chapterText}>الفصل: {item.chapter}</Text>
-            <Text style={styles.createdText}>
-              {new Date(item.createdAt).toLocaleDateString('ar-EG')}
+  const renderQuestion = ({ item }: { item: IQuestion }) => {
+    console.log('Rendering question:', item);
+    
+    return (
+      <View style={styles.questionCard}>
+        <View style={styles.questionHeader}>
+          <View style={styles.questionInfo}>
+            <Text style={styles.questionText}>
+              {item.text || 'نص السؤال غير متوفر'}
             </Text>
-          </View>
-        </View>
-        <View style={styles.questionBadges}>
-          <View style={[styles.badge, { backgroundColor: getDifficultyColor(item.difficulty) + '20' }]}>
-            <Text style={[styles.badgeText, { color: getDifficultyColor(item.difficulty) }]}>
-              {getDifficultyLabel(item.difficulty)}
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      <View style={styles.questionDetails}>
-        <View style={styles.detailRow}>
-          <Icon name="quiz" size={16} color="#666" />
-          <Text style={styles.detailText}>{getQuestionTypeLabel(item.type)}</Text>
-        </View>
-        <View style={styles.detailRow}>
-          <Icon name="psychology" size={16} color="#666" />
-          <Text style={styles.detailText}>{getSkillLabel(item.skill)}</Text>
-        </View>
-        <View style={styles.detailRow}>
-          <Icon name="person" size={16} color="#666" />
-          <Text style={styles.detailText}>{item.createdBy.name}</Text>
-        </View>
-      </View>
-
-      {item.options && item.options.length > 0 && (
-        <View style={styles.optionsContainer}>
-          <Text style={styles.optionsTitle}>الخيارات:</Text>
-          {item.options.map((option, index) => (
-            <View key={option.id} style={styles.optionItem}>
-              <View style={styles.optionContent}>
-                <Text style={styles.optionText}>
-                  {String.fromCharCode(65 + index)}. {option.text}
-                </Text>
-                {option.isCorrect && (
-                  <Icon name="check-circle" size={20} color="#4CAF50" />
-                )}
-              </View>
+            <View style={styles.questionMeta}>
+              <Text style={styles.chapterText}>الفصل: {item.chapter || 'غير محدد'}</Text>
+              <Text style={styles.createdText}>
+                {item.createdAt ? new Date(item.createdAt).toLocaleDateString('ar-EG') : 'تاريخ غير محدد'}
+              </Text>
             </View>
-          ))}
+          </View>
+          <View style={styles.questionBadges}>
+            <View style={[styles.badge, { backgroundColor: getDifficultyColor(item.difficulty) + '20' }]}>
+              <Text style={[styles.badgeText, { color: getDifficultyColor(item.difficulty) }]}>
+                {getDifficultyLabel(item.difficulty)}
+              </Text>
+            </View>
+            <View style={[styles.badge, { backgroundColor: '#e3f2fd' }]}>
+              <Text style={[styles.badgeText, { color: '#1a237e' }]}>
+                {getQuestionTypeLabel(item.type)}
+              </Text>
+            </View>
+            {item.skill && (
+              <View style={[styles.badge, { backgroundColor: '#d1fae5' }]}>
+                <Text style={[styles.badgeText, { color: '#059669' }]}>
+                  {getSkillLabel(item.skill)}
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
-      )}
-    </View>
-  );
+
+        <View style={styles.questionDetails}>
+          <View style={styles.detailRow}>
+            <Icon name="quiz" size={16} color="#666" />
+            <Text style={styles.detailText}>{getQuestionTypeLabel(item.type)}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Icon name="psychology" size={16} color="#666" />
+            <Text style={styles.detailText}>{getSkillLabel(item.skill)}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Icon name="trending-up" size={16} color="#666" />
+            <Text style={styles.detailText}>{getDifficultyLabel(item.difficulty)}</Text>
+          </View>
+        </View>
+      </View>
+    );
+  };
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#1a237e" />
-        <Text style={styles.loadingText}>جاري تحميل الأسئلة...</Text>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Icon name="arrow-back" size={24} color="#1a237e" />
+          </TouchableOpacity>
+          <View style={styles.headerContent}>
+            <Text style={styles.headerTitle}>أسئلة المحتوى التدريبي</Text>
+            <Text style={styles.headerSubtitle}>{content.name} ({content.code})</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => navigation.navigate('AddQuestion', { content })}
+          >
+            <Icon name="add" size={24} color="#1a237e" />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#1a237e" />
+          <Text style={styles.loadingText}>جاري تحميل الأسئلة...</Text>
+        </View>
       </View>
     );
   }
@@ -205,20 +312,17 @@ const QuestionsScreen = ({ route, navigation }: QuestionsScreenProps) => {
       </View>
 
       <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <Icon name="quiz" size={24} color="#1a237e" />
+        <View style={styles.statItem}>
           <Text style={styles.statNumber}>{questions.length}</Text>
           <Text style={styles.statLabel}>إجمالي الأسئلة</Text>
         </View>
-        <View style={styles.statCard}>
-          <Icon name="multiple-choice" size={24} color="#4CAF50" />
+        <View style={styles.statItem}>
           <Text style={styles.statNumber}>
             {questions.filter(q => q.type === 'MULTIPLE_CHOICE').length}
           </Text>
-          <Text style={styles.statLabel}>اختيار من متعدد</Text>
+          <Text style={styles.statLabel}>اختيار متعدد</Text>
         </View>
-        <View style={styles.statCard}>
-          <Icon name="check-box" size={24} color="#FF9800" />
+        <View style={styles.statItem}>
           <Text style={styles.statNumber}>
             {questions.filter(q => q.type === 'TRUE_FALSE').length}
           </Text>
@@ -230,7 +334,16 @@ const QuestionsScreen = ({ route, navigation }: QuestionsScreenProps) => {
         <View style={styles.emptyContainer}>
           <Icon name="quiz" size={64} color="#ccc" />
           <Text style={styles.emptyTitle}>لا توجد أسئلة</Text>
-          <Text style={styles.emptySubtitle}>لم يتم إضافة أي أسئلة لهذا المحتوى التدريبي بعد</Text>
+          <Text style={styles.emptySubtitle}>
+            لم يتم إضافة أي أسئلة لهذا المحتوى التدريبي بعد
+          </Text>
+          <TouchableOpacity 
+            style={styles.refreshButton}
+            onPress={handleRefresh}
+          >
+            <Icon name="refresh" size={20} color="#1a237e" />
+            <Text style={styles.refreshButtonText}>إعادة تحميل</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <FlatList
@@ -268,6 +381,37 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
   },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  errorTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#ff3b30',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  errorMessage: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 24,
+  },
+  retryButton: {
+    backgroundColor: '#1a237e',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -276,92 +420,70 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
-    marginBottom: 8,
   },
   backButton: {
-    marginRight: 16,
     padding: 8,
   },
   headerContent: {
     flex: 1,
-  },
-  addButton: {
-    padding: 8,
-    backgroundColor: '#f0f9ff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#1a237e',
+    marginLeft: 8,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#1a237e',
   },
   headerSubtitle: {
     fontSize: 14,
     color: '#666',
-    marginTop: 4,
+    marginTop: 2,
+  },
+  addButton: {
+    padding: 8,
+    backgroundColor: '#e3f2fd',
+    borderRadius: 8,
   },
   statsContainer: {
     flexDirection: 'row',
-    padding: 16,
     backgroundColor: '#fff',
-    marginBottom: 16,
-    marginHorizontal: 8,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    padding: 16,
+    marginBottom: 8,
   },
-  statCard: {
+  statItem: {
     flex: 1,
     alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 8,
-    marginHorizontal: 4,
   },
   statNumber: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
     color: '#1a237e',
-    marginTop: 8,
   },
   statLabel: {
     fontSize: 12,
     color: '#666',
     marginTop: 4,
-    textAlign: 'center',
   },
   questionsList: {
     padding: 16,
-    paddingTop: 8,
   },
   questionCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 16,
-    marginHorizontal: 4,
+    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
       height: 2,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowRadius: 4,
+    elevation: 3,
   },
   questionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
   },
   questionInfo: {
     flex: 1,
@@ -372,22 +494,24 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#333',
     lineHeight: 24,
-    marginBottom: 8,
   },
   questionMeta: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    marginTop: 8,
   },
   chapterText: {
     fontSize: 12,
     color: '#666',
+    marginRight: 16,
   },
   createdText: {
     fontSize: 12,
     color: '#666',
   },
   questionBadges: {
-    alignItems: 'flex-end',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   badge: {
     paddingHorizontal: 8,
@@ -399,7 +523,10 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   questionDetails: {
-    marginBottom: 12,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
   },
   detailRow: {
     flexDirection: 'row',
@@ -411,40 +538,11 @@ const styles = StyleSheet.create({
     color: '#666',
     marginLeft: 8,
   },
-  optionsContainer: {
-    marginTop: 8,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-  },
-  optionsTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#333',
-    marginBottom: 8,
-  },
-  optionItem: {
-    marginBottom: 8,
-  },
-  optionContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 8,
-    backgroundColor: '#f8f9fa',
-    borderRadius: 6,
-  },
-  optionText: {
-    fontSize: 14,
-    color: '#333',
-    flex: 1,
-  },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 32,
-    marginTop: 40,
   },
   emptyTitle: {
     fontSize: 18,
@@ -457,6 +555,21 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 8,
     textAlign: 'center',
+  },
+  refreshButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 16,
+  },
+  refreshButtonText: {
+    fontSize: 14,
+    color: '#1a237e',
+    marginLeft: 8,
+    fontWeight: '500',
   },
 });
 

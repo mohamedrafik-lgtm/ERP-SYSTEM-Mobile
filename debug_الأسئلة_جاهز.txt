@@ -1,0 +1,80 @@
+# 🔍 تم إضافة Debug Logs شاملة لتشخيص مشكلة الأسئلة!
+
+## ✅ ما تم إضافته:
+
+### 1. **Debug Logs شاملة**
+- تسجيل مفصل لكل خطوة في تحميل الأسئلة
+- معلومات عن Content ID وبنية البيانات
+- تسجيل استجابات الـ API المختلفة
+
+### 2. **Debug Logs لعرض الأسئلة**
+- تسجيل عدد الأسئلة المعروضة
+- تسجيل تفاصيل كل سؤال
+- تسجيل حالة التحميل
+
+### 3. **Debug Logs لحالة عدم وجود أسئلة**
+- تسجيل حالة الأسئلة الفارغة
+- تسجيل حالة التحميل
+
+## 🚀 كيفية التشخيص:
+
+### 1. افتح التطبيق
+### 2. افتح Developer Console (F12)
+### 3. اذهب لصفحة إضافة اختبار مصغر
+### 4. اختر برنامج تدريبي
+### 5. اختر محتوى تدريبي
+### 6. راقب الـ Console logs
+
+## 🔍 ما يجب أن تراه في Console:
+
+### حالة 1: بنك الأسئلة يعمل ✅
+```javascript
+=== LOADING QUESTIONS DEBUG ===
+Content ID: 123
+Content ID type: number
+Attempting to load from question bank...
+Question bank response: [...]
+✅ Successfully loaded from question bank: 5 questions
+Rendering questions: [...]
+Questions count: 5
+=== END LOADING QUESTIONS DEBUG ===
+```
+
+### حالة 2: Fallback يعمل ✅
+```javascript
+=== LOADING QUESTIONS DEBUG ===
+Content ID: 123
+❌ Failed to load from question bank: Error: ...
+Attempting to load from content-specific endpoint...
+✅ Successfully loaded from content endpoint: 3 questions
+=== END LOADING QUESTIONS DEBUG ===
+```
+
+### حالة 3: لا توجد أسئلة ❌
+```javascript
+=== LOADING QUESTIONS DEBUG ===
+Content ID: 123
+⚠️ Question bank returned empty or invalid data
+⚠️ Content endpoint returned no questions
+No questions available. Questions array: []
+Questions length: 0
+=== END LOADING QUESTIONS DEBUG ===
+```
+
+## 🎯 الخطوات التالية:
+
+### 1. جرب الآن وافتح Developer Console
+### 2. اختر محتوى تدريبي
+### 3. انسخ الـ Console logs
+### 4. أرسل لي الـ logs
+
+### المعلومات المطلوبة:
+- Content ID المرسل
+- استجابة بنك الأسئلة
+- استجابة Content API
+- عدد الأسئلة النهائي
+- أي أخطاء تظهر
+
+---
+
+**جرب الآن وأرسل لي الـ Console logs! 🔍✨**

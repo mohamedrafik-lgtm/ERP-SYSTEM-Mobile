@@ -22,13 +22,17 @@ interface AddQuizScreenProps {
 }
 
 const AddQuizScreen: React.FC<AddQuizScreenProps> = ({ navigation }) => {
+  const [programs, setPrograms] = useState<any[]>([]);
   const [trainingContents, setTrainingContents] = useState<any[]>([]);
+  const [filteredContents, setFilteredContents] = useState<any[]>([]);
   const [questions, setQuestions] = useState<any[]>([]);
+  const [isLoadingPrograms, setIsLoadingPrograms] = useState(true);
   const [isLoadingContents, setIsLoadingContents] = useState(true);
   const [isLoadingQuestions, setIsLoadingQuestions] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form fields
+  const [selectedProgramId, setSelectedProgramId] = useState<number | undefined>(undefined);
   const [selectedContentId, setSelectedContentId] = useState<number | undefined>(undefined);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -49,15 +53,55 @@ const AddQuizScreen: React.FC<AddQuizScreenProps> = ({ navigation }) => {
   const [selectedQuestions, setSelectedQuestions] = useState<QuizQuestionDto[]>([]);
 
   useEffect(() => {
+    loadPrograms();
     loadTrainingContents();
   }, []);
+
+  const loadPrograms = async () => {
+    try {
+      setIsLoadingPrograms(true);
+      const data = await AuthService.getAllPrograms();
+      setPrograms(Array.isArray(data) ? data : []);
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'فشل تحميل البرامج التدريبية',
+        position: 'bottom'
+      });
+    } finally {
+      setIsLoadingPrograms(false);
+    }
+  };
 
   const loadTrainingContents = async () => {
     try {
       setIsLoadingContents(true);
-      const data = await AuthService.getAllTrainingContents();
-      setTrainingContents(Array.isArray(data) ? data : []);
+      // تحميل جميع المحتويات التدريبية مع معلومات البرنامج
+      const data = await AuthService.getTrainingContents({
+        includeQuestionCount: true
+      });
+      console.log('Loaded training contents response:', data);
+      
+      // معالجة البيانات إذا كانت في بنية pagination
+      let contents = [];
+      if (Array.isArray(data)) {
+        contents = data;
+      } else if (data && Array.isArray(data.data)) {
+        contents = data.data;
+      } else if (data && Array.isArray(data.contents)) {
+        contents = data.contents;
+      } else if (data && Array.isArray(data.items)) {
+        contents = data.items;
+      } else {
+        console.warn('Unexpected data structure:', data);
+        contents = [];
+      }
+      
+      console.log('Processed training contents:', contents);
+      console.log('Training contents count:', contents.length);
+      setTrainingContents(contents);
     } catch (error) {
+      console.error('Error loading training contents:', error);
       Toast.show({
         type: 'error',
         text1: 'فشل تحميل المحتويات التدريبية',
@@ -71,18 +115,133 @@ const AddQuizScreen: React.FC<AddQuizScreenProps> = ({ navigation }) => {
   const loadQuestions = async (contentId: number) => {
     try {
       setIsLoadingQuestions(true);
-      const data = await AuthService.getAllQuestions({ trainingContentId: contentId });
-      setQuestions(Array.isArray(data) ? data : []);
+      console.log('=== LOADING QUESTIONS DEBUG ===');
+      console.log('Content ID:', contentId);
+      console.log('Content ID type:', typeof contentId);
+      
+      // محاولة جلب الأسئلة من بنك الأسئلة أولاً
+      try {
+        console.log('Attempting to load from question bank...');
+        const data = await AuthService.getAllQuestions({ 
+          contentId: contentId,
+          limit: 100
+        });
+        console.log('Question bank response:', data);
+        console.log('Question bank response type:', typeof data);
+        console.log('Question bank response is array:', Array.isArray(data));
+        console.log('Question bank response length:', Array.isArray(data) ? data.length : 'N/A');
+        
+        if (Array.isArray(data) && data.length > 0) {
+          console.log('✅ Successfully loaded from question bank:', data.length, 'questions');
+          setQuestions(data);
+          return;
+        } else {
+          console.log('⚠️ Question bank returned empty or invalid data');
+        }
+      } catch (bankError) {
+        console.warn('❌ Failed to load from question bank:', bankError);
+        console.warn('Error details:', bankError.message);
+      }
+      
+      // إذا فشل، جرب الـ API endpoint القديم
+      try {
+        console.log('Attempting to load from content-specific endpoint...');
+        const data = await AuthService.getQuestionsByContent(contentId);
+        console.log('Content endpoint response:', data);
+        console.log('Content endpoint response type:', typeof data);
+        console.log('Content endpoint response is array:', Array.isArray(data));
+        
+        // معالجة البيانات من الـ API القديم
+        let questions = [];
+        if (Array.isArray(data)) {
+          questions = data;
+        } else if (data && Array.isArray(data.data)) {
+          questions = data.data;
+        } else if (data && Array.isArray(data.questions)) {
+          questions = data.questions;
+        }
+        
+        console.log('Processed questions:', questions);
+        console.log('Processed questions length:', questions.length);
+        
+        if (questions.length > 0) {
+          console.log('✅ Successfully loaded from content endpoint:', questions.length, 'questions');
+          setQuestions(questions);
+        } else {
+          console.log('⚠️ Content endpoint returned no questions');
+          setQuestions([]);
+        }
+      } catch (contentError) {
+        console.error('❌ Failed to load questions from content endpoint:', contentError);
+        console.error('Error details:', contentError.message);
+        throw contentError;
+      }
+      
     } catch (error) {
+      console.error('❌ Final error loading questions:', error);
       Toast.show({
         type: 'error',
         text1: 'فشل تحميل الأسئلة',
+        text2: error.message || 'حدث خطأ غير متوقع',
         position: 'bottom'
       });
       setQuestions([]);
     } finally {
+      console.log('=== END LOADING QUESTIONS DEBUG ===');
       setIsLoadingQuestions(false);
     }
+  };
+
+  const handleProgramChange = (programId: number) => {
+    console.log('Selected program ID:', programId);
+    console.log('All training contents:', trainingContents);
+    
+    setSelectedProgramId(programId);
+    setSelectedContentId(undefined);
+    setSelectedQuestions([]);
+    
+    // فلترة المحتوى التدريبي حسب البرنامج المختار
+    const filtered = trainingContents.filter(content => {
+      console.log('Checking content:', content);
+      
+      // تحقق من جميع الطرق المحتملة لربط المحتوى بالبرنامج
+      // 1. programId مباشر
+      if (content.programId && content.programId === programId) {
+        console.log('Found match by programId:', content.programId);
+        return true;
+      }
+      
+      // 2. programIds مصفوفة
+      if (content.programIds && Array.isArray(content.programIds) && content.programIds.includes(programId)) {
+        console.log('Found match by programIds:', content.programIds);
+        return true;
+      }
+      
+      // 3. program object
+      if (content.program && content.program.id === programId) {
+        console.log('Found match by program.id:', content.program.id);
+        return true;
+      }
+      
+      // 4. trainingProgramId (إذا كان موجود)
+      if (content.trainingProgramId && content.trainingProgramId === programId) {
+        console.log('Found match by trainingProgramId:', content.trainingProgramId);
+        return true;
+      }
+      
+      // 5. trainingProgram object (إذا كان موجود)
+      if (content.trainingProgram && content.trainingProgram.id === programId) {
+        console.log('Found match by trainingProgram.id:', content.trainingProgram.id);
+        return true;
+      }
+      
+      console.log('No match found for content:', content.id, 'name:', content.name);
+      return false;
+    });
+    
+    console.log('Filtered contents:', filtered);
+    console.log('Filtered contents count:', filtered.length);
+    setFilteredContents(filtered);
   };
 
   const handleContentChange = (contentId: number) => {
@@ -206,17 +365,48 @@ const AddQuizScreen: React.FC<AddQuizScreenProps> = ({ navigation }) => {
           <Text style={styles.sectionTitle}>المعلومات الأساسية</Text>
           
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>المحتوى التدريبي *</Text>
+            <Text style={styles.label}>البرنامج التدريبي *</Text>
             <SelectBox
-              data={trainingContents.map(content => ({
-                id: content.id,
-                name: content.nameAr,
+              label=""
+              items={programs.map(program => ({
+                value: program.id,
+                label: program.nameAr,
               }))}
-              selectedId={selectedContentId}
-              onSelect={handleContentChange}
-              placeholder="اختر المحتوى التدريبي"
-              loading={isLoadingContents}
+              selectedValue={selectedProgramId}
+              onValueChange={handleProgramChange}
+              placeholder="اختر البرنامج التدريبي"
+              loading={isLoadingPrograms}
             />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>المحتوى التدريبي *</Text>
+            {selectedProgramId ? (
+              filteredContents.length > 0 ? (
+                <SelectBox
+                  label=""
+                  items={filteredContents.map(content => ({
+                    value: content.id,
+                    label: content.name || content.nameAr || `${content.code} - ${content.name}`,
+                  }))}
+                  selectedValue={selectedContentId}
+                  onValueChange={handleContentChange}
+                  placeholder="اختر المحتوى التدريبي"
+                  loading={isLoadingContents}
+                />
+              ) : (
+                <View style={styles.noContentContainer}>
+                  <Icon name="info" size={24} color="#6b7280" />
+                  <Text style={styles.noContentText}>
+                    لا يوجد محتوى تدريبي مرتبط بهذا البرنامج
+                  </Text>
+                </View>
+              )
+            ) : (
+              <View style={styles.disabledSelectBox}>
+                <Text style={styles.disabledText}>اختر البرنامج التدريبي أولاً</Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.inputGroup}>
@@ -349,38 +539,71 @@ const AddQuizScreen: React.FC<AddQuizScreenProps> = ({ navigation }) => {
               </View>
             ) : questions.length > 0 ? (
               <View style={styles.questionsContainer}>
-                {questions.map((question) => (
-                  <TouchableOpacity
-                    key={question.id}
-                    style={[
-                      styles.questionItem,
-                      selectedQuestions.some(q => q.questionId === question.id) && styles.selectedQuestion
-                    ]}
-                    onPress={() => handleQuestionToggle(question.id)}
-                  >
-                    <View style={styles.questionContent}>
-                      <Text style={styles.questionText} numberOfLines={2}>
-                        {question.questionText}
-                      </Text>
-                      <Text style={styles.questionType}>
-                        {question.type === 'MULTIPLE_CHOICE' ? 'اختيار متعدد' : 'صحيح/خطأ'}
-                      </Text>
-                    </View>
-                    <Icon
-                      name={selectedQuestions.some(q => q.questionId === question.id) ? 'check-circle' : 'radio-button-unchecked'}
-                      size={24}
-                      color={selectedQuestions.some(q => q.questionId === question.id) ? '#10b981' : '#d1d5db'}
-                    />
-                  </TouchableOpacity>
-                ))}
+                {console.log('Rendering questions:', questions)}
+                {console.log('Questions count:', questions.length)}
+                {questions.map((question, index) => {
+                  console.log(`Question ${index}:`, question);
+                  return (
+                    <TouchableOpacity
+                      key={question.id}
+                      style={[
+                        styles.questionItem,
+                        selectedQuestions.some(q => q.questionId === question.id) && styles.selectedQuestion
+                      ]}
+                      onPress={() => handleQuestionToggle(question.id)}
+                    >
+                      <View style={styles.questionContent}>
+                        <Text style={styles.questionText} numberOfLines={2}>
+                          {question.text || question.questionText}
+                        </Text>
+                        <View style={styles.questionMeta}>
+                          <Text style={styles.questionType}>
+                            {question.type === 'MULTIPLE_CHOICE' ? 'اختيار متعدد' : 
+                             question.type === 'TRUE_FALSE' ? 'صحيح/خطأ' : 
+                             question.type || 'غير محدد'}
+                          </Text>
+                          {question.skill && (
+                            <Text style={styles.questionSkill}>
+                              {question.skill === 'KNOWLEDGE' ? 'معرفة' :
+                               question.skill === 'COMPREHENSION' ? 'فهم' :
+                               question.skill === 'APPLICATION' ? 'تطبيق' :
+                               question.skill === 'ANALYSIS' ? 'تحليل' :
+                               question.skill === 'SYNTHESIS' ? 'تركيب' :
+                               question.skill === 'EVALUATION' ? 'تقييم' :
+                               question.skill}
+                            </Text>
+                          )}
+                          {question.difficulty && (
+                            <Text style={styles.questionDifficulty}>
+                              {question.difficulty === 'EASY' ? 'سهل' :
+                               question.difficulty === 'MEDIUM' ? 'متوسط' :
+                               question.difficulty === 'HARD' ? 'صعب' :
+                               question.difficulty}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+                      <Icon
+                        name={selectedQuestions.some(q => q.questionId === question.id) ? 'check-circle' : 'radio-button-unchecked'}
+                        size={24}
+                        color={selectedQuestions.some(q => q.questionId === question.id) ? '#10b981' : '#d1d5db'}
+                      />
+                    </TouchableOpacity>
+                  );
+                })}
                 <Text style={styles.selectedCount}>
-                  تم اختيار {selectedQuestions.length} سؤال
+                  تم اختيار {selectedQuestions.length} سؤال من {questions.length} سؤال متاح
                 </Text>
               </View>
             ) : (
-              <Text style={styles.noQuestionsText}>
-                لا توجد أسئلة متاحة لهذا المحتوى التدريبي
-              </Text>
+              <View>
+                {console.log('No questions available. Questions array:', questions)}
+                {console.log('Questions length:', questions.length)}
+                {console.log('Is loading:', isLoadingQuestions)}
+                <Text style={styles.noQuestionsText}>
+                  لا توجد أسئلة متاحة لهذا المحتوى التدريبي
+                </Text>
+              </View>
             )
           ) : (
             <Text style={styles.selectContentText}>
@@ -577,15 +800,47 @@ const styles = StyleSheet.create({
     borderColor: '#10b981',
     backgroundColor: '#f0fdf4',
   },
-  questionContent: { flex: 1, marginRight: 12 },
+  questionContent: { 
+    flex: 1, 
+    marginRight: 12 
+  },
   questionText: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#374151',
-    marginBottom: 4,
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  questionMeta: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
   },
   questionType: {
     fontSize: 12,
-    color: '#6b7280',
+    color: '#1a237e',
+    backgroundColor: '#e3f2fd',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    fontWeight: '500',
+  },
+  questionSkill: {
+    fontSize: 12,
+    color: '#059669',
+    backgroundColor: '#d1fae5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    fontWeight: '500',
+  },
+  questionDifficulty: {
+    fontSize: 12,
+    color: '#dc2626',
+    backgroundColor: '#fee2e2',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    fontWeight: '500',
   },
   selectedCount: {
     fontSize: 14,
@@ -641,5 +896,35 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  
+  // Disabled SelectBox
+  disabledSelectBox: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: '#f9fafb',
+  },
+  disabledText: {
+    fontSize: 14,
+    color: '#9ca3af',
+    fontStyle: 'italic',
+  },
+  // No Content Container
+  noContentContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    padding: 16,
+    backgroundColor: '#f9fafb',
+  },
+  noContentText: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginLeft: 8,
+    flex: 1,
   },
 });
