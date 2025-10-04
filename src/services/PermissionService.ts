@@ -44,9 +44,23 @@ export class PermissionService {
       const userRole = this.getUserPrimaryRole(user);
       if (!userRole) return [];
 
-      return SCREEN_PERMISSIONS.filter(permission => 
+      console.log('🔍 PermissionService.getAllowedScreens() - User:', user);
+      console.log('🔍 PermissionService.getAllowedScreens() - User role:', userRole);
+      console.log('🔍 PermissionService.getAllowedScreens() - All SCREEN_PERMISSIONS:', SCREEN_PERMISSIONS.map(s => ({ id: s.id, title: s.title, allowedRoles: s.allowedRoles })));
+
+      const allowedScreens = SCREEN_PERMISSIONS.filter(permission => 
         permission.allowedRoles.includes(userRole as UserRole)
       );
+
+      console.log('🔍 PermissionService.getAllowedScreens() - Filtered allowed screens:', allowedScreens.map(s => ({ id: s.id, title: s.title })));
+      
+      // تحقق خاص للجداول الدراسية
+      const schedulesPermission = SCREEN_PERMISSIONS.find(p => p.id === 'Schedules');
+      console.log('🔍 PermissionService.getAllowedScreens() - Schedules permission:', schedulesPermission);
+      console.log('🔍 PermissionService.getAllowedScreens() - Schedules allowed roles:', schedulesPermission?.allowedRoles);
+      console.log('🔍 PermissionService.getAllowedScreens() - User role in Schedules allowed roles?', schedulesPermission?.allowedRoles.includes(userRole as UserRole));
+
+      return allowedScreens;
     } catch (error) {
       console.error('Error getting allowed screens:', error);
       return [];
@@ -61,10 +75,26 @@ export class PermissionService {
       const allowedScreens = await this.getAllowedScreens();
       const allowedScreenIds = allowedScreens.map(screen => screen.id);
       
+      console.log('🔍 PermissionService.getAllowedMenuSections() - Allowed screens:', allowedScreens.map(s => s.id));
+      console.log('🔍 PermissionService.getAllowedMenuSections() - Allowed screen IDs:', allowedScreenIds);
+      console.log('🔍 PermissionService.getAllowedMenuSections() - All MENU_SECTIONS:', MENU_SECTIONS.map(s => ({ title: s.title, category: s.category, items: s.items.map(i => i.id) })));
+      
+      // تحقق خاص للجداول الدراسية
+      const schedulesSection = MENU_SECTIONS.find(s => s.category === 'schedules');
+      console.log('🔍 PermissionService.getAllowedMenuSections() - Schedules section:', schedulesSection);
+      console.log('🔍 PermissionService.getAllowedMenuSections() - Schedules items:', schedulesSection?.items);
+      console.log('🔍 PermissionService.getAllowedMenuSections() - Is Schedules in allowed IDs?', allowedScreenIds.includes('Schedules'));
+      
       const sections = MENU_SECTIONS.map(section => ({
         ...section,
         items: section.items.filter(item => allowedScreenIds.includes(item.id))
       })).filter(section => section.items.length > 0);
+      
+      console.log('🔍 PermissionService.getAllowedMenuSections() - Filtered sections:', sections.map(s => ({ title: s.title, category: s.category, items: s.items.map(i => i.id) })));
+      
+      // تحقق خاص للجداول الدراسية بعد الفلترة
+      const filteredSchedulesSection = sections.find(s => s.category === 'schedules');
+      console.log('🔍 PermissionService.getAllowedMenuSections() - Filtered schedules section:', filteredSchedulesSection);
       
       return sections;
     } catch (error) {

@@ -50,6 +50,7 @@ import QuizManagementScreen from './src/screens/QuizManagementScreen';
 import AddQuizScreen from './src/screens/AddQuizScreen';
 import TraineeAccountsScreen from './src/screens/TraineeAccountsScreen';
 import TraineeAccountDetailsScreen from './src/screens/TraineeAccountDetailsScreen';
+import ScheduleScreen from './src/screens/ScheduleScreen';
 import BranchSelectionScreen from './src/screens/BranchSelectionScreen';
 import AuthService from './src/services/AuthService';
 import BranchService from './src/services/BranchService';
@@ -166,6 +167,7 @@ function App() {
         <Stack.Screen name="AddQuiz" component={AddQuizScreen} />
         <Stack.Screen name="TraineeAccounts" component={TraineeAccountsScreen} />
         <Stack.Screen name="TraineeAccountDetails" component={TraineeAccountDetailsScreen} />
+        <Stack.Screen name="Schedules" component={ScheduleScreen} />
         </Stack.Navigator>
       </NavigationContainer>
       <Toast />

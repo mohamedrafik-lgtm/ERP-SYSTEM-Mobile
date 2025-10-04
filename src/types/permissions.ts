@@ -15,7 +15,7 @@ export interface PermissionConfig {
   screen: string;
   priority: number;
   allowedRoles: UserRole[];
-  category: 'home' | 'academic' | 'marketing' | 'financial' | 'automation' | 'system' | 'exams' | 'student_platform';
+  category: 'home' | 'academic' | 'marketing' | 'financial' | 'automation' | 'system' | 'exams' | 'student_platform' | 'schedules';
   description?: string;
   isLogout?: boolean;
 }
@@ -316,6 +316,18 @@ export const SCREEN_PERMISSIONS: PermissionConfig[] = [
     description: 'إدارة حسابات المتدربين في المنصة'
   },
 
+  // الجداول الدراسية
+  {
+    id: 'Schedules',
+    title: 'الجداول الدراسية',
+    icon: 'schedule',
+    screen: 'Schedules',
+    priority: 1,
+    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant', 'employee', 'trainee_entry_clerk'],
+    category: 'schedules',
+    description: 'إدارة الجداول الدراسية والمواعيد'
+  },
+
 ];
 
 // تجميع الصفحات حسب الفئات للقائمة
@@ -339,6 +351,11 @@ export const MENU_SECTIONS: MenuSection[] = [
     title: 'إدارة منصة الطلاب',
     category: 'student_platform',
     items: SCREEN_PERMISSIONS.filter(item => item.category === 'student_platform')
+  },
+  {
+    title: 'الجداول الدراسية',
+    category: 'schedules',
+    items: SCREEN_PERMISSIONS.filter(item => item.category === 'schedules')
   },
   {
     title: 'إدارة التسويق',

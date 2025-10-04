@@ -3240,6 +3240,126 @@ class AuthService {
       throw error;
     }
   }
+
+  /**
+   * تحديث حساب متدرب معين
+   */
+  static async updateTraineeAccount(accountId: string, updateData: {
+    password?: string;
+    isActive?: boolean;
+  }): Promise<{
+    id: string;
+    nationalId: string;
+    birthDate: string;
+    password: string | null;
+    isActive: boolean;
+    lastLoginAt: string | null;
+    resetCode: string | null;
+    resetCodeExpiresAt: string | null;
+    resetCodeGeneratedAt: string | null;
+    traineeId: number;
+    createdAt: string;
+    updatedAt: string;
+    trainee: {
+      id: number;
+      nameAr: string;
+      nameEn: string;
+      nationalId: string;
+      email: string | null;
+      phone: string;
+      photoUrl: string | null;
+      photoCloudinaryId: string | null;
+      enrollmentType: string;
+      maritalStatus: string;
+      gender: string;
+      nationality: string;
+      religion: string;
+      birthDate: string;
+      idIssueDate: string;
+      idExpiryDate: string;
+      programType: string;
+      programId: number;
+      country: string;
+      governorate: string | null;
+      city: string;
+      address: string;
+      residenceAddress: string;
+      guardianName: string;
+      guardianPhone: string;
+      guardianEmail: string | null;
+      guardianJob: string | null;
+      guardianRelation: string;
+      landline: string | null;
+      whatsapp: string | null;
+      facebook: string | null;
+      educationType: string;
+      schoolName: string;
+      graduationDate: string;
+      totalGrade: number | null;
+      gradePercentage: number | null;
+      sportsActivity: string | null;
+      culturalActivity: string | null;
+      educationalActivity: string | null;
+      traineeStatus: string;
+      classLevel: string;
+      academicYear: string | null;
+      marketingEmployeeId: number | null;
+      firstContactEmployeeId: number | null;
+      secondContactEmployeeId: number | null;
+      createdById: string | null;
+      updatedById: string | null;
+      createdAt: string;
+      updatedAt: string;
+      notes: string | null;
+      program: {
+        id: number;
+        nameAr: string;
+        nameEn: string;
+      };
+    };
+  }> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/trainee-platform/accounts/${accountId}`;
+      console.log('🔍 AuthService.updateTraineeAccount() - Updating account:', accountId);
+      console.log('🔍 AuthService.updateTraineeAccount() - Update data:', updateData);
+      console.log('🔍 AuthService.updateTraineeAccount() - URL:', url);
+      console.log('🔍 AuthService.updateTraineeAccount() - Using token:', token.substring(0, 20) + '...');
+
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData),
+      });
+
+      if (!response.ok) {
+        console.log('🔍 AuthService.updateTraineeAccount() - Response not OK:', response.status, response.statusText);
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        const errorText = await response.text();
+        console.log('🔍 AuthService.updateTraineeAccount() - Error response:', errorText);
+        throw new Error(errorText || `Failed to update trainee account: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('🔍 AuthService.updateTraineeAccount() - Response:', data);
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error updating trainee account:', error);
+      throw error;
+    }
+  }
 }
 
 export default AuthService;

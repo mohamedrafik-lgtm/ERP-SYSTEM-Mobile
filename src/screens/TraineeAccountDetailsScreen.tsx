@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   Alert,
   Image,
+  TextInput,
+  Switch,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AuthService from '../services/AuthService';
@@ -106,10 +108,69 @@ const TraineeAccountDetailsScreen = ({ route, navigation }: TraineeAccountDetail
   
   const [accountDetails, setAccountDetails] = useState<TraineeAccountDetails | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editPassword, setEditPassword] = useState('');
+  const [editIsActive, setEditIsActive] = useState(false);
+  const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
     fetchAccountDetails();
   }, []);
+
+  useEffect(() => {
+    if (accountDetails) {
+      setEditIsActive(accountDetails.isActive);
+    }
+  }, [accountDetails]);
+
+  const handleEditToggle = () => {
+    setIsEditing(!isEditing);
+    if (!isEditing) {
+      setEditPassword('');
+    }
+  };
+
+  const handleSaveChanges = async () => {
+    if (!accountDetails) return;
+
+    try {
+      setUpdating(true);
+      console.log('🔍 TraineeAccountDetailsScreen - Saving changes...');
+      
+      const updateData: { password?: string; isActive?: boolean } = {};
+      
+      if (editPassword.trim()) {
+        updateData.password = editPassword.trim();
+      }
+      
+      updateData.isActive = editIsActive;
+
+      console.log('🔍 TraineeAccountDetailsScreen - Update data:', updateData);
+
+      const updatedAccount = await AuthService.updateTraineeAccount(accountId, updateData);
+      
+      console.log('🔍 TraineeAccountDetailsScreen - Update successful:', updatedAccount);
+      
+      setAccountDetails(updatedAccount);
+      setIsEditing(false);
+      setEditPassword('');
+      
+      Alert.alert('نجح التحديث', 'تم تحديث حساب المتدرب بنجاح');
+    } catch (error) {
+      console.error('🔍 TraineeAccountDetailsScreen - Update error:', error);
+      Alert.alert('خطأ في التحديث', `فشل في تحديث حساب المتدرب: ${(error as Error).message}`);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditPassword('');
+    if (accountDetails) {
+      setEditIsActive(accountDetails.isActive);
+    }
+  };
 
   const fetchAccountDetails = async () => {
     try {
@@ -260,27 +321,101 @@ const TraineeAccountDetailsScreen = ({ route, navigation }: TraineeAccountDetail
           <Icon name="arrow-back" size={24} color="#1a237e" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>تفاصيل حساب المتدرب</Text>
-        <TouchableOpacity style={styles.editButton}>
-          <Icon name="edit" size={24} color="#1a237e" />
+        <TouchableOpacity 
+          style={styles.editButton}
+          onPress={handleEditToggle}
+          disabled={updating}
+        >
+          <Icon 
+            name={isEditing ? "close" : "edit"} 
+            size={24} 
+            color={updating ? "#ccc" : "#1a237e"} 
+          />
         </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* معلومات الحساب الأساسية */}
         <InfoCard title="معلومات الحساب">
-          <View style={styles.statusContainer}>
-            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(accountDetails.isActive) + '20' }]}>
-              <Text style={[styles.statusText, { color: getStatusColor(accountDetails.isActive) }]}>
-                {getStatusLabel(accountDetails.isActive)}
-              </Text>
+          {isEditing ? (
+            <View style={styles.editContainer}>
+              {/* تعديل حالة التفعيل */}
+              <View style={styles.editRow}>
+                <Text style={styles.editLabel}>حالة التفعيل</Text>
+                <View style={styles.switchContainer}>
+                  <Switch
+                    value={editIsActive}
+                    onValueChange={setEditIsActive}
+                    trackColor={{ false: '#767577', true: '#4CAF50' }}
+                    thumbColor={editIsActive ? '#fff' : '#f4f3f4'}
+                  />
+                  <Text style={[styles.switchLabel, { color: editIsActive ? '#4CAF50' : '#F44336' }]}>
+                    {editIsActive ? 'نشط' : 'غير نشط'}
+                  </Text>
+                </View>
+              </View>
+
+              {/* تعديل كلمة المرور */}
+              <View style={styles.editRow}>
+                <Text style={styles.editLabel}>كلمة المرور الجديدة</Text>
+                <TextInput
+                  style={styles.passwordInput}
+                  value={editPassword}
+                  onChangeText={setEditPassword}
+                  placeholder="أدخل كلمة المرور الجديدة (اختياري)"
+                  placeholderTextColor="#999"
+                  secureTextEntry
+                  multiline={false}
+                />
+                <Text style={styles.passwordHint}>
+                  اتركها فارغة إذا كنت لا تريد تغيير كلمة المرور
+                </Text>
+              </View>
+
+              {/* أزرار الحفظ والإلغاء */}
+              <View style={styles.editActions}>
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.saveButton]}
+                  onPress={handleSaveChanges}
+                  disabled={updating}
+                >
+                  {updating ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Icon name="save" size={20} color="#fff" />
+                      <Text style={styles.actionButtonText}>حفظ التغييرات</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.actionButton, styles.cancelButton]}
+                  onPress={handleCancelEdit}
+                  disabled={updating}
+                >
+                  <Icon name="cancel" size={20} color="#fff" />
+                  <Text style={styles.actionButtonText}>إلغاء</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-          <InfoRow label="معرف الحساب" value={accountDetails.id} icon="fingerprint" />
-          <InfoRow label="الرقم القومي" value={accountDetails.nationalId} icon="badge" />
-          <InfoRow label="تاريخ الميلاد" value={new Date(accountDetails.birthDate).toLocaleDateString('ar-EG')} icon="cake" />
-          <InfoRow label="تاريخ الإنشاء" value={new Date(accountDetails.createdAt).toLocaleDateString('ar-EG')} icon="calendar-today" />
-          {accountDetails.lastLoginAt && (
-            <InfoRow label="آخر دخول" value={new Date(accountDetails.lastLoginAt).toLocaleDateString('ar-EG')} icon="login" />
+          ) : (
+            <>
+              <View style={styles.statusContainer}>
+                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(accountDetails.isActive) + '20' }]}>
+                  <Text style={[styles.statusText, { color: getStatusColor(accountDetails.isActive) }]}>
+                    {getStatusLabel(accountDetails.isActive)}
+                  </Text>
+                </View>
+              </View>
+              <InfoRow label="معرف الحساب" value={accountDetails.id} icon="fingerprint" />
+              <InfoRow label="الرقم القومي" value={accountDetails.nationalId} icon="badge" />
+              <InfoRow label="تاريخ الميلاد" value={new Date(accountDetails.birthDate).toLocaleDateString('ar-EG')} icon="cake" />
+              <InfoRow label="تاريخ الإنشاء" value={new Date(accountDetails.createdAt).toLocaleDateString('ar-EG')} icon="calendar-today" />
+              {accountDetails.lastLoginAt && (
+                <InfoRow label="آخر دخول" value={new Date(accountDetails.lastLoginAt).toLocaleDateString('ar-EG')} icon="login" />
+              )}
+            </>
           )}
         </InfoCard>
 
@@ -567,6 +702,72 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#333',
     lineHeight: 20,
+  },
+  // Edit mode styles
+  editContainer: {
+    paddingVertical: 10,
+  },
+  editRow: {
+    marginBottom: 20,
+  },
+  editLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1a237e',
+    marginBottom: 8,
+  },
+  switchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  switchLabel: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginLeft: 10,
+  },
+  passwordInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    backgroundColor: '#fff',
+    color: '#333',
+  },
+  passwordHint: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  editActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    gap: 10,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    flex: 1,
+  },
+  saveButton: {
+    backgroundColor: '#4CAF50',
+  },
+  cancelButton: {
+    backgroundColor: '#F44336',
+  },
+  actionButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
   },
 });
 
