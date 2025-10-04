@@ -455,6 +455,8 @@ class AuthService {
       }
 
       const baseUrl = await this.getApiBaseUrl();
+      console.log('🔍 AuthService.getAllPrograms() - API URL:', `${baseUrl}/api/programs`);
+      
       const response = await fetch(`${baseUrl}/api/programs`, {
         method: 'GET',
         headers: {
@@ -463,10 +465,26 @@ class AuthService {
         },
       });
 
+      console.log('🔍 AuthService.getAllPrograms() - Response status:', response.status);
+
       const data = await response.json();
+      console.log('🔍 AuthService.getAllPrograms() - Raw response data:', JSON.stringify(data, null, 2));
 
       if (!response.ok) {
         throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+
+      // Debug: Check if data contains classrooms
+      if (Array.isArray(data)) {
+        data.forEach((program, index) => {
+          console.log(`🔍 AuthService.getAllPrograms() - Program ${index + 1}:`, {
+            id: program.id,
+            nameAr: program.nameAr,
+            hasClassrooms: !!program.classrooms,
+            classroomsLength: program.classrooms?.length || 0,
+            classrooms: program.classrooms
+          });
+        });
       }
 
       return data;
@@ -3357,6 +3375,378 @@ class AuthService {
       return data;
     } catch (error) {
       console.error('[AuthService] Error updating trainee account:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * إضافة فترة جديدة في الجدول الدراسي
+   */
+  static async addScheduleSlot(slotData: {
+    contentId: number;
+    classroomId: number;
+    dayOfWeek: string;
+    startTime: string;
+    endTime: string;
+    type: string;
+    location?: string;
+    distributionRoomId?: string;
+  }) {
+    try {
+      console.log('🔍 AuthService.addScheduleSlot() - Adding schedule slot:', slotData);
+      
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const apiBaseUrl = getCurrentApiBaseUrl();
+      const response = await fetch(`${apiBaseUrl}/api/schedule/slots`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(slotData),
+      });
+
+      console.log('🔍 AuthService.addScheduleSlot() - Response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log('🔍 AuthService.addScheduleSlot() - Error response:', errorText);
+        throw new Error(errorText || `Failed to add schedule slot: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('🔍 AuthService.addScheduleSlot() - Response:', data);
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error adding schedule slot:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * جلب الفترات الدراسية
+   */
+  static async getScheduleSlots(params?: {
+    classroomId?: number;
+    contentId?: number;
+    dayOfWeek?: string;
+    page?: number;
+    limit?: number;
+  }) {
+    try {
+      console.log('🔍 AuthService.getScheduleSlots() - Fetching schedule slots:', params);
+      
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const apiBaseUrl = getCurrentApiBaseUrl();
+      const queryParams = new URLSearchParams();
+      
+      if (params?.classroomId) queryParams.append('classroomId', params.classroomId.toString());
+      if (params?.contentId) queryParams.append('contentId', params.contentId.toString());
+      if (params?.dayOfWeek) queryParams.append('dayOfWeek', params.dayOfWeek);
+      if (params?.page) queryParams.append('page', params.page.toString());
+      if (params?.limit) queryParams.append('limit', params.limit.toString());
+
+      const url = `${apiBaseUrl}/api/schedule/slots${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+      console.log('🔍 AuthService.getScheduleSlots() - URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      console.log('🔍 AuthService.getScheduleSlots() - Response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log('🔍 AuthService.getScheduleSlots() - Error response:', errorText);
+        throw new Error(errorText || `Failed to fetch schedule slots: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('🔍 AuthService.getScheduleSlots() - Response:', data);
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error fetching schedule slots:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * جلب جدول الفصل الدراسي المحدد
+   */
+  static async getClassroomSchedule(classroomId: number) {
+    try {
+      console.log('🔍 AuthService.getClassroomSchedule() - Fetching classroom schedule for ID:', classroomId);
+      console.log('🔍 AuthService.getClassroomSchedule() - classroomId type:', typeof classroomId);
+      console.log('🔍 AuthService.getClassroomSchedule() - classroomId value:', classroomId);
+      console.log('🔍 AuthService.getClassroomSchedule() - Is classroomId valid?', !isNaN(classroomId) && classroomId > 0);
+      
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+      console.log('🔍 AuthService.getClassroomSchedule() - Token found:', token.substring(0, 20) + '...');
+
+      const apiBaseUrl = await getCurrentApiBaseUrl();
+      const url = `${apiBaseUrl}/api/schedule/classroom/${classroomId}`;
+      console.log('🔍 AuthService.getClassroomSchedule() - API Base URL:', apiBaseUrl);
+      console.log('🔍 AuthService.getClassroomSchedule() - Full URL:', url);
+      console.log('🔍 AuthService.getClassroomSchedule() - URL length:', url.length);
+
+      // Test network connectivity first
+      console.log('🔍 AuthService.getClassroomSchedule() - Testing network connectivity...');
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        const testResponse = await fetch(apiBaseUrl, {
+          method: 'HEAD',
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        console.log('🔍 AuthService.getClassroomSchedule() - Network test response:', testResponse.status);
+      } catch (networkError) {
+        console.error('🔍 AuthService.getClassroomSchedule() - Network test failed:', networkError);
+        throw new Error(`Network connection failed: ${(networkError as Error).message}`);
+      }
+
+      console.log('🔍 AuthService.getClassroomSchedule() - Making API request...');
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
+
+      console.log('🔍 AuthService.getClassroomSchedule() - Response status:', response.status);
+      console.log('🔍 AuthService.getClassroomSchedule() - Response ok:', response.ok);
+      console.log('🔍 AuthService.getClassroomSchedule() - Response headers:', Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log('🔍 AuthService.getClassroomSchedule() - Error response:', errorText);
+        console.log('🔍 AuthService.getClassroomSchedule() - Error status:', response.status);
+        console.log('🔍 AuthService.getClassroomSchedule() - Error statusText:', response.statusText);
+        
+        if (response.status === 404) {
+          throw new Error(`الفصل الدراسي غير موجود (ID: ${classroomId})`);
+        } else if (response.status === 401) {
+          throw new Error('غير مصرح - يرجى تسجيل الدخول مرة أخرى');
+        } else {
+          throw new Error(`API Error ${response.status}: ${errorText || response.statusText}`);
+        }
+      }
+
+      const data = await response.json();
+      console.log('🔍 AuthService.getClassroomSchedule() - Response data:', JSON.stringify(data, null, 2));
+      console.log('🔍 AuthService.getClassroomSchedule() - Response data type:', typeof data);
+      console.log('🔍 AuthService.getClassroomSchedule() - Response data is array?', Array.isArray(data));
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error fetching classroom schedule:', error);
+      console.error('[AuthService] Error details:', {
+        message: (error as Error).message,
+        stack: (error as Error).stack,
+        name: (error as Error).name
+      });
+      
+      // Provide more specific error messages
+      if ((error as Error).message.includes('Network request failed')) {
+        throw new Error('فشل في الاتصال بالخادم. تحقق من اتصال الإنترنت.');
+      } else if ((error as Error).message.includes('timeout')) {
+        throw new Error('انتهت مهلة الاتصال. حاول مرة أخرى.');
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  // ==================== SCHEDULE MANAGEMENT APIs ====================
+
+  /**
+   * إنشاء فترة جديدة في الجدول الدراسي
+   */
+  static async createScheduleSlot(slotData: {
+    contentId: number;
+    classroomId: number;
+    dayOfWeek: 'SUNDAY' | 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY';
+    startTime: string;
+    endTime: string;
+    type: 'THEORY' | 'PRACTICAL';
+    location?: string;
+    distributionRoomId?: string;
+  }) {
+    try {
+      console.log('🔍 AuthService.createScheduleSlot() - Creating schedule slot:', slotData);
+      
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const apiBaseUrl = getCurrentApiBaseUrl();
+      const response = await fetch(`${apiBaseUrl}/api/schedule/slots`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(slotData),
+      });
+
+      console.log('🔍 AuthService.createScheduleSlot() - Response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log('🔍 AuthService.createScheduleSlot() - Error response:', errorText);
+        throw new Error(errorText || `Failed to create schedule slot: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('🔍 AuthService.createScheduleSlot() - Response:', data);
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error creating schedule slot:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * تحديث فترة موجودة في الجدول الدراسي
+   */
+  static async updateScheduleSlot(slotId: number, updateData: {
+    contentId?: number;
+    classroomId?: number;
+    dayOfWeek?: 'SUNDAY' | 'MONDAY' | 'TUESDAY' | 'WEDNESDAY' | 'THURSDAY' | 'FRIDAY' | 'SATURDAY';
+    startTime?: string;
+    endTime?: string;
+    type?: 'THEORY' | 'PRACTICAL';
+    location?: string;
+    distributionRoomId?: string;
+  }) {
+    try {
+      console.log('🔍 AuthService.updateScheduleSlot() - Updating schedule slot:', slotId, updateData);
+      
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const apiBaseUrl = getCurrentApiBaseUrl();
+      const response = await fetch(`${apiBaseUrl}/api/schedule/slots/${slotId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(updateData),
+      });
+
+      console.log('🔍 AuthService.updateScheduleSlot() - Response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log('🔍 AuthService.updateScheduleSlot() - Error response:', errorText);
+        throw new Error(errorText || `Failed to update schedule slot: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('🔍 AuthService.updateScheduleSlot() - Response:', data);
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error updating schedule slot:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * حذف فترة من الجدول الدراسي
+   */
+  static async deleteScheduleSlot(slotId: number) {
+    try {
+      console.log('🔍 AuthService.deleteScheduleSlot() - Deleting schedule slot:', slotId);
+      
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const apiBaseUrl = getCurrentApiBaseUrl();
+      const response = await fetch(`${apiBaseUrl}/api/schedule/slots/${slotId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      console.log('🔍 AuthService.deleteScheduleSlot() - Response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log('🔍 AuthService.deleteScheduleSlot() - Error response:', errorText);
+        throw new Error(errorText || `Failed to delete schedule slot: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('🔍 AuthService.deleteScheduleSlot() - Response:', data);
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error deleting schedule slot:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * جلب المحتوى التدريبي
+   */
+  static async getTrainingContent() {
+    try {
+      console.log('🔍 AuthService.getTrainingContent() - Fetching training content...');
+      
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const apiBaseUrl = getCurrentApiBaseUrl();
+      const response = await fetch(`${apiBaseUrl}/api/training-content`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      console.log('🔍 AuthService.getTrainingContent() - Response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.log('🔍 AuthService.getTrainingContent() - Error response:', errorText);
+        throw new Error(errorText || `Failed to fetch training content: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('🔍 AuthService.getTrainingContent() - Response:', data);
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error fetching training content:', error);
       throw error;
     }
   }

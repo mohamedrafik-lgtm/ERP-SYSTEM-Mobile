@@ -10,6 +10,8 @@ import {
   RefreshControl,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import AuthService from '../services/AuthService';
+import { ProgramsResponse } from '../types/scheduleManagement';
 
 interface ScheduleScreenProps {
   navigation: any;
@@ -18,64 +20,54 @@ interface ScheduleScreenProps {
 const ScheduleScreen = ({ navigation }: ScheduleScreenProps) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [schedules, setSchedules] = useState<any[]>([]);
+  const [programs, setPrograms] = useState<ProgramsResponse[]>([]);
 
   useEffect(() => {
-    fetchSchedules();
+    fetchPrograms();
   }, []);
 
-  const fetchSchedules = async () => {
+  const fetchPrograms = async () => {
     try {
       setLoading(true);
-      console.log('🔍 ScheduleScreen - Fetching schedules...');
+      console.log('🔍 ScheduleScreen - Fetching programs...');
       
-      // TODO: Replace with actual API call
-      // const response = await AuthService.getSchedules();
-      // setSchedules(response.data);
+      const response = await AuthService.getAllPrograms();
+      console.log('🔍 ScheduleScreen - Raw API response:', JSON.stringify(response, null, 2));
       
-      // Mock data for now
-      const mockSchedules = [
-        {
-          id: 1,
-          title: 'جدول البرمجة - الفرقة الأولى',
-          program: 'برنامج تطوير الويب',
-          classLevel: 'FIRST',
-          academicYear: '2025/2026',
-          startDate: '2025-01-15',
-          endDate: '2025-06-15',
-          isActive: true,
-          createdAt: '2025-01-10T10:00:00Z',
-        },
-        {
-          id: 2,
-          title: 'جدول التصميم - الفرقة الثانية',
-          program: 'برنامج التصميم الجرافيكي',
-          classLevel: 'SECOND',
-          academicYear: '2025/2026',
-          startDate: '2025-01-20',
-          endDate: '2025-06-20',
-          isActive: true,
-          createdAt: '2025-01-12T10:00:00Z',
-        },
-        {
-          id: 3,
-          title: 'جدول الشبكات - الفرقة الثالثة',
-          program: 'برنامج الشبكات',
-          classLevel: 'THIRD',
-          academicYear: '2025/2026',
-          startDate: '2025-01-25',
-          endDate: '2025-06-25',
-          isActive: false,
-          createdAt: '2025-01-14T10:00:00Z',
-        },
-      ];
+      let programsData: ProgramsResponse[] = [];
+      if (response) {
+        // getAllPrograms returns data directly, not wrapped in response.data
+        if (Array.isArray(response)) {
+          programsData = response;
+          console.log('🔍 ScheduleScreen - Response is array, length:', response.length);
+        } else if (response && typeof response === 'object') {
+          programsData = (response as any).data || (response as any).programs || (response as any).items || [];
+          console.log('🔍 ScheduleScreen - Response is object, extracted data length:', programsData.length);
+        }
+      }
       
-      setSchedules(mockSchedules);
-      console.log('🔍 ScheduleScreen - Schedules loaded:', mockSchedules.length);
+      // Debug: Check if programs have classrooms
+      programsData.forEach((program, index) => {
+        console.log(`🔍 ScheduleScreen - Program ${index + 1}:`, {
+          id: program.id,
+          nameAr: program.nameAr,
+          classrooms: program.classrooms,
+          classroomsLength: program.classrooms?.length || 0
+        });
+        
+        if (program.classrooms && program.classrooms.length > 0) {
+          console.log(`🔍 ScheduleScreen - Program ${program.nameAr} classrooms:`, program.classrooms);
+        } else {
+          console.log(`🔍 ScheduleScreen - Program ${program.nameAr} has NO classrooms!`);
+        }
+      });
+      
+      setPrograms(programsData);
+      console.log('🔍 ScheduleScreen - Programs loaded:', programsData.length);
     } catch (error) {
-      console.error('🔍 ScheduleScreen - Error fetching schedules:', error);
-      Alert.alert('خطأ', 'فشل في تحميل الجداول الدراسية');
-      setSchedules([]);
+      console.error('🔍 ScheduleScreen - Error fetching programs:', error);
+      Alert.alert('خطأ', 'فشل في تحميل البرامج التدريبية');
+      setPrograms([]);
     } finally {
       setLoading(false);
     }
@@ -83,8 +75,47 @@ const ScheduleScreen = ({ navigation }: ScheduleScreenProps) => {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchSchedules();
+    await fetchPrograms();
     setRefreshing(false);
+  };
+
+  const handleProgramPress = (program: ProgramsResponse) => {
+    console.log('🔍 ScheduleScreen - Program pressed:', {
+      id: program.id,
+      nameAr: program.nameAr,
+      classrooms: program.classrooms,
+      classroomsLength: program.classrooms?.length || 0
+    });
+    
+    // Debug: Check each classroom ID
+    if (program.classrooms && program.classrooms.length > 0) {
+      program.classrooms.forEach((classroom, index) => {
+        console.log(`🔍 ScheduleScreen - Classroom ${index + 1}:`, {
+          id: classroom.id,
+          name: classroom.name,
+          classNumber: classroom.classNumber,
+          idType: typeof classroom.id,
+          idValue: classroom.id,
+          isIdValid: !isNaN(classroom.id) && classroom.id > 0
+        });
+      });
+    }
+    
+    if (!program.classrooms || program.classrooms.length === 0) {
+      Alert.alert(
+        'تحذير', 
+        `البرنامج "${program.nameAr}" لا يحتوي على فصول دراسية متاحة.`,
+        [{ text: 'موافق' }]
+      );
+      return;
+    }
+    
+    console.log('🔍 ScheduleScreen - Navigating to semester selection with classrooms:', program.classrooms);
+    navigation.navigate('SemesterSelection', { 
+      programId: program.id, 
+      programName: program.nameAr,
+      classrooms: program.classrooms,
+    });
   };
 
   const getStatusColor = (isActive: boolean) => {
@@ -110,69 +141,55 @@ const ScheduleScreen = ({ navigation }: ScheduleScreenProps) => {
     }
   };
 
-  const renderScheduleCard = (schedule: any) => (
-    <View key={schedule.id} style={styles.scheduleCard}>
+  const renderProgramCard = (program: ProgramsResponse) => (
+    <TouchableOpacity 
+      key={program.id} 
+      style={styles.programCard}
+      onPress={() => handleProgramPress(program)}
+    >
       <View style={styles.cardHeader}>
         <View style={styles.titleContainer}>
-          <Icon name="schedule" size={24} color="#1a237e" />
-          <Text style={styles.scheduleTitle}>{schedule.title}</Text>
+          <Icon name="school" size={24} color="#1a237e" />
+          <Text style={styles.programTitle}>{program.nameAr}</Text>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(schedule.isActive) + '20' }]}>
-          <Text style={[styles.statusText, { color: getStatusColor(schedule.isActive) }]}>
-            {getStatusLabel(schedule.isActive)}
-          </Text>
+        <View style={styles.statusBadge}>
+          <Text style={styles.statusText}>عرض الجدول</Text>
         </View>
       </View>
 
       <View style={styles.cardContent}>
         <View style={styles.infoRow}>
-          <Icon name="school" size={20} color="#666" />
-          <Text style={styles.infoLabel}>البرنامج:</Text>
-          <Text style={styles.infoValue}>{schedule.program}</Text>
+          <Icon name="description" size={20} color="#666" />
+          <Text style={styles.infoLabel}>الوصف:</Text>
+          <Text style={styles.infoValue}>{program.description || 'لا يوجد وصف'}</Text>
+        </View>
+
+        <View style={styles.infoRow}>
+          <Icon name="schedule" size={20} color="#666" />
+          <Text style={styles.infoLabel}>المدة:</Text>
+          <Text style={styles.infoValue}>{program.duration} أسبوع</Text>
+        </View>
+
+        <View style={styles.infoRow}>
+          <Icon name="group" size={20} color="#666" />
+          <Text style={styles.infoLabel}>عدد المتدربين:</Text>
+          <Text style={styles.infoValue}>{program._count.trainees}</Text>
         </View>
 
         <View style={styles.infoRow}>
           <Icon name="class" size={20} color="#666" />
-          <Text style={styles.infoLabel}>الفرقة:</Text>
-          <Text style={styles.infoValue}>{getClassLevelLabel(schedule.classLevel)}</Text>
-        </View>
-
-        <View style={styles.infoRow}>
-          <Icon name="calendar-today" size={20} color="#666" />
-          <Text style={styles.infoLabel}>العام الدراسي:</Text>
-          <Text style={styles.infoValue}>{schedule.academicYear}</Text>
-        </View>
-
-        <View style={styles.infoRow}>
-          <Icon name="date-range" size={20} color="#666" />
-          <Text style={styles.infoLabel}>الفترة:</Text>
-          <Text style={styles.infoValue}>
-            {new Date(schedule.startDate).toLocaleDateString('ar-EG')} - {new Date(schedule.endDate).toLocaleDateString('ar-EG')}
-          </Text>
-        </View>
-
-        <View style={styles.infoRow}>
-          <Icon name="access-time" size={20} color="#666" />
-          <Text style={styles.infoLabel}>تاريخ الإنشاء:</Text>
-          <Text style={styles.infoValue}>{new Date(schedule.createdAt).toLocaleDateString('ar-EG')}</Text>
+          <Text style={styles.infoLabel}>عدد الفصول:</Text>
+          <Text style={styles.infoValue}>{program._count.classrooms}</Text>
         </View>
       </View>
 
       <View style={styles.cardActions}>
         <TouchableOpacity style={styles.actionButton}>
           <Icon name="visibility" size={20} color="#4CAF50" />
-          <Text style={styles.actionText}>عرض</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
-          <Icon name="edit" size={20} color="#1a237e" />
-          <Text style={styles.actionText}>تعديل</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
-          <Icon name={schedule.isActive ? "block" : "check-circle"} size={20} color={schedule.isActive ? "#F44336" : "#4CAF50"} />
-          <Text style={styles.actionText}>{schedule.isActive ? "إيقاف" : "تفعيل"}</Text>
+          <Text style={styles.actionText}>عرض الجدول</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   if (loading) {
@@ -183,13 +200,11 @@ const ScheduleScreen = ({ navigation }: ScheduleScreenProps) => {
             <Icon name="arrow-back" size={24} color="#1a237e" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>الجداول الدراسية</Text>
-          <TouchableOpacity>
-            <Icon name="add" size={24} color="#1a237e" />
-          </TouchableOpacity>
+          <View style={{ width: 24 }} />
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#1a237e" />
-          <Text style={styles.loadingText}>جاري تحميل الجداول الدراسية...</Text>
+          <Text style={styles.loadingText}>جاري تحميل البرامج التدريبية...</Text>
         </View>
       </View>
     );
@@ -202,9 +217,7 @@ const ScheduleScreen = ({ navigation }: ScheduleScreenProps) => {
           <Icon name="arrow-back" size={24} color="#1a237e" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>الجداول الدراسية</Text>
-        <TouchableOpacity>
-          <Icon name="add" size={24} color="#1a237e" />
-        </TouchableOpacity>
+        <View style={{ width: 24 }} />
       </View>
 
       <ScrollView 
@@ -222,32 +235,36 @@ const ScheduleScreen = ({ navigation }: ScheduleScreenProps) => {
         {/* إحصائيات سريعة */}
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
-            <Icon name="schedule" size={32} color="#1a237e" />
-            <Text style={styles.statNumber}>{schedules.length}</Text>
-            <Text style={styles.statLabel}>إجمالي الجداول</Text>
+            <Icon name="school" size={32} color="#1a237e" />
+            <Text style={styles.statNumber}>{programs.length}</Text>
+            <Text style={styles.statLabel}>إجمالي البرامج</Text>
           </View>
           <View style={styles.statCard}>
-            <Icon name="check-circle" size={32} color="#4CAF50" />
-            <Text style={styles.statNumber}>{schedules.filter(s => s.isActive).length}</Text>
-            <Text style={styles.statLabel}>جداول نشطة</Text>
+            <Icon name="schedule" size={32} color="#4CAF50" />
+            <Text style={styles.statNumber}>{programs.length}</Text>
+            <Text style={styles.statLabel}>برامج متاحة</Text>
           </View>
           <View style={styles.statCard}>
-            <Icon name="block" size={32} color="#F44336" />
-            <Text style={styles.statNumber}>{schedules.filter(s => !s.isActive).length}</Text>
-            <Text style={styles.statLabel}>جداول متوقفة</Text>
+            <Icon name="group" size={32} color="#F44336" />
+            <Text style={styles.statNumber}>{programs.reduce((sum, p) => sum + p._count.trainees, 0)}</Text>
+            <Text style={styles.statLabel}>إجمالي المتدربين</Text>
           </View>
         </View>
 
-        {/* قائمة الجداول */}
-        {schedules.length > 0 ? (
-          <View style={styles.schedulesList}>
-            {schedules.map(renderScheduleCard)}
+        {/* قائمة البرامج */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>البرامج التدريبية</Text>
+        </View>
+
+        {programs.length > 0 ? (
+          <View style={styles.programsList}>
+            {programs.map(renderProgramCard)}
           </View>
         ) : (
           <View style={styles.emptyContainer}>
-            <Icon name="schedule" size={64} color="#ccc" />
-            <Text style={styles.emptyTitle}>لا توجد جداول دراسية</Text>
-            <Text style={styles.emptySubtitle}>لم يتم إنشاء أي جداول دراسية بعد</Text>
+            <Icon name="school" size={64} color="#ccc" />
+            <Text style={styles.emptyTitle}>لا توجد برامج تدريبية</Text>
+            <Text style={styles.emptySubtitle}>لم يتم إنشاء أي برامج تدريبية بعد</Text>
             <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
               <Icon name="refresh" size={20} color="#1a237e" />
               <Text style={styles.refreshButtonText}>إعادة تحميل</Text>
@@ -263,7 +280,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
-    paddingTop: 20,
+    paddingTop: 50, // زيادة المسافة من الأعلى لتجنب الكاميرا
   },
   header: {
     flexDirection: 'row',
@@ -439,6 +456,112 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     fontWeight: '500',
   },
+  // Styles للفترات الدراسية
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginVertical: 16,
+    paddingHorizontal: 4,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1a237e',
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 4,
+  },
+  addButtonText: {
+    fontSize: 14,
+    color: '#1a237e',
+    fontWeight: '500',
+  },
+  slotsList: {
+    marginBottom: 20,
+  },
+  slotCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  slotTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#1a237e',
+    marginLeft: 8,
+    flex: 1,
+  },
+  timeBadge: {
+    backgroundColor: '#e3f2fd',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  timeText: {
+    fontSize: 12,
+    color: '#1a237e',
+    fontWeight: '600',
+  },
+  emptySlotsContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 32,
+    alignItems: 'center',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  emptySlotsTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#666',
+    marginTop: 12,
+  },
+  emptySlotsSubtitle: {
+    fontSize: 14,
+    color: '#999',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  // Styles للبرامج التدريبية
+  programsList: {
+    marginBottom: 20,
+  },
+  programCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  programTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1a237e',
+    marginLeft: 8,
+    flex: 1,
+  },
 });
 
 export default ScheduleScreen;
+
