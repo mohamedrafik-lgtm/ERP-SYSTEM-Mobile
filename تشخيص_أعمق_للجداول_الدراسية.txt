@@ -1,123 +1,0 @@
-# 🔧 تشخيص أعمق لمشكلة عدم ظهور الجداول الدراسية
-
-## 🎯 المشكلة:
-قسم "الجداول الدراسية" لا يزال لا يظهر في منيو التنقل رغم الإصلاحات السابقة.
-
-## 🔧 التشخيص المطبق:
-
-### 1. **توسيع الأذونات** ✅
-- تم توسيع `allowedRoles` لتشمل جميع الأدوار
-- الآن جميع المستخدمين يمكنهم رؤية القسم
-
-### 2. **إضافة Debug Logs شاملة** ✅
-- تم إضافة debug logs مفصلة في `getAllowedScreens`
-- تم إضافة debug logs مفصلة في `getAllowedMenuSections`
-- ستظهر معلومات مفصلة عن المستخدم والأذونات
-
-### 3. **التحقق من التكوين** ✅
-- تم التحقق من وجود الـ screen في `SCREEN_PERMISSIONS`
-- تم التحقق من وجود القسم في `MENU_SECTIONS`
-- تم التحقق من صحة الـ category name
-
-## 🚀 خطوات التشخيص:
-
-### 1. **مسح الـ Cache وإعادة التشغيل**
-```bash
-npx react-native start --reset-cache
-```
-
-### 2. **إعادة تشغيل التطبيق**
-- أغلق التطبيق تماماً
-- أعد فتحه من جديد
-
-### 3. **فتح Developer Console**
-- اضغط F12
-- اذهب لـ Console tab
-
-### 4. **فتح منيو التنقل**
-- اضغط على أيقونة المنيو
-- راقب الـ Console logs
-
-## 🔍 ما يجب أن تراه في Console:
-
-### **Debug Logs للمستخدم:**
-```javascript
-🔍 PermissionService.getAllowedScreens() - User: {id: "...", email: "...", roles: [...]}
-🔍 PermissionService.getAllowedScreens() - User role: "admin"
-🔍 PermissionService.getAllowedScreens() - All SCREEN_PERMISSIONS: [...]
-```
-
-### **Debug Logs للجداول الدراسية:**
-```javascript
-🔍 PermissionService.getAllowedScreens() - Schedules permission: {id: "Schedules", title: "الجداول الدراسية", allowedRoles: [...]}
-🔍 PermissionService.getAllowedScreens() - Schedules allowed roles: ["super_admin", "admin", "manager", "accountant", "employee", "trainee_entry_clerk"]
-🔍 PermissionService.getAllowedScreens() - User role in Schedules allowed roles? true
-```
-
-### **Debug Logs للقائمة:**
-```javascript
-🔍 PermissionService.getAllowedMenuSections() - Schedules section: {title: "الجداول الدراسية", category: "schedules", items: [...]}
-🔍 PermissionService.getAllowedMenuSections() - Schedules items: [{id: "Schedules", title: "الجداول الدراسية", ...}]
-🔍 PermissionService.getAllowedMenuSections() - Is Schedules in allowed IDs? true
-```
-
-### **Debug Logs بعد الفلترة:**
-```javascript
-🔍 PermissionService.getAllowedMenuSections() - Filtered schedules section: {title: "الجداول الدراسية", category: "schedules", items: [...]}
-```
-
-## 🎯 الأسباب المحتملة:
-
-### 1. **مشكلة في المستخدم**
-- المستخدم غير مسجل دخول
-- المستخدم لا يملك دور صحيح
-- مشكلة في الـ authentication
-
-### 2. **مشكلة في الـ Cache**
-- الـ Metro bundler لم يتم إعادة تشغيله
-- الـ React Native cache لم يتم مسحه
-- الـ JavaScript cache يحتاج مسح
-
-### 3. **مشكلة في الـ Code**
-- خطأ في الـ permissions.ts
-- مشكلة في الـ PermissionService
-- مشكلة في الـ menu rendering
-
-## 🔧 إذا استمرت المشاكل:
-
-### **أرسل لي المعلومات التالية:**
-
-1. **Console Logs كاملة** - انسخ كل الـ logs من Console
-2. **نوع المستخدم** - أخبرني بنوع المستخدم المسجل دخول
-3. **خطواتك** - أخبرني بالخطوات التي قمت بها
-4. **أي أخطاء** - إذا ظهرت أي أخطاء في Console
-
-### **مثال على المعلومات المطلوبة:**
-```
-المستخدم: admin
-Console Logs:
-🔍 PermissionService.getAllowedScreens() - User: {id: "123", email: "admin@example.com", roles: ["admin"]}
-🔍 PermissionService.getAllowedScreens() - User role: "admin"
-🔍 PermissionService.getAllowedScreens() - Schedules permission: {id: "Schedules", title: "الجداول الدراسية", allowedRoles: [...]}
-🔍 PermissionService.getAllowedScreens() - User role in Schedules allowed roles? true
-🔍 PermissionService.getAllowedMenuSections() - Schedules section: {...}
-🔍 PermissionService.getAllowedMenuSections() - Is Schedules in allowed IDs? true
-```
-
-## 📱 اختبار سريع:
-
-### **بعد إعادة التشغيل:**
-1. **افتح التطبيق**
-2. **افتح Developer Console**
-3. **افتح منيو التنقل**
-4. **انسخ كل الـ Console logs**
-5. **أرسلها لي**
-
----
-
-**أرسل لي الـ Console logs الآن وسأساعدك في التشخيص! 🔍✨**
-
-**المعلومات المطلوبة:**
-1. **Console Logs كاملة**
-2. **نوع المستخدم المسجل دخول**
-3. **هل ظهرت أي أخطاء؟**

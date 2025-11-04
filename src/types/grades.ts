@@ -37,3 +37,59 @@ export interface GradeParams {
   search?: string;      // البحث بالاسم أو الرقم القومي (اختياري)
   programId?: string;   // فلترة حسب البرنامج التدريبي (اختياري)
 }
+
+// Types for individual trainee grades
+export interface TraineeGradesResponse {
+  trainee: {
+    id: number;
+    nameAr: string;
+    nameEn: string;
+    nationalId: string;
+    photoUrl: string | null;
+    phone: string | null;
+    email: string | null;
+    program: {
+      id: number;
+      nameAr: string;
+      nameEn: string;
+    };
+  };
+  contentGrades: ContentGrade[];
+}
+
+export interface ContentGrade {
+  content: {
+    id: number;
+    name: string;
+    code: string;
+    maxMarks: {
+      yearWorkMarks: number;      // درجات أعمال السنة
+      practicalMarks: number;    // درجات العملي
+      writtenMarks: number;       // درجات التحريري
+      attendanceMarks: number;   // درجات الحضور
+      quizzesMarks: number;      // درجات اختبارات مصغرة
+      finalExamMarks: number;    // درجات الميد تيرم
+      total: number;             // مجموع الدرجات الكلي
+    };
+    classroom: {
+      id: number;
+      name: string;
+    };
+  };
+  grade: {
+    id: number;
+    traineeId: number;
+    trainingContentId: number;
+    classroomId: number;
+    yearWorkMarks: number | null;
+    practicalMarks: number | null;
+    writtenMarks: number | null;
+    attendanceMarks: number | null;
+    quizzesMarks: number | null;
+    finalExamMarks: number | null;
+    totalMarks: number | null;
+    notes: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  } | null;  // null إذا لم تكن هناك درجات مسجلة للمادة
+}

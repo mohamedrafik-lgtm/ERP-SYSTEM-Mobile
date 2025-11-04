@@ -54,6 +54,7 @@ import ScheduleScreen from './src/screens/ScheduleScreen';
 import SemesterSelectionScreen from './src/screens/SemesterSelectionScreen';
 import ScheduleDetailsScreen from './src/screens/ScheduleDetailsScreen';
 import TraineeGradesScreen from './src/screens/TraineeGradesScreen';
+import TraineeGradeDetailsScreen from './src/screens/TraineeGradeDetailsScreen';
 import GradeReportsScreen from './src/screens/GradeReportsScreen';
 import GradeSettingsScreen from './src/screens/GradeSettingsScreen';
 import BranchSelectionScreen from './src/screens/BranchSelectionScreen';
@@ -176,6 +177,7 @@ function App() {
         <Stack.Screen name="SemesterSelection" component={SemesterSelectionScreen} />
         <Stack.Screen name="ScheduleDetails" component={ScheduleDetailsScreen} />
         <Stack.Screen name="TraineeGrades" component={TraineeGradesScreen} />
+        <Stack.Screen name="TraineeGradeDetails" component={TraineeGradeDetailsScreen} />
         <Stack.Screen name="GradeReports" component={GradeReportsScreen} />
         <Stack.Screen name="GradeSettings" component={GradeSettingsScreen} />
         </Stack.Navigator>

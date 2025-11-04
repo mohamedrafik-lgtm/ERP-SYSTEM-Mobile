@@ -1,85 +1,0 @@
-# 🔧 إصلاح مشكلة زر "عرض" في صفحة حسابات المتدربين
-
-## 🎯 المشكلة:
-زر "عرض" لا يعمل ولا ينتقل لصفحة تفاصيل حساب المتدرب.
-
-## 🔧 الحل المطبق:
-تم إضافة debug logs شاملة لتتبع المشكلة.
-
-## 🚀 كيفية اختبار الإصلاح:
-
-### 1. **افتح التطبيق**
-### 2. **اذهب لقسم "إدارة منصة الطلاب"**
-### 3. **اضغط على "حسابات المتدربين"**
-### 4. **اضغط على زر "عرض" لأي حساب**
-### 5. **افتح Developer Console (F12)**
-### 6. **راقب الـ Console logs:**
-
-```javascript
-🔍 TraineeAccountsScreen - View button pressed for account: [accountId]
-🔍 TraineeAccountsScreen - Account name: [accountName]
-🔍 TraineeAccountsScreen - Navigation object: [navigation object]
-🔍 TraineeAccountsScreen - Navigation successful
-```
-
-## 🔍 ما يجب أن تراه:
-
-### إذا عمل التنقل ✅:
-```
-🔍 TraineeAccountsScreen - View button pressed for account: abc123...
-🔍 TraineeAccountsScreen - Account name: أحمد محمد علي
-🔍 TraineeAccountsScreen - Navigation object: [object Object]
-🔍 TraineeAccountsScreen - Navigation successful
-```
-
-### إذا لم يعمل التنقل ❌:
-```
-🔍 TraineeAccountsScreen - View button pressed for account: abc123...
-🔍 TraineeAccountsScreen - Account name: أحمد محمد علي
-🔍 TraineeAccountsScreen - Navigation object: [object Object]
-🔍 TraineeAccountsScreen - Navigation error: [error details]
-```
-
-## 🎯 الأسباب المحتملة:
-
-### 1. **مشكلة في تسجيل الصفحة**
-- الصفحة غير مسجلة في App.tsx
-- اسم الصفحة غير صحيح
-
-### 2. **مشكلة في التنقل**
-- navigation object غير متوفر
-- خطأ في الـ parameters
-
-### 3. **مشكلة في البيانات**
-- accountId غير صحيح
-- accountName غير متوفر
-
-## 🔧 إذا استمرت المشاكل:
-
-### الحل المؤقت:
-```typescript
-// في src/screens/TraineeAccountsScreen.tsx
-onPress={() => {
-  console.log('Button pressed!');
-  Alert.alert('تنبيه', 'تم الضغط على زر العرض');
-}}
-```
-
-### الحل الدائم:
-1. **تحقق من الـ Console logs**
-2. **تحقق من تسجيل الصفحة في App.tsx**
-3. **تحقق من وجود البيانات**
-4. **أرسل لي الـ logs**
-
-## 📱 كيفية التحقق:
-
-### 1. افتح التطبيق
-### 2. افتح Developer Console
-### 3. اذهب لصفحة "حسابات المتدربين"
-### 4. اضغط على زر "عرض"
-### 5. راقب الـ logs
-### 6. أخبرني بالنتائج
-
----
-
-**جرب الآن وأرسل لي الـ Console logs! 🔍✨**

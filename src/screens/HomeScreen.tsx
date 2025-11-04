@@ -4,10 +4,15 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import CustomMenu from '../components/CustomMenu';
 import AuthService from '../services/AuthService';
 import BranchService from '../services/BranchService';
+import { usePermissions } from '../hooks/usePermissions';
 
 const { width } = Dimensions.get('window');
 
 const HomeScreen = ({ navigation }: any) => {
+  const { userRoleInfo, isAdmin, isSuperAdmin, isLoading: permissionsLoading } = usePermissions();
+  // فقط super_admin و admin و accountant يمكنهم الوصول للبيانات المحاسبية
+  const canAccessFinancial = isSuperAdmin || isAdmin || (userRoleInfo?.name === 'accountant');
+  
   const [stats, setStats] = useState({
     totalPrograms: 0,
     totalStudents: 0,
@@ -146,17 +151,21 @@ const HomeScreen = ({ navigation }: any) => {
         }
       }
       
-      // جلب الرسوم
-      const fees = await AuthService.getAllTraineeFees().catch((error) => {
-        console.warn('🔍 HomeScreen.fetchStats() - Error fetching fees:', error);
-        return [];
-      });
-      
-      // جلب الخزائن
-      const safes = await AuthService.getAllSafes().catch((error) => {
-        console.warn('🔍 HomeScreen.fetchStats() - Error fetching safes:', error);
-        return [];
-      });
+      // جلب الرسوم (فقط إذا كان المستخدم محاسب/مدير/سوبر أدمن)
+      let fees: any[] = [];
+      let safes: any[] = [];
+      if (canAccessFinancial) {
+        fees = await AuthService.getAllTraineeFees().catch((error) => {
+          console.warn('🔍 HomeScreen.fetchStats() - Error fetching fees:', error);
+          return [];
+        });
+        
+        // جلب الخزائن
+        safes = await AuthService.getAllSafes().catch((error) => {
+          console.warn('🔍 HomeScreen.fetchStats() - Error fetching safes:', error);
+          return [];
+        });
+      }
 
       // حساب الطلاب النشطين - مع معالجة أفضل للأخطاء
       let activeStudentsResponse: import('../types/student').IPaginatedTraineesResponse = { 
@@ -379,61 +388,65 @@ const HomeScreen = ({ navigation }: any) => {
                 <Text style={styles.statSubtext}>{stats.activeStudents} نشط</Text>
               </Animated.View>
 
-              <Animated.View 
-                style={[
-                  styles.statCard, 
-                  styles.statCardWarning,
-                  {
-                    opacity: statsAnimations[2],
-                    transform: [{
-                      translateY: statsAnimations[2].interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [30, 0]
-                      })
-                    }, {
-                      scale: statsAnimations[2].interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.8, 1]
-                      })
-                    }]
-                  }
-                ]}
-              >
-                <View style={[styles.statIcon, { backgroundColor: '#fef3c7' }]}>
-                  <Icon name="account-balance-wallet" size={28} color="#d97706" />
-                </View>
-                <Text style={styles.statNumber}>{stats.totalFees}</Text>
-                <Text style={styles.statLabel}>الرسوم المالية</Text>
-                <Text style={styles.statSubtext}>{stats.appliedFees} مطبقة</Text>
-              </Animated.View>
+              {canAccessFinancial && (
+                <Animated.View 
+                  style={[
+                    styles.statCard, 
+                    styles.statCardWarning,
+                    {
+                      opacity: statsAnimations[2],
+                      transform: [{
+                        translateY: statsAnimations[2].interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [30, 0]
+                        })
+                      }, {
+                        scale: statsAnimations[2].interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.8, 1]
+                        })
+                      }]
+                    }
+                  ]}
+                >
+                  <View style={[styles.statIcon, { backgroundColor: '#fef3c7' }]}>
+                    <Icon name="account-balance-wallet" size={28} color="#d97706" />
+                  </View>
+                  <Text style={styles.statNumber}>{stats.totalFees}</Text>
+                  <Text style={styles.statLabel}>الرسوم المالية</Text>
+                  <Text style={styles.statSubtext}>{stats.appliedFees} مطبقة</Text>
+                </Animated.View>
+              )}
 
-              <Animated.View 
-                style={[
-                  styles.statCard, 
-                  styles.statCardPurple,
-                  {
-                    opacity: statsAnimations[3],
-                    transform: [{
-                      translateY: statsAnimations[3].interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [30, 0]
-                      })
-                    }, {
-                      scale: statsAnimations[3].interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.8, 1]
-                      })
-                    }]
-                  }
-                ]}
-              >
-                <View style={[styles.statIcon, { backgroundColor: '#ede9fe' }]}>
-                  <Icon name="account-balance" size={28} color="#7c3aed" />
-                </View>
-                <Text style={styles.statNumber}>{stats.totalSafes}</Text>
-                <Text style={styles.statLabel}>الخزائن المالية</Text>
-                <Text style={styles.statSubtext}>{stats.totalBalance.toLocaleString()} ج.م</Text>
-              </Animated.View>
+              {canAccessFinancial && (
+                <Animated.View 
+                  style={[
+                    styles.statCard, 
+                    styles.statCardPurple,
+                    {
+                      opacity: statsAnimations[3],
+                      transform: [{
+                        translateY: statsAnimations[3].interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [30, 0]
+                        })
+                      }, {
+                        scale: statsAnimations[3].interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.8, 1]
+                        })
+                      }]
+                    }
+                  ]}
+                >
+                  <View style={[styles.statIcon, { backgroundColor: '#ede9fe' }]}>
+                    <Icon name="account-balance" size={28} color="#7c3aed" />
+                  </View>
+                  <Text style={styles.statNumber}>{stats.totalSafes}</Text>
+                  <Text style={styles.statLabel}>الخزائن المالية</Text>
+                  <Text style={styles.statSubtext}>{stats.totalBalance.toLocaleString()} ج.م</Text>
+                </Animated.View>
+              )}
             </View>
           )}
         </View>
@@ -500,63 +513,67 @@ const HomeScreen = ({ navigation }: any) => {
               </TouchableOpacity>
             </Animated.View>
             
-            <Animated.View
-              style={{
-                opacity: actionsAnimations[2],
-                transform: [{
-                  translateX: actionsAnimations[2].interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [-50, 0]
-                  })
-                }, {
-                  scale: actionsAnimations[2].interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.8, 1]
-                  })
-                }]
-              }}
-            >
-              <TouchableOpacity 
-                style={[styles.actionButton, styles.actionButtonDanger]}
-                onPress={() => navigation.navigate('Treasury')}
-                activeOpacity={0.8}
+            {canAccessFinancial && (
+              <Animated.View
+                style={{
+                  opacity: actionsAnimations[2],
+                  transform: [{
+                    translateX: actionsAnimations[2].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [-50, 0]
+                    })
+                  }, {
+                    scale: actionsAnimations[2].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.8, 1]
+                    })
+                  }]
+                }}
               >
-                <View style={styles.actionIconContainer}>
-                  <Icon name="account-balance" size={32} color="#fff" />
-                </View>
-                <Text style={styles.actionText}>الخزائن</Text>
-                <Text style={styles.actionSubtext}>إدارة الخزائن</Text>
-              </TouchableOpacity>
-            </Animated.View>
+                <TouchableOpacity 
+                  style={[styles.actionButton, styles.actionButtonDanger]}
+                  onPress={() => navigation.navigate('Treasury')}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.actionIconContainer}>
+                    <Icon name="account-balance" size={32} color="#fff" />
+                  </View>
+                  <Text style={styles.actionText}>الخزائن</Text>
+                  <Text style={styles.actionSubtext}>إدارة الخزائن</Text>
+                </TouchableOpacity>
+              </Animated.View>
+            )}
             
-            <Animated.View
-              style={{
-                opacity: actionsAnimations[3],
-                transform: [{
-                  translateX: actionsAnimations[3].interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [50, 0]
-                  })
-                }, {
-                  scale: actionsAnimations[3].interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.8, 1]
-                  })
-                }]
-              }}
-            >
-              <TouchableOpacity 
-                style={[styles.actionButton, styles.actionButtonPurple]}
-                onPress={() => navigation.navigate('Fees')}
-                activeOpacity={0.8}
+            {canAccessFinancial && (
+              <Animated.View
+                style={{
+                  opacity: actionsAnimations[3],
+                  transform: [{
+                    translateX: actionsAnimations[3].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [50, 0]
+                    })
+                  }, {
+                    scale: actionsAnimations[3].interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.8, 1]
+                    })
+                  }]
+                }}
               >
-                <View style={styles.actionIconContainer}>
-                  <Icon name="account-balance-wallet" size={32} color="#fff" />
-                </View>
-                <Text style={styles.actionText}>الرسوم</Text>
-                <Text style={styles.actionSubtext}>إدارة الرسوم</Text>
-              </TouchableOpacity>
-            </Animated.View>
+                <TouchableOpacity 
+                  style={[styles.actionButton, styles.actionButtonPurple]}
+                  onPress={() => navigation.navigate('Fees')}
+                  activeOpacity={0.8}
+                >
+                  <View style={styles.actionIconContainer}>
+                    <Icon name="account-balance-wallet" size={32} color="#fff" />
+                  </View>
+                  <Text style={styles.actionText}>الرسوم</Text>
+                  <Text style={styles.actionSubtext}>إدارة الرسوم</Text>
+                </TouchableOpacity>
+              </Animated.View>
+            )}
           </View>
         </View>
 

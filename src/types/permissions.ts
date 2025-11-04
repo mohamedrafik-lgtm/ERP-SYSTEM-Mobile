@@ -289,7 +289,7 @@ export const SCREEN_PERMISSIONS: PermissionConfig[] = [
     icon: 'assignment',
     screen: 'QuizManagement',
     priority: 3,
-    allowedRoles: ['super_admin', 'admin', 'manager'],
+    allowedRoles: ['super_admin', 'admin'],
     category: 'exams',
     description: 'إدارة الاختبارات المصغرة والامتحانات'
   },
@@ -311,7 +311,7 @@ export const SCREEN_PERMISSIONS: PermissionConfig[] = [
     icon: 'account-circle',
     screen: 'TraineeAccounts',
     priority: 1,
-    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant', 'employee', 'trainee_entry_clerk'],
+    allowedRoles: ['super_admin', 'admin'],
     category: 'student_platform',
     description: 'إدارة حسابات المتدربين في المنصة'
   },
@@ -335,7 +335,7 @@ export const SCREEN_PERMISSIONS: PermissionConfig[] = [
     icon: 'grade',
     screen: 'TraineeGrades',
     priority: 1,
-    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant', 'employee', 'trainee_entry_clerk'],
+    allowedRoles: ['super_admin', 'admin'],
     category: 'grades',
     description: 'إدارة درجات المتدربين والتقييمات'
   },

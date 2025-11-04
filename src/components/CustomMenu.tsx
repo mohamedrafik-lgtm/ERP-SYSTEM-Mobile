@@ -51,27 +51,30 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
   const getMenuSectionsWithLogout = () => {
     const sectionsWithLogout = [...allowedMenuSections];
     
-    // إضافة قسم/عنصر إدارة التوزيع إذا لم يكن موجوداً
-    let distributionSection = sectionsWithLogout.find((section: any) => section.category === 'distribution');
-    if (!distributionSection) {
-      distributionSection = {
-        title: 'التوزيع',
-        category: 'distribution',
-        items: [],
-      };
-      sectionsWithLogout.push(distributionSection);
-    }
-    const hasDistributionItem = distributionSection.items.some((item: any) => item.id === 'DistributionManagement');
-    if (!hasDistributionItem) {
-      distributionSection.items.push({
-        id: 'DistributionManagement',
-        title: 'إدارة التوزيع',
-        icon: 'groups',
-        screen: 'DistributionManagement',
-        priority: 50,
-        allowedRoles: ['super_admin', 'admin', 'manager', 'employee'],
-        category: 'distribution' as const,
-      });
+    // إضافة قسم/عنصر إدارة التوزيع إذا لم يكن موجوداً (فقط لـ admin و super_admin)
+    const canAccessDistribution = userRoleInfo?.name === 'super_admin' || userRoleInfo?.name === 'admin';
+    if (canAccessDistribution) {
+      let distributionSection = sectionsWithLogout.find((section: any) => section.category === 'distribution');
+      if (!distributionSection) {
+        distributionSection = {
+          title: 'التوزيع',
+          category: 'distribution',
+          items: [],
+        };
+        sectionsWithLogout.push(distributionSection);
+      }
+      const hasDistributionItem = distributionSection.items.some((item: any) => item.id === 'DistributionManagement');
+      if (!hasDistributionItem) {
+        distributionSection.items.push({
+          id: 'DistributionManagement',
+          title: 'إدارة التوزيع',
+          icon: 'groups',
+          screen: 'DistributionManagement',
+          priority: 50,
+          allowedRoles: ['super_admin', 'admin'],
+          category: 'distribution' as const,
+        });
+      }
     }
     
     // البحث عن قسم النظام أو إنشاؤه

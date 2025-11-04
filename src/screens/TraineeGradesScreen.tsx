@@ -10,6 +10,7 @@ import {
   RefreshControl,
   FlatList,
   TextInput,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
@@ -72,6 +73,15 @@ const TraineeGradesScreen = ({ navigation }: any) => {
       setTotalTrainees(total);
       
       console.log('🔍 TraineeGradesScreen - All trainees loaded:', traineesData.length);
+      
+      // Log photo URLs for debugging
+      traineesData.forEach((trainee, index) => {
+        console.log(`🔍 TraineeGradesScreen - Trainee ${index + 1}:`, {
+          name: trainee.nameAr,
+          photoUrl: trainee.photoUrl,
+          hasPhoto: !!trainee.photoUrl
+        });
+      });
     } catch (error) {
       console.error('🔍 TraineeGradesScreen - Error fetching trainees:', error);
       
@@ -112,13 +122,40 @@ const TraineeGradesScreen = ({ navigation }: any) => {
   const handleTraineePress = (trainee: TraineeForGrades) => {
     console.log('🔍 TraineeGradesScreen - Trainee pressed:', trainee);
     // Navigate to trainee grades details
-    // navigation.navigate('TraineeGradeDetails', { traineeId: trainee.id, traineeName: trainee.nameAr });
+    navigation.navigate('TraineeGradeDetails', { 
+      traineeId: trainee.id, 
+      traineeName: trainee.nameAr 
+    });
   };
 
 
   const renderTraineeCard = ({ item }: { item: TraineeForGrades }) => (
     <TouchableOpacity style={styles.traineeCard} onPress={() => handleTraineePress(item)}>
       <View style={styles.traineeHeader}>
+        <View style={styles.traineePhotoContainer}>
+          {item.photoUrl ? (
+            <>
+              {console.log('🔍 TraineeGradesScreen - Rendering photo with URL:', item.photoUrl)}
+              <Image 
+                source={{ uri: item.photoUrl }} 
+                style={styles.traineePhoto}
+                resizeMode="cover"
+                onError={(error) => {
+                  console.log('🔍 TraineeGradesScreen - Failed to load photo:', item.photoUrl);
+                  console.log('🔍 TraineeGradesScreen - Image error:', error);
+                }}
+                onLoad={() => {
+                  console.log('🔍 TraineeGradesScreen - Photo loaded successfully:', item.photoUrl);
+                }}
+              />
+            </>
+          ) : (
+            <>
+              {console.log('🔍 TraineeGradesScreen - No photo URL, showing icon')}
+              <Icon name="person" size={30} color="#666" />
+            </>
+          )}
+        </View>
         <View style={styles.traineeInfo}>
           <Text style={styles.traineeName}>{item.nameAr}</Text>
           <Text style={styles.traineeId}>الرقم القومي: {item.nationalId}</Text>
@@ -478,6 +515,21 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  traineePhotoContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+    marginRight: 12,
+  },
+  traineePhoto: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
   },
   traineeInfo: {
     flex: 1,
