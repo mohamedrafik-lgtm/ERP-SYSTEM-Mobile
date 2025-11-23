@@ -24,6 +24,9 @@ import AddFeeScreen from './src/screens/AddFeeScreen';
 import TraineePaymentsScreen from './src/screens/TraineePaymentsScreen';
 import TraineePaymentDetailsScreen from './src/screens/TraineePaymentDetailsScreen';
 import FinancialReportsScreen from './src/screens/FinancialReportsScreen';
+import PaymentSchedulesScreen from './src/screens/PaymentSchedulesScreen';
+import PaymentScheduleDetailsScreen from './src/screens/PaymentScheduleDetailsScreen';
+import AddPaymentScheduleScreen from './src/screens/AddPaymentScheduleScreen';
 import PaymentDeferralRequestsScreen from './src/screens/PaymentDeferralRequestsScreen';
 import FreeRequestsScreen from './src/screens/FreeRequestsScreen';
 import RequestsSettingsScreen from './src/screens/RequestsSettingsScreen';
@@ -151,6 +154,9 @@ function App() {
           <Stack.Screen name="TraineePayments" component={TraineePaymentsScreen} />
           <Stack.Screen name="TraineePaymentDetails" component={TraineePaymentDetailsScreen} />
           <Stack.Screen name="FinancialReports" component={FinancialReportsScreen} />
+          <Stack.Screen name="PaymentSchedules" component={PaymentSchedulesScreen} />
+          <Stack.Screen name="PaymentScheduleDetails" component={PaymentScheduleDetailsScreen} />
+          <Stack.Screen name="AddPaymentSchedule" component={AddPaymentScheduleScreen} />
           <Stack.Screen name="PaymentDeferralRequests" component={PaymentDeferralRequestsScreen} />
           <Stack.Screen name="FreeRequests" component={FreeRequestsScreen} />
           <Stack.Screen name="RequestsSettings" component={RequestsSettingsScreen} />

@@ -4435,6 +4435,184 @@ class AuthService {
       throw error;
     }
   }
+
+  // ==================== PAYMENT SCHEDULES APIs ====================
+
+  /**
+   * جلب مواعيد السداد
+   */
+  static async getPaymentSchedules(params?: {
+    programId?: number;
+    feeId?: number;
+  }): Promise<import('../types/paymentSchedules').PaymentSchedule[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const queryParams = new URLSearchParams();
+      
+      if (params?.programId) queryParams.append('programId', params.programId.toString());
+      if (params?.feeId) queryParams.append('feeId', params.feeId.toString());
+
+      const url = `${baseUrl}/api/payment-schedules${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      console.log('[AuthService] Fetching payment schedules from URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to fetch payment schedules: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching payment schedules:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * إنشاء موعد سداد جديد
+   */
+  static async createPaymentSchedule(
+    scheduleData: import('../types/paymentSchedules').CreatePaymentScheduleRequest
+  ): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/payment-schedules`;
+      console.log('[AuthService] Creating payment schedule at URL:', url);
+      console.log('[AuthService] Schedule data:', scheduleData);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(scheduleData),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to create payment schedule: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error creating payment schedule:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * تحديث موعد سداد
+   */
+  static async updatePaymentSchedule(
+    scheduleId: string,
+    updateData: import('../types/paymentSchedules').UpdatePaymentScheduleRequest
+  ): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/payment-schedules/${scheduleId}`;
+      console.log('[AuthService] Updating payment schedule at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updateData),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to update payment schedule: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error updating payment schedule:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * حذف موعد سداد
+   */
+  static async deletePaymentSchedule(scheduleId: string): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/payment-schedules/${scheduleId}`;
+      console.log('[AuthService] Deleting payment schedule at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to delete payment schedule: ${response.status}`);
+      }
+
+      try {
+        return await response.json();
+      } catch {
+        return { success: true };
+      }
+    } catch (error) {
+      console.error('[AuthService] Error deleting payment schedule:', error);
+      throw error;
+    }
+  }
 }
 
 export default AuthService;

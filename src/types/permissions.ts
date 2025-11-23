@@ -247,6 +247,16 @@ export const SCREEN_PERMISSIONS: PermissionConfig[] = [
     category: 'financial',
     description: 'عرض التقارير والإحصائيات المالية الشاملة'
   },
+  {
+    id: 'PaymentSchedules',
+    title: 'مواعيد السداد',
+    icon: 'event',
+    screen: 'PaymentSchedules',
+    priority: 8.6,
+    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant'],
+    category: 'financial',
+    description: 'إدارة مواعيد سداد الرسوم والإجراءات عند عدم السداد'
+  },
 
   // إدارة طلبات الطلاب
   {
