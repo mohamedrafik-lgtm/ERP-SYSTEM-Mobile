@@ -237,8 +237,16 @@ export const SCREEN_PERMISSIONS: PermissionConfig[] = [
     category: 'financial',
     description: 'إدارة مدفوعات المتدربين'
   },
-
-
+  {
+    id: 'FinancialReports',
+    title: 'التقارير المالية',
+    icon: 'assessment',
+    screen: 'FinancialReports',
+    priority: 8.5,
+    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant'],
+    category: 'financial',
+    description: 'عرض التقارير والإحصائيات المالية الشاملة'
+  },
 
   // إدارة النظام
   {

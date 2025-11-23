@@ -23,6 +23,7 @@ import FeesScreen from './src/screens/FeesScreen';
 import AddFeeScreen from './src/screens/AddFeeScreen';
 import TraineePaymentsScreen from './src/screens/TraineePaymentsScreen';
 import TraineePaymentDetailsScreen from './src/screens/TraineePaymentDetailsScreen';
+import FinancialReportsScreen from './src/screens/FinancialReportsScreen';
 import PermissionsScreen from './src/screens/PermissionsScreen';
 import RoleDetailsScreen from './src/screens/RoleDetailsScreen';
 import AddPermissionScreen from './src/screens/AddPermissionScreen';
@@ -146,6 +147,7 @@ function App() {
           <Stack.Screen name="AddFeeScreen" component={AddFeeScreen} />
           <Stack.Screen name="TraineePayments" component={TraineePaymentsScreen} />
           <Stack.Screen name="TraineePaymentDetails" component={TraineePaymentDetailsScreen} />
+          <Stack.Screen name="FinancialReports" component={FinancialReportsScreen} />
           <Stack.Screen name="Permissions" component={PermissionsScreen} />
           <Stack.Screen name="RoleDetails" component={RoleDetailsScreen} />
           <Stack.Screen name="AddPermission" component={AddPermissionScreen} />

@@ -3955,6 +3955,59 @@ class AuthService {
       throw error;
     }
   }
+  // ==================== FINANCIAL REPORTS APIs ====================
+
+  /**
+   * جلب بيانات التقرير المالي Dashboard
+   */
+  static async getFinancialDashboard(params?: {
+    dateFrom?: string;  // ISO 8601 format
+    dateTo?: string;    // ISO 8601 format
+  }): Promise<import('../types/financialReports').FinancialDashboardResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const queryParams = new URLSearchParams();
+      
+      if (params?.dateFrom) queryParams.append('dateFrom', params.dateFrom);
+      if (params?.dateTo) queryParams.append('dateTo', params.dateTo);
+
+      const url = `${baseUrl}/api/finances/reports/dashboard${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      console.log('[AuthService] Fetching financial dashboard from URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('[AuthService] Financial dashboard response status:', response.status);
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        const errorText = await response.text();
+        console.error('[AuthService] Financial dashboard error:', errorText);
+        throw new Error(errorText || `Failed to fetch financial dashboard: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('[AuthService] Financial dashboard data fetched successfully');
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error fetching financial dashboard:', error);
+      throw error;
+    }
+  }
 }
 
 export default AuthService;
