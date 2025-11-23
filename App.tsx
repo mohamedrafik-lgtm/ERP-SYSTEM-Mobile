@@ -24,6 +24,9 @@ import AddFeeScreen from './src/screens/AddFeeScreen';
 import TraineePaymentsScreen from './src/screens/TraineePaymentsScreen';
 import TraineePaymentDetailsScreen from './src/screens/TraineePaymentDetailsScreen';
 import FinancialReportsScreen from './src/screens/FinancialReportsScreen';
+import PaymentDeferralRequestsScreen from './src/screens/PaymentDeferralRequestsScreen';
+import FreeRequestsScreen from './src/screens/FreeRequestsScreen';
+import RequestsSettingsScreen from './src/screens/RequestsSettingsScreen';
 import PermissionsScreen from './src/screens/PermissionsScreen';
 import RoleDetailsScreen from './src/screens/RoleDetailsScreen';
 import AddPermissionScreen from './src/screens/AddPermissionScreen';
@@ -148,6 +151,9 @@ function App() {
           <Stack.Screen name="TraineePayments" component={TraineePaymentsScreen} />
           <Stack.Screen name="TraineePaymentDetails" component={TraineePaymentDetailsScreen} />
           <Stack.Screen name="FinancialReports" component={FinancialReportsScreen} />
+          <Stack.Screen name="PaymentDeferralRequests" component={PaymentDeferralRequestsScreen} />
+          <Stack.Screen name="FreeRequests" component={FreeRequestsScreen} />
+          <Stack.Screen name="RequestsSettings" component={RequestsSettingsScreen} />
           <Stack.Screen name="Permissions" component={PermissionsScreen} />
           <Stack.Screen name="RoleDetails" component={RoleDetailsScreen} />
           <Stack.Screen name="AddPermission" component={AddPermissionScreen} />

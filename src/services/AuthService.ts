@@ -4008,6 +4008,433 @@ class AuthService {
       throw error;
     }
   }
+
+  // ==================== DEFERRAL REQUESTS APIs ====================
+
+  /**
+   * جلب طلبات تأجيل السداد
+   */
+  static async getDeferralRequests(params?: {
+    status?: 'PENDING' | 'APPROVED' | 'REJECTED';
+    programId?: number;
+    traineeId?: number;
+    page?: number;
+    limit?: number;
+  }): Promise<import('../types/deferralRequests').DeferralRequestsResponse> {
+    try {
+      const token = await this.getToken();
+      console.log('🔍 [AuthService] Token:', token ? `${token.substring(0, 20)}...` : 'NULL');
+      
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      console.log('🔍 [AuthService] Base URL:', baseUrl);
+      
+      const queryParams = new URLSearchParams();
+      
+      if (params?.status) queryParams.append('status', params.status);
+      if (params?.programId) queryParams.append('programId', params.programId.toString());
+      if (params?.traineeId) queryParams.append('traineeId', params.traineeId.toString());
+      if (params?.page) queryParams.append('page', params.page.toString());
+      if (params?.limit) queryParams.append('limit', params.limit.toString());
+
+      const url = `${baseUrl}/api/deferral-requests${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      console.log('🔍 [AuthService] Full URL:', url);
+      console.log('🔍 [AuthService] Query params:', queryParams.toString());
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('📡 [AuthService] Response status:', response.status);
+      console.log('📡 [AuthService] Response headers:', Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ [AuthService] Error response body:', errorText);
+        
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        if (response.status === 500) {
+          console.error('❌ [AuthService] Internal server error - Full details:', errorText);
+          throw new Error('خطأ في الخادم. يرجى المحاولة لاحقاً أو التواصل مع الدعم الفني.');
+        }
+        
+        throw new Error(errorText || `Failed to fetch deferral requests: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ [AuthService] Data fetched successfully, count:', data.data?.length);
+      return data;
+    } catch (error) {
+      console.error('❌ [AuthService] Error fetching deferral requests:', error);
+      if (error instanceof Error) {
+        console.error('❌ Error name:', error.name);
+        console.error('❌ Error message:', error.message);
+        console.error('❌ Error stack:', error.stack);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * جلب تفاصيل طلب تأجيل محدد
+   */
+  static async getDeferralRequestById(requestId: string): Promise<import('../types/deferralRequests').DeferralRequest> {
+    try {
+      const token = await this.getToken();
+      console.log('🔍 [AuthService] Getting deferral request by ID:', requestId);
+      
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/deferral-requests/${requestId}`;
+      console.log('🔍 [AuthService] Request details URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('📡 [AuthService] Request details response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ [AuthService] Error getting request details:', errorText);
+        
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        throw new Error(errorText || `Failed to fetch request details: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ [AuthService] Request details fetched successfully');
+      return data;
+    } catch (error) {
+      console.error('❌ [AuthService] Error fetching request details:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * مراجعة طلب تأجيل السداد (قبول أو رفض)
+   */
+  static async reviewDeferralRequest(
+    requestId: string,
+    reviewData: import('../types/deferralRequests').ReviewDeferralRequestPayload
+  ): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/deferral-requests/${requestId}/review`;
+      console.log('[AuthService] Reviewing deferral request at URL:', url);
+      console.log('[AuthService] Review data:', reviewData);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(reviewData),
+      });
+
+      console.log('[AuthService] Review response status:', response.status);
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        const errorText = await response.text();
+        console.error('[AuthService] Review error:', errorText);
+        throw new Error(errorText || `Failed to review deferral request: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('[AuthService] Deferral request reviewed successfully');
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error reviewing deferral request:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * حذف طلب تأجيل سداد
+   */
+  static async deleteDeferralRequest(requestId: string): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/deferral-requests/${requestId}`;
+      console.log('[AuthService] Deleting deferral request at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('[AuthService] Delete response status:', response.status);
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        const errorText = await response.text();
+        console.error('[AuthService] Delete error:', errorText);
+        throw new Error(errorText || `Failed to delete deferral request: ${response.status}`);
+      }
+
+      try {
+        const data = await response.json();
+        console.log('[AuthService] Deferral request deleted successfully');
+        return data;
+      } catch {
+        return { success: true };
+      }
+    } catch (error) {
+      console.error('[AuthService] Error deleting deferral request:', error);
+      throw error;
+    }
+  }
+
+  // ==================== TRAINEE FREE REQUESTS APIs ====================
+
+  /**
+   * جلب الطلبات المجانية (إجازات، إثباتات، إفادات، تأجيل اختبارات)
+   */
+  static async getTraineeRequests(params?: {
+    type?: string;
+    status?: string;
+    traineeId?: number;
+    page?: number;
+    limit?: number;
+  }): Promise<import('../types/traineeRequests').TraineeRequestsResponse> {
+    try {
+      const token = await this.getToken();
+      console.log('🔍 [AuthService] Token for trainee requests:', token ? `${token.substring(0, 20)}...` : 'NULL');
+      
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      console.log('🔍 [AuthService] Base URL:', baseUrl);
+      
+      const queryParams = new URLSearchParams();
+      
+      if (params?.type) queryParams.append('type', params.type);
+      if (params?.status) queryParams.append('status', params.status);
+      if (params?.traineeId) queryParams.append('traineeId', params.traineeId.toString());
+      if (params?.page) queryParams.append('page', params.page.toString());
+      if (params?.limit) queryParams.append('limit', params.limit.toString());
+
+      const url = `${baseUrl}/api/trainee-requests${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      console.log('🔍 [AuthService] Full URL:', url);
+      console.log('🔍 [AuthService] Query params:', queryParams.toString());
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('📡 [AuthService] Response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ [AuthService] Error response:', errorText);
+        
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        throw new Error(errorText || `Failed to fetch trainee requests: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ [AuthService] Trainee requests fetched successfully');
+      return data;
+    } catch (error) {
+      console.error('❌ [AuthService] Error fetching trainee requests:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * جلب تفاصيل طلب محدد
+   */
+  static async getTraineeRequestById(requestId: string): Promise<import('../types/traineeRequests').TraineeRequest> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/trainee-requests/${requestId}`;
+      console.log('[AuthService] Getting trainee request details:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        throw new Error(errorText || `Failed to fetch request details: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error getting trainee request:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * مراجعة طلب مجاني (قبول أو رفض)
+   */
+  static async reviewTraineeRequest(
+    requestId: string,
+    reviewData: import('../types/traineeRequests').ReviewTraineeRequestPayload
+  ): Promise<any> {
+    try {
+      const token = await this.getToken();
+      console.log('🔍 [AuthService] Review - Token:', token ? `${token.substring(0, 20)}...` : 'NULL');
+      
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/trainee-requests/${requestId}/review`;
+      console.log('🔍 [AuthService] Review URL:', url);
+      console.log('🔍 [AuthService] Review data being sent:', JSON.stringify(reviewData, null, 2));
+
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(reviewData),
+      });
+
+      console.log('📡 [AuthService] Review response status:', response.status);
+      console.log('📡 [AuthService] Review response headers:', Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ [AuthService] Review error response:', errorText);
+        
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        throw new Error(errorText || `Failed to review request: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ [AuthService] Review successful:', data);
+      return data;
+    } catch (error) {
+      console.error('❌ [AuthService] Error reviewing trainee request:', error);
+      if (error instanceof Error) {
+        console.error('❌ Error details:', error.message);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * حذف طلب مجاني
+   */
+  static async deleteTraineeRequest(requestId: string): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/trainee-requests/${requestId}`;
+      console.log('[AuthService] Deleting trainee request:', url);
+
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+        
+        throw new Error(errorText || `Failed to delete request: ${response.status}`);
+      }
+
+      try {
+        return await response.json();
+      } catch {
+        return { success: true };
+      }
+    } catch (error) {
+      console.error('[AuthService] Error deleting trainee request:', error);
+      throw error;
+    }
+  }
 }
 
 export default AuthService;

@@ -15,7 +15,7 @@ export interface PermissionConfig {
   screen: string;
   priority: number;
   allowedRoles: UserRole[];
-  category: 'home' | 'academic' | 'marketing' | 'financial' | 'automation' | 'system' | 'exams' | 'student_platform' | 'schedules' | 'grades';
+  category: 'home' | 'academic' | 'marketing' | 'financial' | 'automation' | 'system' | 'exams' | 'student_platform' | 'schedules' | 'grades' | 'student_requests';
   description?: string;
   isLogout?: boolean;
 }
@@ -248,6 +248,38 @@ export const SCREEN_PERMISSIONS: PermissionConfig[] = [
     description: 'عرض التقارير والإحصائيات المالية الشاملة'
   },
 
+  // إدارة طلبات الطلاب
+  {
+    id: 'PaymentDeferralRequests',
+    title: 'طلبات تأجيل السداد',
+    icon: 'event-note',
+    screen: 'PaymentDeferralRequests',
+    priority: 9.1,
+    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant'],
+    category: 'student_requests',
+    description: 'طلبات تأجيل المدفوعات المالية'
+  },
+  {
+    id: 'FreeRequests',
+    title: 'الطلبات المجانية',
+    icon: 'description',
+    screen: 'FreeRequests',
+    priority: 9.2,
+    allowedRoles: ['super_admin', 'admin', 'manager'],
+    category: 'student_requests',
+    description: 'طلبات الإجازات والطلبات المجانية'
+  },
+  {
+    id: 'RequestsSettings',
+    title: 'إعدادات الطلبات',
+    icon: 'settings',
+    screen: 'RequestsSettings',
+    priority: 9.3,
+    allowedRoles: ['super_admin', 'admin'],
+    category: 'student_requests',
+    description: 'إعدادات وإدارة أنواع الطلبات'
+  },
+
   // إدارة النظام
   {
     id: 'Permissions',
@@ -416,6 +448,11 @@ export const MENU_SECTIONS: MenuSection[] = [
     title: 'الإدارة المالية',
     category: 'financial',
     items: SCREEN_PERMISSIONS.filter(item => item.category === 'financial')
+  },
+  {
+    title: 'إدارة الطلبات',
+    category: 'student_requests',
+    items: SCREEN_PERMISSIONS.filter(item => item.category === 'student_requests')
   },
   {
     title: 'النظام',
