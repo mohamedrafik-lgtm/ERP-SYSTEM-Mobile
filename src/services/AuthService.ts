@@ -1853,7 +1853,12 @@ class AuthService {
 
       console.log(`[AuthService] Fetching all trainee fees`);
 
-      const response = await fetch(`https://erpproductionbackend-production.up.railway.app/api/finances/trainee-fees`, {
+      const baseUrl = await this.getApiBaseUrl();
+      const fullUrl = `${baseUrl}/api/finances/trainee-fees`;
+      console.log(`[AuthService] Full URL for trainee fees:`, fullUrl);
+      console.log(`[AuthService] Base URL:`, baseUrl);
+      
+      const response = await fetch(fullUrl, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,

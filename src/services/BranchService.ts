@@ -125,7 +125,7 @@ class BranchService {
     } catch (error) {
       console.error('Error getting API endpoint:', error);
       // في حالة الخطأ، استخدم endpoint الافتراضي
-      const errorFallback = 'https://erpproductionbackend-production.up.railway.app';
+      const errorFallback = 'https://mansapi.tiba29.com';
       console.log('🔍 BranchService.getCurrentApiEndpoint() - Error occurred, using error fallback:', errorFallback);
       return errorFallback;
     }

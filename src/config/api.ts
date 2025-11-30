@@ -7,12 +7,12 @@
 import BranchService from '../services/BranchService';
 
 // Default API Base URL (Mansoura Branch)
-export const DEFAULT_API_BASE_URL = 'https://erpproductionbackend-production.up.railway.app';
+export const DEFAULT_API_BASE_URL = 'https://mansapi.tiba29.com';
 
 // Branch-specific API Base URLs
 export const BRANCH_API_URLS = {
-  mansoura: 'https://erpproductionbackend-production.up.railway.app',
-  zagazig: 'https://betaerpv1backend-production.up.railway.app',
+  mansoura: 'https://mansapi.tiba29.com',
+  zagazig: 'https://zagapi.tiba29.com',
 };
 
 /**

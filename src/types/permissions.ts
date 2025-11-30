@@ -15,7 +15,7 @@ export interface PermissionConfig {
   screen: string;
   priority: number;
   allowedRoles: UserRole[];
-  category: 'home' | 'academic' | 'marketing' | 'financial' | 'automation' | 'system' | 'exams' | 'student_platform' | 'schedules' | 'grades' | 'student_requests';
+  category: 'home' | 'academic' | 'marketing' | 'financial' | 'automation' | 'system' | 'exams' | 'student_platform' | 'schedules' | 'grades' | 'student_requests' | 'academic_supplies';
   description?: string;
   isLogout?: boolean;
 }
@@ -410,6 +410,28 @@ export const SCREEN_PERMISSIONS: PermissionConfig[] = [
     description: 'إعدادات نظام التقييم والدرجات'
   },
 
+  // إدارة الأدوات الدراسية
+  {
+    id: 'AcademicSupplies',
+    title: 'الأدوات الدراسية',
+    icon: 'school-outlined',
+    screen: 'AcademicSupplies',
+    priority: 1,
+    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant', 'employee'],
+    category: 'academic_supplies',
+    description: 'إدارة طلبات الأدوات الدراسية والكارنيهات'
+  },
+  {
+    id: 'DeliveryTracking',
+    title: 'تتبع التسليم',
+    icon: 'local-shipping',
+    screen: 'DeliveryTracking',
+    priority: 2,
+    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant', 'employee'],
+    category: 'academic_supplies',
+    description: 'تتبع حالة تسليم الأدوات الدراسية'
+  },
+
 ];
 
 // تجميع الصفحات حسب الفئات للقائمة
@@ -468,6 +490,11 @@ export const MENU_SECTIONS: MenuSection[] = [
     title: 'النظام',
     category: 'system',
     items: SCREEN_PERMISSIONS.filter(item => item.category === 'system')
+  },
+  {
+    title: 'الأدوات الدراسية',
+    category: 'academic_supplies',
+    items: SCREEN_PERMISSIONS.filter(item => item.category === 'academic_supplies')
   }
 ];
 

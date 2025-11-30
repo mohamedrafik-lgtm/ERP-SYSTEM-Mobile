@@ -65,6 +65,9 @@ import TraineeGradeDetailsScreen from './src/screens/TraineeGradeDetailsScreen';
 import GradeReportsScreen from './src/screens/GradeReportsScreen';
 import GradeSettingsScreen from './src/screens/GradeSettingsScreen';
 import BranchSelectionScreen from './src/screens/BranchSelectionScreen';
+import AcademicSuppliesScreen from './src/screens/AcademicSuppliesScreen';
+import DeliveryTrackingScreen from './src/screens/DeliveryTrackingScreen';
+import AddStudyMaterialScreen from './src/screens/AddStudyMaterialScreen';
 import AuthService from './src/services/AuthService';
 import BranchService from './src/services/BranchService';
 import { enableScreens } from 'react-native-screens';
@@ -194,6 +197,9 @@ function App() {
         <Stack.Screen name="TraineeGradeDetails" component={TraineeGradeDetailsScreen} />
         <Stack.Screen name="GradeReports" component={GradeReportsScreen} />
         <Stack.Screen name="GradeSettings" component={GradeSettingsScreen} />
+        <Stack.Screen name="AcademicSupplies" component={AcademicSuppliesScreen} />
+        <Stack.Screen name="DeliveryTracking" component={DeliveryTrackingScreen} />
+        <Stack.Screen name="AddStudyMaterial" component={AddStudyMaterialScreen} />
         </Stack.Navigator>
       </NavigationContainer>
       <Toast />
