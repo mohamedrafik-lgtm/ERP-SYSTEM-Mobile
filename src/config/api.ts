@@ -71,6 +71,7 @@ export const getApiConfig = async () => {
     PERMISSIONS: {
       ROLES: `${baseUrl}/api/permissions/roles`,
       USERS: `${baseUrl}/api/permissions/users`,
+      USER_PERMISSIONS: (userId: number) => `${baseUrl}/api/permissions/users/${userId}/permissions`,
     },
     
     // Marketing endpoints
@@ -131,6 +132,7 @@ export const API_CONFIG = {
   PERMISSIONS: {
     ROLES: `${DEFAULT_API_BASE_URL}/api/permissions/roles`,
     USERS: `${DEFAULT_API_BASE_URL}/api/permissions/users`,
+    USER_PERMISSIONS: (userId: number) => `${DEFAULT_API_BASE_URL}/api/permissions/users/${userId}/permissions`,
   },
   
   // Marketing endpoints

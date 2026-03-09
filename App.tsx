@@ -4,6 +4,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import Toast from 'react-native-toast-message';
+import withPermissionGuard from './src/components/withPermissionGuard';
+import LoginTypeSelectionScreen from './src/screens/LoginTypeSelectionScreen';
+import { hasLoginType } from './src/screens/LoginTypeSelectionScreen';
 import TestLogin from './src/screens/LoginScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import ProgramsScreen from './src/screens/ProgramsScreen';
@@ -73,6 +76,69 @@ import BranchService from './src/services/BranchService';
 import { enableScreens } from 'react-native-screens';
 enableScreens();
 
+// ==================== حماية الشاشات بالصلاحيات ====================
+const GuardedPrograms = withPermissionGuard(ProgramsScreen, 'Programs');
+const GuardedAddProgram = withPermissionGuard(AddProgramScreen, 'AddProgram');
+const GuardedEditProgram = withPermissionGuard(EditProgramScreen, 'EditProgram');
+const GuardedStudentsList = withPermissionGuard(StudentsListScreen, 'StudentsList');
+const GuardedAddStudent = withPermissionGuard(AddStudentScreen, 'AddStudent');
+const GuardedEditTrainee = withPermissionGuard(EditTraineeScreen, 'EditTrainee');
+const GuardedTraineeDocuments = withPermissionGuard(TraineeDocumentsScreen, 'TraineeDocuments');
+const GuardedUsersList = withPermissionGuard(UsersListScreen, 'UsersList');
+const GuardedAddUser = withPermissionGuard(AddUserScreen, 'AddUser');
+const GuardedEditUser = withPermissionGuard(EditUserScreen, 'EditUser');
+const GuardedTrainingContents = withPermissionGuard(TrainingContentsScreen, 'TrainingContents');
+const GuardedAddTrainingContent = withPermissionGuard(AddTrainingContentScreen, 'AddTrainingContent');
+const GuardedEditTrainingContent = withPermissionGuard(EditTrainingContentScreen, 'EditTrainingContent');
+const GuardedLectures = withPermissionGuard(LecturesScreen, 'Lectures');
+const GuardedAddLecture = withPermissionGuard(AddLectureScreen, 'AddLecture');
+const GuardedEditLecture = withPermissionGuard(EditLectureScreen, 'EditLecture');
+const GuardedDistributionManagement = withPermissionGuard(DistributionManagementScreen, 'DistributionManagement');
+const GuardedAddDistribution = withPermissionGuard(AddDistributionScreen, 'AddDistribution');
+const GuardedDistributionDetails = withPermissionGuard(DistributionDetailsScreen, 'DistributionDetails');
+const GuardedProgramDistributions = withPermissionGuard(ProgramDistributionsScreen, 'ProgramDistributions');
+const GuardedQuestions = withPermissionGuard(QuestionsScreen, 'Questions');
+const GuardedAddQuestion = withPermissionGuard(AddQuestionScreen, 'AddQuestion');
+const GuardedQuizManagement = withPermissionGuard(QuizManagementScreen, 'QuizManagement');
+const GuardedAddQuiz = withPermissionGuard(AddQuizScreen, 'AddQuiz');
+const GuardedTraineeAccounts = withPermissionGuard(TraineeAccountsScreen, 'TraineeAccounts');
+const GuardedTraineeAccountDetails = withPermissionGuard(TraineeAccountDetailsScreen, 'TraineeAccountDetails');
+const GuardedSchedules = withPermissionGuard(ScheduleScreen, 'Schedules');
+const GuardedSemesterSelection = withPermissionGuard(SemesterSelectionScreen, 'SemesterSelection');
+const GuardedScheduleDetails = withPermissionGuard(ScheduleDetailsScreen, 'ScheduleDetails');
+const GuardedTraineeGrades = withPermissionGuard(TraineeGradesScreen, 'TraineeGrades');
+const GuardedTraineeGradeDetails = withPermissionGuard(TraineeGradeDetailsScreen, 'TraineeGradeDetails');
+const GuardedGradeReports = withPermissionGuard(GradeReportsScreen, 'GradeReports');
+const GuardedGradeSettings = withPermissionGuard(GradeSettingsScreen, 'GradeSettings');
+const GuardedMarketers = withPermissionGuard(MarketersScreen, 'Marketers');
+const GuardedAddMarketer = withPermissionGuard(AddMarketerScreen, 'AddMarketer');
+const GuardedEditMarketer = withPermissionGuard(EditMarketerScreen, 'EditMarketer');
+const GuardedTargetSetting = withPermissionGuard(TargetSettingScreen, 'TargetSetting');
+const GuardedMarketingTrainees = withPermissionGuard(MarketingTraineesScreen, 'MarketingTrainees');
+const GuardedEmployeeTrainees = withPermissionGuard(EmployeeTraineesScreen, 'EmployeeTrainees');
+const GuardedMarketingStats = withPermissionGuard(MarketingStatsScreen, 'MarketingStats');
+const GuardedWhatsAppManagement = withPermissionGuard(WhatsAppManagementScreen, 'WhatsAppManagement');
+const GuardedTreasury = withPermissionGuard(TreasuryScreen, 'Treasury');
+const GuardedAddTreasury = withPermissionGuard(AddTreasuryScreen, 'AddTreasuryScreen');
+const GuardedAddTransaction = withPermissionGuard(AddTransactionScreen, 'AddTransactionScreen');
+const GuardedFees = withPermissionGuard(FeesScreen, 'Fees');
+const GuardedAddFee = withPermissionGuard(AddFeeScreen, 'AddFeeScreen');
+const GuardedTraineePayments = withPermissionGuard(TraineePaymentsScreen, 'TraineePayments');
+const GuardedTraineePaymentDetails = withPermissionGuard(TraineePaymentDetailsScreen, 'TraineePaymentDetails');
+const GuardedFinancialReports = withPermissionGuard(FinancialReportsScreen, 'FinancialReports');
+const GuardedPaymentSchedules = withPermissionGuard(PaymentSchedulesScreen, 'PaymentSchedules');
+const GuardedPaymentScheduleDetails = withPermissionGuard(PaymentScheduleDetailsScreen, 'PaymentScheduleDetails');
+const GuardedAddPaymentSchedule = withPermissionGuard(AddPaymentScheduleScreen, 'AddPaymentSchedule');
+const GuardedPaymentDeferralRequests = withPermissionGuard(PaymentDeferralRequestsScreen, 'PaymentDeferralRequests');
+const GuardedFreeRequests = withPermissionGuard(FreeRequestsScreen, 'FreeRequests');
+const GuardedRequestsSettings = withPermissionGuard(RequestsSettingsScreen, 'RequestsSettings');
+const GuardedPermissions = withPermissionGuard(PermissionsScreen, 'Permissions');
+const GuardedRoleDetails = withPermissionGuard(RoleDetailsScreen, 'RoleDetails');
+const GuardedAddPermission = withPermissionGuard(AddPermissionScreen, 'AddPermission');
+const GuardedAcademicSupplies = withPermissionGuard(AcademicSuppliesScreen, 'AcademicSupplies');
+const GuardedDeliveryTracking = withPermissionGuard(DeliveryTrackingScreen, 'DeliveryTracking');
+const GuardedAddStudyMaterial = withPermissionGuard(AddStudyMaterialScreen, 'AddStudyMaterial');
+
 const Stack = createNativeStackNavigator();
 
 function App() {
@@ -80,6 +146,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [hasBranchSelected, setHasBranchSelected] = useState(false);
+  const [hasLoginTypeSelected, setHasLoginTypeSelected] = useState(false);
 
   useEffect(() => {
     checkInitialStatus();
@@ -87,9 +154,13 @@ function App() {
 
   const checkInitialStatus = async () => {
     try {
-      // أولاً تحقق من اختيار الفرع
+      // أولاً تحقق من اختيار نوع تسجيل الدخول
+      const loginTypeSelected = await hasLoginType();
+      setHasLoginTypeSelected(loginTypeSelected);
+
+      // ثانياً تحقق من اختيار الفرع
       const branchSelected = await BranchService.hasSavedBranch();
-      console.log('🔍 App startup - Branch selected:', branchSelected);
+      console.log('🔍 App startup - LoginType selected:', loginTypeSelected, 'Branch selected:', branchSelected);
       
       setHasBranchSelected(branchSelected);
       
@@ -106,6 +177,7 @@ function App() {
       console.error('Error checking initial status:', error);
       setIsAuthenticated(false);
       setHasBranchSelected(false);
+      setHasLoginTypeSelected(false);
     } finally {
       setIsLoading(false);
     }
@@ -127,79 +199,82 @@ function App() {
       <NavigationContainer>
         <Stack.Navigator 
           initialRouteName={(() => {
-            const route = !hasBranchSelected ? "BranchSelection" : 
+            const route = !hasLoginTypeSelected ? "LoginTypeSelection" :
+                         !hasBranchSelected ? "BranchSelection" : 
                          isAuthenticated ? "Home" : "Login";
-            console.log('🚀 App navigator - Initial route:', route, 
+            console.log('🚀 App navigator - Initial route:', route,
+                       'hasLoginTypeSelected:', hasLoginTypeSelected,
                        'hasBranchSelected:', hasBranchSelected, 
                        'isAuthenticated:', isAuthenticated);
             return route;
           })()} 
           screenOptions={{ headerShown: false }}
         >
+          <Stack.Screen name="LoginTypeSelection" component={LoginTypeSelectionScreen} />
           <Stack.Screen name="BranchSelection" component={BranchSelectionScreen} />
           <Stack.Screen name="Login" component={TestLogin} />
           <Stack.Screen name="Home" component={HomeScreen} />
-          <Stack.Screen name="Programs" component={ProgramsScreen} />
-          <Stack.Screen name="AddProgram" component={AddProgramScreen} />
-          <Stack.Screen name="EditProgram" component={EditProgramScreen} />
-          <Stack.Screen name="StudentsList" component={StudentsListScreen} />
-                    <Stack.Screen name="AddStudent" component={AddStudentScreen} />
-          <Stack.Screen name="TrainingContents" component={TrainingContentsScreen} />
-          <Stack.Screen name="AddTrainingContent" component={AddTrainingContentScreen} />
-          <Stack.Screen name="EditTrainingContent" component={EditTrainingContentScreen} />
-          <Stack.Screen name="Questions" component={QuestionsScreen} />
-          <Stack.Screen name="AddQuestion" component={AddQuestionScreen} />
-          <Stack.Screen name="Treasury" component={TreasuryScreen} />
-          <Stack.Screen name="AddTreasuryScreen" component={AddTreasuryScreen} />
-          <Stack.Screen name="AddTransactionScreen" component={AddTransactionScreen} />
-          <Stack.Screen name="Fees" component={FeesScreen} />
-          <Stack.Screen name="AddFeeScreen" component={AddFeeScreen} />
-          <Stack.Screen name="TraineePayments" component={TraineePaymentsScreen} />
-          <Stack.Screen name="TraineePaymentDetails" component={TraineePaymentDetailsScreen} />
-          <Stack.Screen name="FinancialReports" component={FinancialReportsScreen} />
-          <Stack.Screen name="PaymentSchedules" component={PaymentSchedulesScreen} />
-          <Stack.Screen name="PaymentScheduleDetails" component={PaymentScheduleDetailsScreen} />
-          <Stack.Screen name="AddPaymentSchedule" component={AddPaymentScheduleScreen} />
-          <Stack.Screen name="PaymentDeferralRequests" component={PaymentDeferralRequestsScreen} />
-          <Stack.Screen name="FreeRequests" component={FreeRequestsScreen} />
-          <Stack.Screen name="RequestsSettings" component={RequestsSettingsScreen} />
-          <Stack.Screen name="Permissions" component={PermissionsScreen} />
-          <Stack.Screen name="RoleDetails" component={RoleDetailsScreen} />
-          <Stack.Screen name="AddPermission" component={AddPermissionScreen} />
-          <Stack.Screen name="AddUser" component={AddUserScreen} />
-          <Stack.Screen name="UsersList" component={UsersListScreen} />
-          <Stack.Screen name="EditUser" component={EditUserScreen} />
-          <Stack.Screen name="Marketers" component={MarketersScreen} />
-          <Stack.Screen name="AddMarketer" component={AddMarketerScreen} />
-          <Stack.Screen name="EditMarketer" component={EditMarketerScreen} />
-          <Stack.Screen name="TargetSetting" component={TargetSettingScreen} />
-          <Stack.Screen name="MarketingTrainees" component={MarketingTraineesScreen} />
-          <Stack.Screen name="EmployeeTrainees" component={EmployeeTraineesScreen} />
-          <Stack.Screen name="MarketingStats" component={MarketingStatsScreen} />
-          <Stack.Screen name="WhatsAppManagement" component={WhatsAppManagementScreen} />
-        <Stack.Screen name="EditTrainee" component={EditTraineeScreen} />
-        <Stack.Screen name="TraineeDocuments" component={TraineeDocumentsScreen} />
-        <Stack.Screen name="Lectures" component={LecturesScreen} />
-        <Stack.Screen name="AddLecture" component={AddLectureScreen} />
-        <Stack.Screen name="EditLecture" component={EditLectureScreen} />
-        <Stack.Screen name="DistributionManagement" component={DistributionManagementScreen} />
-        <Stack.Screen name="AddDistribution" component={AddDistributionScreen} />
-        <Stack.Screen name="DistributionDetails" component={DistributionDetailsScreen} />
-        <Stack.Screen name="ProgramDistributions" component={ProgramDistributionsScreen} />
-        <Stack.Screen name="QuizManagement" component={QuizManagementScreen} />
-        <Stack.Screen name="AddQuiz" component={AddQuizScreen} />
-        <Stack.Screen name="TraineeAccounts" component={TraineeAccountsScreen} />
-        <Stack.Screen name="TraineeAccountDetails" component={TraineeAccountDetailsScreen} />
-        <Stack.Screen name="Schedules" component={ScheduleScreen} />
-        <Stack.Screen name="SemesterSelection" component={SemesterSelectionScreen} />
-        <Stack.Screen name="ScheduleDetails" component={ScheduleDetailsScreen} />
-        <Stack.Screen name="TraineeGrades" component={TraineeGradesScreen} />
-        <Stack.Screen name="TraineeGradeDetails" component={TraineeGradeDetailsScreen} />
-        <Stack.Screen name="GradeReports" component={GradeReportsScreen} />
-        <Stack.Screen name="GradeSettings" component={GradeSettingsScreen} />
-        <Stack.Screen name="AcademicSupplies" component={AcademicSuppliesScreen} />
-        <Stack.Screen name="DeliveryTracking" component={DeliveryTrackingScreen} />
-        <Stack.Screen name="AddStudyMaterial" component={AddStudyMaterialScreen} />
+          <Stack.Screen name="Programs" component={GuardedPrograms} />
+          <Stack.Screen name="AddProgram" component={GuardedAddProgram} />
+          <Stack.Screen name="EditProgram" component={GuardedEditProgram} />
+          <Stack.Screen name="StudentsList" component={GuardedStudentsList} />
+          <Stack.Screen name="AddStudent" component={GuardedAddStudent} />
+          <Stack.Screen name="TrainingContents" component={GuardedTrainingContents} />
+          <Stack.Screen name="AddTrainingContent" component={GuardedAddTrainingContent} />
+          <Stack.Screen name="EditTrainingContent" component={GuardedEditTrainingContent} />
+          <Stack.Screen name="Questions" component={GuardedQuestions} />
+          <Stack.Screen name="AddQuestion" component={GuardedAddQuestion} />
+          <Stack.Screen name="Treasury" component={GuardedTreasury} />
+          <Stack.Screen name="AddTreasuryScreen" component={GuardedAddTreasury} />
+          <Stack.Screen name="AddTransactionScreen" component={GuardedAddTransaction} />
+          <Stack.Screen name="Fees" component={GuardedFees} />
+          <Stack.Screen name="AddFeeScreen" component={GuardedAddFee} />
+          <Stack.Screen name="TraineePayments" component={GuardedTraineePayments} />
+          <Stack.Screen name="TraineePaymentDetails" component={GuardedTraineePaymentDetails} />
+          <Stack.Screen name="FinancialReports" component={GuardedFinancialReports} />
+          <Stack.Screen name="PaymentSchedules" component={GuardedPaymentSchedules} />
+          <Stack.Screen name="PaymentScheduleDetails" component={GuardedPaymentScheduleDetails} />
+          <Stack.Screen name="AddPaymentSchedule" component={GuardedAddPaymentSchedule} />
+          <Stack.Screen name="PaymentDeferralRequests" component={GuardedPaymentDeferralRequests} />
+          <Stack.Screen name="FreeRequests" component={GuardedFreeRequests} />
+          <Stack.Screen name="RequestsSettings" component={GuardedRequestsSettings} />
+          <Stack.Screen name="Permissions" component={GuardedPermissions} />
+          <Stack.Screen name="RoleDetails" component={GuardedRoleDetails} />
+          <Stack.Screen name="AddPermission" component={GuardedAddPermission} />
+          <Stack.Screen name="AddUser" component={GuardedAddUser} />
+          <Stack.Screen name="UsersList" component={GuardedUsersList} />
+          <Stack.Screen name="EditUser" component={GuardedEditUser} />
+          <Stack.Screen name="Marketers" component={GuardedMarketers} />
+          <Stack.Screen name="AddMarketer" component={GuardedAddMarketer} />
+          <Stack.Screen name="EditMarketer" component={GuardedEditMarketer} />
+          <Stack.Screen name="TargetSetting" component={GuardedTargetSetting} />
+          <Stack.Screen name="MarketingTrainees" component={GuardedMarketingTrainees} />
+          <Stack.Screen name="EmployeeTrainees" component={GuardedEmployeeTrainees} />
+          <Stack.Screen name="MarketingStats" component={GuardedMarketingStats} />
+          <Stack.Screen name="WhatsAppManagement" component={GuardedWhatsAppManagement} />
+          <Stack.Screen name="EditTrainee" component={GuardedEditTrainee} />
+          <Stack.Screen name="TraineeDocuments" component={GuardedTraineeDocuments} />
+          <Stack.Screen name="Lectures" component={GuardedLectures} />
+          <Stack.Screen name="AddLecture" component={GuardedAddLecture} />
+          <Stack.Screen name="EditLecture" component={GuardedEditLecture} />
+          <Stack.Screen name="DistributionManagement" component={GuardedDistributionManagement} />
+          <Stack.Screen name="AddDistribution" component={GuardedAddDistribution} />
+          <Stack.Screen name="DistributionDetails" component={GuardedDistributionDetails} />
+          <Stack.Screen name="ProgramDistributions" component={GuardedProgramDistributions} />
+          <Stack.Screen name="QuizManagement" component={GuardedQuizManagement} />
+          <Stack.Screen name="AddQuiz" component={GuardedAddQuiz} />
+          <Stack.Screen name="TraineeAccounts" component={GuardedTraineeAccounts} />
+          <Stack.Screen name="TraineeAccountDetails" component={GuardedTraineeAccountDetails} />
+          <Stack.Screen name="Schedules" component={GuardedSchedules} />
+          <Stack.Screen name="SemesterSelection" component={GuardedSemesterSelection} />
+          <Stack.Screen name="ScheduleDetails" component={GuardedScheduleDetails} />
+          <Stack.Screen name="TraineeGrades" component={GuardedTraineeGrades} />
+          <Stack.Screen name="TraineeGradeDetails" component={GuardedTraineeGradeDetails} />
+          <Stack.Screen name="GradeReports" component={GuardedGradeReports} />
+          <Stack.Screen name="GradeSettings" component={GuardedGradeSettings} />
+          <Stack.Screen name="AcademicSupplies" component={GuardedAcademicSupplies} />
+          <Stack.Screen name="DeliveryTracking" component={GuardedDeliveryTracking} />
+          <Stack.Screen name="AddStudyMaterial" component={GuardedAddStudyMaterial} />
         </Stack.Navigator>
       </NavigationContainer>
       <Toast />

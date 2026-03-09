@@ -1,529 +1,879 @@
-// Permission System Types and Configurations
+// Permission System Types - Based on Web Frontend (Resource + Action Model)
+// يطابق نظام الصلاحيات في الويب: resource + action
 
-export type UserRole = 
-  | 'super_admin' 
-  | 'admin' 
-  | 'manager' 
-  | 'accountant' 
-  | 'employee' 
+// ==================== ROLE TYPES ====================
+
+export type UserRole =
+  | 'super_admin'
+  | 'admin'
+  | 'manager'
+  | 'accountant'
+  | 'employee'
+  | 'instructor'
   | 'trainee_entry_clerk';
 
-export interface PermissionConfig {
-  id: string;
-  title: string;
-  icon: string;
-  screen: string;
-  priority: number;
-  allowedRoles: UserRole[];
-  category: 'home' | 'academic' | 'marketing' | 'financial' | 'automation' | 'system' | 'exams' | 'student_platform' | 'schedules' | 'grades' | 'student_requests' | 'academic_supplies';
-  description?: string;
-  isLogout?: boolean;
+// ==================== PERMISSION TYPES ====================
+
+export type PermissionAction = 'view' | 'create' | 'edit' | 'delete' | 'manage' | 'export' | 'transfer';
+
+export interface PermissionCheck {
+  resource: string;
+  action: PermissionAction;
 }
+
+/** صلاحيات المستخدم المحسوبة من الـ API */
+export interface UserPermissions {
+  roles: string[];
+  permissions: Record<string, boolean>;
+}
+
+// ==================== SCREEN PERMISSION CONFIG ====================
+
+export interface ScreenPermissionConfig {
+  /** معرف الشاشة (يطابق اسم الـ route) */
+  screenName: string;
+  /** عنوان الشاشة بالعربية */
+  title: string;
+  /** أيقونة الشاشة */
+  icon: string;
+  /** الصلاحية المطلوبة للوصول */
+  requiredPermission: PermissionCheck;
+  /** صلاحيات إضافية (مثلاً: إنشاء، تعديل، حذف) */
+  additionalPermissions?: Record<string, PermissionCheck>;
+  /** الفئة في القائمة */
+  category: MenuCategory;
+  /** ترتيب العرض */
+  priority: number;
+  /** وصف الشاشة */
+  description?: string;
+  /** هل تظهر في القائمة الجانبية */
+  showInMenu?: boolean;
+}
+
+export type MenuCategory =
+  | 'home'
+  | 'academic'
+  | 'exams'
+  | 'student_platform'
+  | 'schedules'
+  | 'grades'
+  | 'marketing'
+  | 'automation'
+  | 'financial'
+  | 'student_requests'
+  | 'system'
+  | 'academic_supplies';
 
 export interface MenuSection {
   title: string;
-  category: string;
-  items: PermissionConfig[];
+  category: MenuCategory;
+  icon: string;
+  requiredPermissions?: PermissionCheck[];
+  requireAll?: boolean;
+  items: ScreenPermissionConfig[];
 }
 
-// تكوين صلاحيات جميع الصفحات
-export const SCREEN_PERMISSIONS: PermissionConfig[] = [
-  // الصفحة الرئيسية
-  {
-    id: 'Home',
+// ==================== SCREEN PERMISSIONS MAP ====================
+// كل شاشة موجودة في التطبيق مع الصلاحية المطلوبة من الـ backend
+
+export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
+  // ============ الصفحة الرئيسية ============
+  Home: {
+    screenName: 'Home',
     title: 'الرئيسية',
     icon: 'home',
-    screen: 'Home',
-    priority: 1,
-    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant', 'employee', 'trainee_entry_clerk'],
+    requiredPermission: { resource: 'dashboard', action: 'view' },
     category: 'home',
-    description: 'الصفحة الرئيسية للنظام'
+    priority: 1,
+    showInMenu: true,
+    description: 'الصفحة الرئيسية للنظام',
   },
 
-  // الإدارة الأكاديمية
-  {
-    id: 'StudentsList',
-    title: 'الطلاب',
+  // ============ الإدارة الأكاديمية ============
+  StudentsList: {
+    screenName: 'StudentsList',
+    title: 'المتدربين',
     icon: 'people',
-    screen: 'StudentsList',
+    requiredPermission: { resource: 'dashboard.trainees', action: 'view' },
+    additionalPermissions: {
+      create: { resource: 'dashboard.trainees', action: 'create' },
+      edit: { resource: 'dashboard.trainees', action: 'edit' },
+      delete: { resource: 'dashboard.trainees', action: 'delete' },
+      transfer: { resource: 'dashboard.trainees', action: 'transfer' },
+      export: { resource: 'dashboard.trainees', action: 'export' },
+    },
+    category: 'academic',
     priority: 2,
-    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant', 'trainee_entry_clerk'],
-    category: 'academic',
-    description: 'عرض وإدارة قائمة الطلاب'
+    showInMenu: true,
+    description: 'عرض وإدارة قائمة المتدربين',
   },
-  {
-    id: 'AddStudent',
-    title: 'إضافة طالب',
+  AddStudent: {
+    screenName: 'AddStudent',
+    title: 'إضافة متدرب',
     icon: 'person-add',
-    screen: 'AddStudent',
-    priority: 2.1,
-    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant', 'trainee_entry_clerk'],
+    requiredPermission: { resource: 'dashboard.trainees', action: 'create' },
     category: 'academic',
-    description: 'إضافة طالب جديد للنظام'
+    priority: 2.1,
+    showInMenu: false,
   },
-  {
-    id: 'UsersList',
+  EditTrainee: {
+    screenName: 'EditTrainee',
+    title: 'تعديل متدرب',
+    icon: 'edit',
+    requiredPermission: { resource: 'dashboard.trainees', action: 'edit' },
+    category: 'academic',
+    priority: 2.2,
+    showInMenu: false,
+  },
+  TraineeDocuments: {
+    screenName: 'TraineeDocuments',
+    title: 'مستندات المتدرب',
+    icon: 'description',
+    requiredPermission: { resource: 'dashboard.trainee-documents', action: 'view' },
+    additionalPermissions: {
+      edit: { resource: 'dashboard.trainee-documents', action: 'edit' },
+      delete: { resource: 'dashboard.trainee-documents', action: 'delete' },
+    },
+    category: 'academic',
+    priority: 2.3,
+    showInMenu: false,
+  },
+  UsersList: {
+    screenName: 'UsersList',
     title: 'المستخدمون',
     icon: 'group',
-    screen: 'UsersList',
-    priority: 2.5,
-    allowedRoles: ['super_admin', 'admin', 'manager'],
+    requiredPermission: { resource: 'dashboard.users', action: 'view' },
+    additionalPermissions: {
+      create: { resource: 'dashboard.users', action: 'create' },
+      edit: { resource: 'dashboard.users', action: 'edit' },
+      delete: { resource: 'dashboard.users', action: 'delete' },
+    },
     category: 'academic',
-    description: 'إدارة المستخدمين'
+    priority: 2.5,
+    showInMenu: true,
+    description: 'إدارة المستخدمين',
   },
-  {
-    id: 'AddUser',
+  AddUser: {
+    screenName: 'AddUser',
     title: 'إضافة مستخدم',
     icon: 'person-add',
-    screen: 'AddUser',
-    priority: 2.6,
-    allowedRoles: ['super_admin', 'admin'],
+    requiredPermission: { resource: 'dashboard.users', action: 'create' },
     category: 'academic',
-    description: 'إضافة مستخدم جديد'
+    priority: 2.6,
+    showInMenu: false,
   },
-  {
-    id: 'Programs',
+  EditUser: {
+    screenName: 'EditUser',
+    title: 'تعديل مستخدم',
+    icon: 'edit',
+    requiredPermission: { resource: 'dashboard.users', action: 'edit' },
+    category: 'academic',
+    priority: 2.7,
+    showInMenu: false,
+  },
+  Programs: {
+    screenName: 'Programs',
     title: 'البرامج التدريبية',
     icon: 'school',
-    screen: 'Programs',
-    priority: 3,
-    allowedRoles: ['super_admin', 'admin', 'manager'],
+    requiredPermission: { resource: 'dashboard.programs', action: 'view' },
+    additionalPermissions: {
+      create: { resource: 'dashboard.programs', action: 'create' },
+      edit: { resource: 'dashboard.programs', action: 'edit' },
+      delete: { resource: 'dashboard.programs', action: 'delete' },
+    },
     category: 'academic',
-    description: 'إدارة البرامج التدريبية'
+    priority: 3,
+    showInMenu: true,
+    description: 'إدارة البرامج التدريبية',
   },
-  {
-    id: 'AddProgram',
+  AddProgram: {
+    screenName: 'AddProgram',
     title: 'إضافة برنامج',
     icon: 'add-box',
-    screen: 'AddProgram',
-    priority: 3.1,
-    allowedRoles: ['super_admin', 'admin', 'manager'],
+    requiredPermission: { resource: 'dashboard.programs', action: 'create' },
     category: 'academic',
-    description: 'إضافة برنامج تدريبي جديد'
+    priority: 3.1,
+    showInMenu: false,
   },
-  {
-    id: 'TrainingContents',
+  EditProgram: {
+    screenName: 'EditProgram',
+    title: 'تعديل برنامج',
+    icon: 'edit',
+    requiredPermission: { resource: 'dashboard.programs', action: 'edit' },
+    category: 'academic',
+    priority: 3.2,
+    showInMenu: false,
+  },
+  TrainingContents: {
+    screenName: 'TrainingContents',
     title: 'المحتوى التدريبي',
     icon: 'library-books',
-    screen: 'TrainingContents',
-    priority: 4,
-    allowedRoles: ['super_admin', 'admin', 'manager'],
+    requiredPermission: { resource: 'dashboard.training-contents', action: 'view' },
+    additionalPermissions: {
+      create: { resource: 'dashboard.training-contents', action: 'create' },
+      edit: { resource: 'dashboard.training-contents', action: 'edit' },
+      delete: { resource: 'dashboard.training-contents', action: 'delete' },
+    },
     category: 'academic',
-    description: 'إدارة المحتوى التدريبي'
+    priority: 4,
+    showInMenu: true,
+    description: 'إدارة المحتوى التدريبي',
   },
-  {
-    id: 'AddTrainingContent',
+  AddTrainingContent: {
+    screenName: 'AddTrainingContent',
     title: 'إضافة محتوى تدريبي',
     icon: 'note-add',
-    screen: 'AddTrainingContent',
-    priority: 4.1,
-    allowedRoles: ['super_admin', 'admin', 'manager'],
+    requiredPermission: { resource: 'dashboard.training-contents', action: 'create' },
     category: 'academic',
-    description: 'إضافة محتوى تدريبي جديد'
+    priority: 4.1,
+    showInMenu: false,
+  },
+  EditTrainingContent: {
+    screenName: 'EditTrainingContent',
+    title: 'تعديل محتوى تدريبي',
+    icon: 'edit',
+    requiredPermission: { resource: 'dashboard.training-contents', action: 'edit' },
+    category: 'academic',
+    priority: 4.2,
+    showInMenu: false,
+  },
+  Lectures: {
+    screenName: 'Lectures',
+    title: 'المحاضرات',
+    icon: 'class',
+    requiredPermission: { resource: 'dashboard.training-contents', action: 'view' },
+    category: 'academic',
+    priority: 4.5,
+    showInMenu: true,
+    description: 'إدارة المحاضرات',
+  },
+  AddLecture: {
+    screenName: 'AddLecture',
+    title: 'إضافة محاضرة',
+    icon: 'add',
+    requiredPermission: { resource: 'dashboard.training-contents', action: 'create' },
+    category: 'academic',
+    priority: 4.6,
+    showInMenu: false,
+  },
+  EditLecture: {
+    screenName: 'EditLecture',
+    title: 'تعديل محاضرة',
+    icon: 'edit',
+    requiredPermission: { resource: 'dashboard.training-contents', action: 'edit' },
+    category: 'academic',
+    priority: 4.7,
+    showInMenu: false,
+  },
+  DistributionManagement: {
+    screenName: 'DistributionManagement',
+    title: 'إدارة التوزيع',
+    icon: 'swap-horiz',
+    requiredPermission: { resource: 'dashboard.trainees', action: 'view' },
+    category: 'academic',
+    priority: 4.8,
+    showInMenu: true,
+    description: 'توزيع المتدربين على المجموعات',
+  },
+  AddDistribution: {
+    screenName: 'AddDistribution',
+    title: 'إضافة توزيع',
+    icon: 'add',
+    requiredPermission: { resource: 'dashboard.trainees', action: 'edit' },
+    category: 'academic',
+    priority: 4.81,
+    showInMenu: false,
+  },
+  DistributionDetails: {
+    screenName: 'DistributionDetails',
+    title: 'تفاصيل التوزيع',
+    icon: 'info',
+    requiredPermission: { resource: 'dashboard.trainees', action: 'view' },
+    category: 'academic',
+    priority: 4.82,
+    showInMenu: false,
+  },
+  ProgramDistributions: {
+    screenName: 'ProgramDistributions',
+    title: 'توزيعات البرنامج',
+    icon: 'account-tree',
+    requiredPermission: { resource: 'dashboard.trainees', action: 'view' },
+    category: 'academic',
+    priority: 4.83,
+    showInMenu: false,
   },
 
-  // إدارة التسويق
-  {
-    id: 'Marketers',
-    title: 'موظفي التسويق',
-    icon: 'campaign',
-    screen: 'Marketers',
-    priority: 5,
-    allowedRoles: ['super_admin', 'admin', 'manager'],
-    category: 'marketing',
-    description: 'إدارة موظفي التسويق'
-  },
-  {
-    id: 'AddMarketer',
-    title: 'إضافة مسوق',
-    icon: 'person-add-alt',
-    screen: 'AddMarketer',
-    priority: 5.1,
-    allowedRoles: ['super_admin', 'admin', 'manager'],
-    category: 'marketing',
-    description: 'إضافة مسوق جديد'
-  },
-  {
-    id: 'TargetSetting',
-    title: 'تحديد التارجيت',
-    icon: 'track-changes',
-    screen: 'TargetSetting',
-    priority: 5.5,
-    allowedRoles: ['super_admin', 'admin', 'manager'],
-    category: 'marketing',
-    description: 'تحديد أهداف التسويق'
-  },
-  {
-    id: 'MarketingTrainees',
-    title: 'المتدربين مع تفاصيل التسويق',
-    icon: 'people',
-    screen: 'MarketingTrainees',
-    priority: 5.7,
-    allowedRoles: ['super_admin', 'admin', 'manager'],
-    category: 'marketing',
-    description: 'عرض المتدربين مع بيانات التسويق'
-  },
-  {
-    id: 'MarketingStats',
-    title: 'إحصائيات التسويق',
-    icon: 'analytics',
-    screen: 'MarketingStats',
-    priority: 5.8,
-    allowedRoles: ['super_admin', 'admin', 'manager'],
-    category: 'marketing',
-    description: 'عرض إحصائيات الأداء التسويقي'
-  },
-
-  // الأتمتة التلقائية
-  {
-    id: 'WhatsAppManagement',
-    title: 'إدارة WhatsApp',
-    icon: 'chat',
-    screen: 'WhatsAppManagement',
-    priority: 6,
-    allowedRoles: ['super_admin', 'admin'],
-    category: 'automation',
-    description: 'إدارة رسائل WhatsApp التلقائية'
-  },
-
-  // الإدارة المالية
-  {
-    id: 'Treasury',
-    title: 'الخزائن المالية',
-    icon: 'account-balance',
-    screen: 'Treasury',
-    priority: 7,
-    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant'],
-    category: 'financial',
-    description: 'إدارة الخزائن المالية'
-  },
-  {
-    id: 'AddTreasury',
-    title: 'إضافة خزينة',
-    icon: 'add-business',
-    screen: 'AddTreasury',
-    priority: 7.1,
-    allowedRoles: ['super_admin', 'admin', 'accountant'],
-    category: 'financial',
-    description: 'إضافة خزينة مالية جديدة'
-  },
-  {
-    id: 'Fees',
-    title: 'الرسوم المالية',
-    icon: 'account-balance-wallet',
-    screen: 'Fees',
-    priority: 7.5,
-    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant'],
-    category: 'financial',
-    description: 'إدارة الرسوم المالية'
-  },
-  {
-    id: 'AddFee',
-    title: 'إضافة رسوم',
-    icon: 'add-card',
-    screen: 'AddFee',
-    priority: 7.6,
-    allowedRoles: ['super_admin', 'admin', 'accountant'],
-    category: 'financial',
-    description: 'إضافة رسوم مالية جديدة'
-  },
-  {
-    id: 'TraineePayments',
-    title: 'مدفوعات المتدربين',
-    icon: 'payment',
-    screen: 'TraineePayments',
-    priority: 8,
-    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant'],
-    category: 'financial',
-    description: 'إدارة مدفوعات المتدربين'
-  },
-  {
-    id: 'FinancialReports',
-    title: 'التقارير المالية',
-    icon: 'assessment',
-    screen: 'FinancialReports',
-    priority: 8.5,
-    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant'],
-    category: 'financial',
-    description: 'عرض التقارير والإحصائيات المالية الشاملة'
-  },
-  {
-    id: 'PaymentSchedules',
-    title: 'مواعيد السداد',
-    icon: 'event',
-    screen: 'PaymentSchedules',
-    priority: 8.6,
-    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant'],
-    category: 'financial',
-    description: 'إدارة مواعيد سداد الرسوم والإجراءات عند عدم السداد'
-  },
-
-  // إدارة طلبات الطلاب
-  {
-    id: 'PaymentDeferralRequests',
-    title: 'طلبات تأجيل السداد',
-    icon: 'event-note',
-    screen: 'PaymentDeferralRequests',
-    priority: 9.1,
-    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant'],
-    category: 'student_requests',
-    description: 'طلبات تأجيل المدفوعات المالية'
-  },
-  {
-    id: 'FreeRequests',
-    title: 'الطلبات المجانية',
-    icon: 'description',
-    screen: 'FreeRequests',
-    priority: 9.2,
-    allowedRoles: ['super_admin', 'admin', 'manager'],
-    category: 'student_requests',
-    description: 'طلبات الإجازات والطلبات المجانية'
-  },
-  {
-    id: 'RequestsSettings',
-    title: 'إعدادات الطلبات',
-    icon: 'settings',
-    screen: 'RequestsSettings',
-    priority: 9.3,
-    allowedRoles: ['super_admin', 'admin'],
-    category: 'student_requests',
-    description: 'إعدادات وإدارة أنواع الطلبات'
-  },
-
-  // إدارة النظام
-  {
-    id: 'Permissions',
-    title: 'الصلاحيات',
-    icon: 'lock',
-    screen: 'Permissions',
-    priority: 9,
-    allowedRoles: ['super_admin'],
-    category: 'system',
-    description: 'إدارة صلاحيات المستخدمين'
-  },
-  {
-    id: 'AddPermission',
-    title: 'إضافة صلاحية',
-    icon: 'lock-open',
-    screen: 'AddPermission',
-    priority: 9.1,
-    allowedRoles: ['super_admin'],
-    category: 'system',
-    description: 'إضافة صلاحية جديدة'
-  },
-
-  // إدارة الاختبارات
-  {
-    id: 'Questions',
+  // ============ إدارة الاختبارات ============
+  Questions: {
+    screenName: 'Questions',
     title: 'بنك الأسئلة',
     icon: 'help',
-    screen: 'Questions',
-    priority: 1,
-    allowedRoles: ['super_admin', 'admin', 'manager'],
+    requiredPermission: { resource: 'dashboard.questions', action: 'view' },
+    additionalPermissions: {
+      create: { resource: 'dashboard.questions', action: 'create' },
+      edit: { resource: 'dashboard.questions', action: 'edit' },
+      delete: { resource: 'dashboard.questions', action: 'delete' },
+    },
     category: 'exams',
-    description: 'إدارة بنك الأسئلة'
+    priority: 1,
+    showInMenu: true,
+    description: 'إدارة بنك الأسئلة',
   },
-  {
-    id: 'AddQuestion',
+  AddQuestion: {
+    screenName: 'AddQuestion',
     title: 'إضافة سؤال',
     icon: 'help-outline',
-    screen: 'AddQuestion',
+    requiredPermission: { resource: 'dashboard.questions', action: 'create' },
+    category: 'exams',
     priority: 2,
-    allowedRoles: ['super_admin', 'admin', 'manager'],
-    category: 'exams',
-    description: 'إضافة سؤال جديد لبنك الأسئلة'
+    showInMenu: false,
   },
-  {
-    id: 'QuizManagement',
-    title: 'إدارة الاختبارات المصغرة',
+  QuizManagement: {
+    screenName: 'QuizManagement',
+    title: 'إدارة الاختبارات',
     icon: 'assignment',
-    screen: 'QuizManagement',
+    requiredPermission: { resource: 'dashboard.questions', action: 'view' },
+    category: 'exams',
     priority: 3,
-    allowedRoles: ['super_admin', 'admin'],
-    category: 'exams',
-    description: 'إدارة الاختبارات المصغرة والامتحانات'
+    showInMenu: true,
+    description: 'إدارة الاختبارات المصغرة',
   },
-  {
-    id: 'AddQuiz',
-    title: 'إضافة اختبار مصغر',
+  AddQuiz: {
+    screenName: 'AddQuiz',
+    title: 'إضافة اختبار',
     icon: 'add-box',
-    screen: 'AddQuiz',
-    priority: 4,
-    allowedRoles: ['super_admin', 'admin', 'manager'],
+    requiredPermission: { resource: 'dashboard.questions', action: 'create' },
     category: 'exams',
-    description: 'إضافة اختبار مصغر جديد'
+    priority: 4,
+    showInMenu: false,
   },
 
-  // إدارة منصة الطلاب
-  {
-    id: 'TraineeAccounts',
+  // ============ منصة الطلاب ============
+  TraineeAccounts: {
+    screenName: 'TraineeAccounts',
     title: 'حسابات المتدربين',
     icon: 'account-circle',
-    screen: 'TraineeAccounts',
-    priority: 1,
-    allowedRoles: ['super_admin', 'admin'],
+    requiredPermission: { resource: 'dashboard.trainees', action: 'view' },
     category: 'student_platform',
-    description: 'إدارة حسابات المتدربين في المنصة'
+    priority: 1,
+    showInMenu: true,
+    description: 'إدارة حسابات المتدربين في المنصة',
+  },
+  TraineeAccountDetails: {
+    screenName: 'TraineeAccountDetails',
+    title: 'تفاصيل حساب المتدرب',
+    icon: 'info',
+    requiredPermission: { resource: 'dashboard.trainees', action: 'view' },
+    category: 'student_platform',
+    priority: 2,
+    showInMenu: false,
   },
 
-  // الجداول الدراسية
-  {
-    id: 'Schedules',
+  // ============ الجداول الدراسية ============
+  Schedules: {
+    screenName: 'Schedules',
     title: 'الجداول الدراسية',
     icon: 'schedule',
-    screen: 'Schedules',
-    priority: 1,
-    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant', 'employee', 'trainee_entry_clerk'],
+    requiredPermission: { resource: 'dashboard.attendance', action: 'view' },
     category: 'schedules',
-    description: 'إدارة الجداول الدراسية والمواعيد'
+    priority: 1,
+    showInMenu: true,
+    description: 'إدارة الجداول الدراسية والمواعيد',
+  },
+  SemesterSelection: {
+    screenName: 'SemesterSelection',
+    title: 'اختيار الفصل الدراسي',
+    icon: 'date-range',
+    requiredPermission: { resource: 'dashboard.attendance', action: 'view' },
+    category: 'schedules',
+    priority: 2,
+    showInMenu: false,
+  },
+  ScheduleDetails: {
+    screenName: 'ScheduleDetails',
+    title: 'تفاصيل الجدول',
+    icon: 'event-note',
+    requiredPermission: { resource: 'dashboard.attendance', action: 'view' },
+    category: 'schedules',
+    priority: 3,
+    showInMenu: false,
   },
 
-  // إدارة الدرجات للمتدربين
-  {
-    id: 'TraineeGrades',
+  // ============ درجات المتدربين ============
+  TraineeGrades: {
+    screenName: 'TraineeGrades',
     title: 'درجات المتدربين',
     icon: 'grade',
-    screen: 'TraineeGrades',
-    priority: 1,
-    allowedRoles: ['super_admin', 'admin'],
+    requiredPermission: { resource: 'dashboard.trainees', action: 'view' },
     category: 'grades',
-    description: 'إدارة درجات المتدربين والتقييمات'
+    priority: 1,
+    showInMenu: true,
+    description: 'إدارة درجات المتدربين والتقييمات',
   },
-  {
-    id: 'GradeReports',
+  TraineeGradeDetails: {
+    screenName: 'TraineeGradeDetails',
+    title: 'تفاصيل الدرجات',
+    icon: 'assessment',
+    requiredPermission: { resource: 'dashboard.trainees', action: 'view' },
+    category: 'grades',
+    priority: 2,
+    showInMenu: false,
+  },
+  GradeReports: {
+    screenName: 'GradeReports',
     title: 'تقارير الدرجات',
     icon: 'assessment',
-    screen: 'GradeReports',
-    priority: 2,
-    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant'],
+    requiredPermission: { resource: 'dashboard.reports', action: 'view' },
     category: 'grades',
-    description: 'تقارير وإحصائيات الدرجات'
+    priority: 3,
+    showInMenu: true,
+    description: 'تقارير وإحصائيات الدرجات',
   },
-  {
-    id: 'GradeSettings',
+  GradeSettings: {
+    screenName: 'GradeSettings',
     title: 'إعدادات التقييم',
     icon: 'settings',
-    screen: 'GradeSettings',
-    priority: 3,
-    allowedRoles: ['super_admin', 'admin', 'manager'],
+    requiredPermission: { resource: 'dashboard.settings', action: 'edit' },
     category: 'grades',
-    description: 'إعدادات نظام التقييم والدرجات'
+    priority: 4,
+    showInMenu: true,
+    description: 'إعدادات نظام التقييم والدرجات',
   },
 
-  // إدارة الأدوات الدراسية
-  {
-    id: 'AcademicSupplies',
+  // ============ إدارة التسويق ============
+  Marketers: {
+    screenName: 'Marketers',
+    title: 'موظفي التسويق',
+    icon: 'campaign',
+    requiredPermission: { resource: 'marketing.employees', action: 'view' },
+    category: 'marketing',
+    priority: 5,
+    showInMenu: true,
+    description: 'إدارة موظفي التسويق',
+  },
+  AddMarketer: {
+    screenName: 'AddMarketer',
+    title: 'إضافة مسوق',
+    icon: 'person-add-alt',
+    requiredPermission: { resource: 'marketing.employees', action: 'view' },
+    category: 'marketing',
+    priority: 5.1,
+    showInMenu: false,
+  },
+  EditMarketer: {
+    screenName: 'EditMarketer',
+    title: 'تعديل مسوق',
+    icon: 'edit',
+    requiredPermission: { resource: 'marketing.employees', action: 'view' },
+    category: 'marketing',
+    priority: 5.2,
+    showInMenu: false,
+  },
+  TargetSetting: {
+    screenName: 'TargetSetting',
+    title: 'تحديد التارجيت',
+    icon: 'track-changes',
+    requiredPermission: { resource: 'marketing.targets', action: 'view' },
+    category: 'marketing',
+    priority: 5.5,
+    showInMenu: true,
+    description: 'تحديد أهداف التسويق',
+  },
+  MarketingTrainees: {
+    screenName: 'MarketingTrainees',
+    title: 'المتدربين مع تفاصيل التسويق',
+    icon: 'people',
+    requiredPermission: { resource: 'marketing.applications', action: 'view' },
+    category: 'marketing',
+    priority: 5.7,
+    showInMenu: true,
+    description: 'عرض المتدربين مع بيانات التسويق',
+  },
+  EmployeeTrainees: {
+    screenName: 'EmployeeTrainees',
+    title: 'متدربين الموظف',
+    icon: 'people-outline',
+    requiredPermission: { resource: 'marketing.applications', action: 'view' },
+    category: 'marketing',
+    priority: 5.75,
+    showInMenu: false,
+  },
+  MarketingStats: {
+    screenName: 'MarketingStats',
+    title: 'إحصائيات التسويق',
+    icon: 'analytics',
+    requiredPermission: { resource: 'marketing.employees', action: 'view' },
+    category: 'marketing',
+    priority: 5.8,
+    showInMenu: true,
+    description: 'عرض إحصائيات الأداء التسويقي',
+  },
+
+  // ============ الأتمتة التلقائية ============
+  WhatsAppManagement: {
+    screenName: 'WhatsAppManagement',
+    title: 'إدارة WhatsApp',
+    icon: 'chat',
+    requiredPermission: { resource: 'dashboard.settings', action: 'view' },
+    category: 'automation',
+    priority: 6,
+    showInMenu: true,
+    description: 'إدارة رسائل WhatsApp التلقائية',
+  },
+
+  // ============ الإدارة المالية ============
+  Treasury: {
+    screenName: 'Treasury',
+    title: 'الخزائن المالية',
+    icon: 'account-balance',
+    requiredPermission: { resource: 'dashboard.financial', action: 'view' },
+    additionalPermissions: {
+      manage: { resource: 'dashboard.financial', action: 'manage' },
+    },
+    category: 'financial',
+    priority: 7,
+    showInMenu: true,
+    description: 'إدارة الخزائن المالية',
+  },
+  AddTreasuryScreen: {
+    screenName: 'AddTreasuryScreen',
+    title: 'إضافة خزينة',
+    icon: 'add-business',
+    requiredPermission: { resource: 'dashboard.financial', action: 'manage' },
+    category: 'financial',
+    priority: 7.1,
+    showInMenu: false,
+  },
+  AddTransactionScreen: {
+    screenName: 'AddTransactionScreen',
+    title: 'إضافة معاملة',
+    icon: 'add-card',
+    requiredPermission: { resource: 'dashboard.financial', action: 'manage' },
+    category: 'financial',
+    priority: 7.2,
+    showInMenu: false,
+  },
+  Fees: {
+    screenName: 'Fees',
+    title: 'الرسوم المالية',
+    icon: 'account-balance-wallet',
+    requiredPermission: { resource: 'dashboard.financial', action: 'view' },
+    category: 'financial',
+    priority: 7.5,
+    showInMenu: true,
+    description: 'إدارة الرسوم المالية',
+  },
+  AddFeeScreen: {
+    screenName: 'AddFeeScreen',
+    title: 'إضافة رسوم',
+    icon: 'add-card',
+    requiredPermission: { resource: 'dashboard.financial', action: 'manage' },
+    category: 'financial',
+    priority: 7.6,
+    showInMenu: false,
+  },
+  TraineePayments: {
+    screenName: 'TraineePayments',
+    title: 'مدفوعات المتدربين',
+    icon: 'payment',
+    requiredPermission: { resource: 'dashboard.financial', action: 'view' },
+    category: 'financial',
+    priority: 8,
+    showInMenu: true,
+    description: 'إدارة مدفوعات المتدربين',
+  },
+  TraineePaymentDetails: {
+    screenName: 'TraineePaymentDetails',
+    title: 'تفاصيل المدفوعات',
+    icon: 'receipt',
+    requiredPermission: { resource: 'dashboard.financial', action: 'view' },
+    category: 'financial',
+    priority: 8.1,
+    showInMenu: false,
+  },
+  FinancialReports: {
+    screenName: 'FinancialReports',
+    title: 'التقارير المالية',
+    icon: 'assessment',
+    requiredPermission: { resource: 'dashboard.financial', action: 'view' },
+    category: 'financial',
+    priority: 8.5,
+    showInMenu: true,
+    description: 'عرض التقارير والإحصائيات المالية الشاملة',
+  },
+  PaymentSchedules: {
+    screenName: 'PaymentSchedules',
+    title: 'مواعيد السداد',
+    icon: 'event',
+    requiredPermission: { resource: 'dashboard.financial', action: 'view' },
+    category: 'financial',
+    priority: 8.6,
+    showInMenu: true,
+    description: 'إدارة مواعيد سداد الرسوم',
+  },
+  PaymentScheduleDetails: {
+    screenName: 'PaymentScheduleDetails',
+    title: 'تفاصيل موعد السداد',
+    icon: 'event-note',
+    requiredPermission: { resource: 'dashboard.financial', action: 'view' },
+    category: 'financial',
+    priority: 8.61,
+    showInMenu: false,
+  },
+  AddPaymentSchedule: {
+    screenName: 'AddPaymentSchedule',
+    title: 'إضافة موعد سداد',
+    icon: 'event-available',
+    requiredPermission: { resource: 'dashboard.financial', action: 'manage' },
+    category: 'financial',
+    priority: 8.62,
+    showInMenu: false,
+  },
+
+  // ============ إدارة طلبات الطلاب ============
+  PaymentDeferralRequests: {
+    screenName: 'PaymentDeferralRequests',
+    title: 'طلبات تأجيل السداد',
+    icon: 'event-note',
+    requiredPermission: { resource: 'dashboard.deferral-requests', action: 'view' },
+    category: 'student_requests',
+    priority: 9.1,
+    showInMenu: true,
+    description: 'طلبات تأجيل المدفوعات المالية',
+  },
+  FreeRequests: {
+    screenName: 'FreeRequests',
+    title: 'الطلبات العامة',
+    icon: 'description',
+    requiredPermission: { resource: 'dashboard.trainee-requests', action: 'view' },
+    category: 'student_requests',
+    priority: 9.2,
+    showInMenu: true,
+    description: 'طلبات المتدربين العامة',
+  },
+  RequestsSettings: {
+    screenName: 'RequestsSettings',
+    title: 'إعدادات الطلبات',
+    icon: 'settings',
+    requiredPermission: { resource: 'dashboard.settings', action: 'edit' },
+    category: 'student_requests',
+    priority: 9.3,
+    showInMenu: true,
+    description: 'إعدادات وإدارة أنواع الطلبات',
+  },
+
+  // ============ إدارة النظام ============
+  Permissions: {
+    screenName: 'Permissions',
+    title: 'الصلاحيات',
+    icon: 'lock',
+    requiredPermission: { resource: 'dashboard.permissions', action: 'view' },
+    additionalPermissions: {
+      manage: { resource: 'dashboard.permissions', action: 'manage' },
+    },
+    category: 'system',
+    priority: 9,
+    showInMenu: true,
+    description: 'إدارة صلاحيات المستخدمين',
+  },
+  RoleDetails: {
+    screenName: 'RoleDetails',
+    title: 'تفاصيل الدور',
+    icon: 'info',
+    requiredPermission: { resource: 'dashboard.permissions', action: 'view' },
+    category: 'system',
+    priority: 9.05,
+    showInMenu: false,
+  },
+  AddPermission: {
+    screenName: 'AddPermission',
+    title: 'إضافة صلاحية',
+    icon: 'lock-open',
+    requiredPermission: { resource: 'dashboard.permissions', action: 'manage' },
+    category: 'system',
+    priority: 9.1,
+    showInMenu: false,
+  },
+
+  // ============ الأدوات الدراسية ============
+  AcademicSupplies: {
+    screenName: 'AcademicSupplies',
     title: 'الأدوات الدراسية',
     icon: 'school-outlined',
-    screen: 'AcademicSupplies',
-    priority: 1,
-    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant', 'employee'],
+    requiredPermission: { resource: 'dashboard.id-cards', action: 'view' },
     category: 'academic_supplies',
-    description: 'إدارة طلبات الأدوات الدراسية والكارنيهات'
+    priority: 1,
+    showInMenu: true,
+    description: 'إدارة طلبات الأدوات الدراسية والكارنيهات',
   },
-  {
-    id: 'DeliveryTracking',
+  DeliveryTracking: {
+    screenName: 'DeliveryTracking',
     title: 'تتبع التسليم',
     icon: 'local-shipping',
-    screen: 'DeliveryTracking',
-    priority: 2,
-    allowedRoles: ['super_admin', 'admin', 'manager', 'accountant', 'employee'],
+    requiredPermission: { resource: 'dashboard.id-cards', action: 'view' },
     category: 'academic_supplies',
-    description: 'تتبع حالة تسليم الأدوات الدراسية'
+    priority: 2,
+    showInMenu: true,
+    description: 'تتبع حالة تسليم الأدوات الدراسية',
   },
+  AddStudyMaterial: {
+    screenName: 'AddStudyMaterial',
+    title: 'إضافة مادة دراسية',
+    icon: 'add',
+    requiredPermission: { resource: 'dashboard.id-cards', action: 'create' },
+    category: 'academic_supplies',
+    priority: 3,
+    showInMenu: false,
+  },
+};
 
-];
+// ==================== MENU SECTIONS ====================
 
-// تجميع الصفحات حسب الفئات للقائمة
 export const MENU_SECTIONS: MenuSection[] = [
+  // ============ 1. الرئيسية ============
   {
     title: 'الرئيسية',
     category: 'home',
-    items: SCREEN_PERMISSIONS.filter(item => item.category === 'home')
+    icon: 'home',
+    items: Object.values(SCREEN_PERMISSIONS).filter(s => s.category === 'home' && s.showInMenu),
   },
+
+  // ============ 2. الإدارة الأكاديمية (الأساسيات) ============
   {
     title: 'الإدارة الأكاديمية',
     category: 'academic',
-    items: SCREEN_PERMISSIONS.filter(item => item.category === 'academic')
+    icon: 'school',
+    requiredPermissions: [
+      { resource: 'dashboard.trainees', action: 'view' },
+      { resource: 'dashboard.programs', action: 'view' },
+      { resource: 'dashboard.users', action: 'view' },
+    ],
+    requireAll: false,
+    items: Object.values(SCREEN_PERMISSIONS).filter(s => s.category === 'academic' && s.showInMenu),
   },
-  {
-    title: 'إدارة الاختبارات',
-    category: 'exams',
-    items: SCREEN_PERMISSIONS.filter(item => item.category === 'exams')
-  },
-  {
-    title: 'إدارة منصة الطلاب',
-    category: 'student_platform',
-    items: SCREEN_PERMISSIONS.filter(item => item.category === 'student_platform')
-  },
+
+  // ============ 3. الجداول الدراسية ============
   {
     title: 'الجداول الدراسية',
     category: 'schedules',
-    items: SCREEN_PERMISSIONS.filter(item => item.category === 'schedules')
+    icon: 'schedule',
+    requiredPermissions: [{ resource: 'dashboard.attendance', action: 'view' }],
+    items: Object.values(SCREEN_PERMISSIONS).filter(s => s.category === 'schedules' && s.showInMenu),
+  },
+
+  // ============ 4. إدارة الاختبارات والدرجات ============
+  {
+    title: 'إدارة الاختبارات',
+    category: 'exams',
+    icon: 'assignment',
+    requiredPermissions: [{ resource: 'dashboard.questions', action: 'view' }],
+    items: Object.values(SCREEN_PERMISSIONS).filter(s => s.category === 'exams' && s.showInMenu),
   },
   {
     title: 'درجات المتدربين',
     category: 'grades',
-    items: SCREEN_PERMISSIONS.filter(item => item.category === 'grades')
+    icon: 'grade',
+    requiredPermissions: [{ resource: 'dashboard.trainees', action: 'view' }],
+    items: Object.values(SCREEN_PERMISSIONS).filter(s => s.category === 'grades' && s.showInMenu),
+  },
+
+  // ============ 5. منصة الطلاب والأدوات ============
+  {
+    title: 'إدارة منصة الطلاب',
+    category: 'student_platform',
+    icon: 'account-circle',
+    requiredPermissions: [{ resource: 'dashboard.trainees', action: 'view' }],
+    items: Object.values(SCREEN_PERMISSIONS).filter(s => s.category === 'student_platform' && s.showInMenu),
   },
   {
-    title: 'إدارة التسويق',
-    category: 'marketing',
-    items: SCREEN_PERMISSIONS.filter(item => item.category === 'marketing')
+    title: 'الأدوات الدراسية',
+    category: 'academic_supplies',
+    icon: 'inventory-2',
+    requiredPermissions: [{ resource: 'dashboard.id-cards', action: 'view' }],
+    items: Object.values(SCREEN_PERMISSIONS).filter(s => s.category === 'academic_supplies' && s.showInMenu),
   },
-  {
-    title: 'الأتمتة التلقائية',
-    category: 'automation',
-    items: SCREEN_PERMISSIONS.filter(item => item.category === 'automation')
-  },
+
+  // ============ 6. الإدارة المالية ============
   {
     title: 'الإدارة المالية',
     category: 'financial',
-    items: SCREEN_PERMISSIONS.filter(item => item.category === 'financial')
+    icon: 'account-balance',
+    requiredPermissions: [{ resource: 'dashboard.financial', action: 'view' }],
+    items: Object.values(SCREEN_PERMISSIONS).filter(s => s.category === 'financial' && s.showInMenu),
   },
+
+  // ============ 7. إدارة الطلبات ============
   {
     title: 'إدارة الطلبات',
     category: 'student_requests',
-    items: SCREEN_PERMISSIONS.filter(item => item.category === 'student_requests')
+    icon: 'description',
+    requiredPermissions: [
+      { resource: 'dashboard.deferral-requests', action: 'view' },
+      { resource: 'dashboard.trainee-requests', action: 'view' },
+    ],
+    requireAll: false,
+    items: Object.values(SCREEN_PERMISSIONS).filter(s => s.category === 'student_requests' && s.showInMenu),
+  },
+
+  // ============ 8. التسويق ============
+  {
+    title: 'إدارة التسويق',
+    category: 'marketing',
+    icon: 'campaign',
+    requiredPermissions: [
+      { resource: 'marketing.employees', action: 'view' },
+      { resource: 'marketing.targets', action: 'view' },
+      { resource: 'marketing.applications', action: 'view' },
+    ],
+    requireAll: false,
+    items: Object.values(SCREEN_PERMISSIONS).filter(s => s.category === 'marketing' && s.showInMenu),
+  },
+
+  // ============ 9. الأتمتة والنظام ============
+  {
+    title: 'الأتمتة التلقائية',
+    category: 'automation',
+    icon: 'smart-toy',
+    requiredPermissions: [{ resource: 'dashboard.settings', action: 'view' }],
+    items: Object.values(SCREEN_PERMISSIONS).filter(s => s.category === 'automation' && s.showInMenu),
   },
   {
     title: 'النظام',
     category: 'system',
-    items: SCREEN_PERMISSIONS.filter(item => item.category === 'system')
+    icon: 'settings',
+    requiredPermissions: [{ resource: 'dashboard.permissions', action: 'view' }],
+    items: Object.values(SCREEN_PERMISSIONS).filter(s => s.category === 'system' && s.showInMenu),
   },
-  {
-    title: 'الأدوات الدراسية',
-    category: 'academic_supplies',
-    items: SCREEN_PERMISSIONS.filter(item => item.category === 'academic_supplies')
-  }
 ];
 
-// ترتيب الأدوار حسب الصلاحيات (من الأعلى للأقل)
-export const ROLE_HIERARCHY: Record<UserRole, number> = {
+// ==================== ROLE DISPLAY CONFIG ====================
+
+export const ROLE_HIERARCHY: Record<string, number> = {
   super_admin: 1,
   admin: 2,
   manager: 3,
   accountant: 4,
-  employee: 5,
-  trainee_entry_clerk: 6
+  instructor: 5,
+  employee: 6,
+  trainee_entry_clerk: 7,
 };
 
-// أسماء الأدوار بالعربية
-export const ROLE_DISPLAY_NAMES: Record<UserRole, string> = {
+export const ROLE_DISPLAY_NAMES: Record<string, string> = {
   super_admin: 'مدير عام',
   admin: 'مدير النظام',
   manager: 'مدير',
   accountant: 'محاسب',
+  instructor: 'مدرب',
   employee: 'موظف',
-  trainee_entry_clerk: 'موظف إدخال بيانات المتدربين'
+  trainee_entry_clerk: 'موظف إدخال بيانات المتدربين',
 };
 
-// ألوان الأدوار
-export const ROLE_COLORS: Record<UserRole, string> = {
+export const ROLE_COLORS: Record<string, string> = {
   super_admin: '#e53e3e',
   admin: '#d69e2e',
   manager: '#3182ce',
   accountant: '#38a169',
+  instructor: '#6366f1',
   employee: '#805ad5',
-  trainee_entry_clerk: '#dd6b20'
+  trainee_entry_clerk: '#dd6b20',
 };

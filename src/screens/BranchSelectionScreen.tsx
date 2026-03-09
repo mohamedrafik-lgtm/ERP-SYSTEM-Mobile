@@ -203,6 +203,16 @@ const BranchSelectionScreen: React.FC<BranchSelectionScreenProps> = ({ navigatio
           </TouchableOpacity>
         </View>
 
+        {/* Change Login Type */}
+        <TouchableOpacity
+          style={styles.changeLoginTypeButton}
+          onPress={() => navigation.replace('LoginTypeSelection')}
+          activeOpacity={0.8}
+        >
+          <Icon name="swap-horiz" size={20} color="#6366f1" />
+          <Text style={styles.changeLoginTypeText}>تغيير نوع تسجيل الدخول</Text>
+        </TouchableOpacity>
+
         {/* Footer Info */}
         <View style={styles.footerInfo}>
           <View style={styles.infoCard}>
@@ -374,6 +384,19 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   buttonIcon: {
+    marginLeft: 8,
+  },
+  changeLoginTypeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    marginBottom: 16,
+  },
+  changeLoginTypeText: {
+    fontSize: 15,
+    color: '#6366f1',
+    fontWeight: '600',
     marginLeft: 8,
   },
   footerInfo: {

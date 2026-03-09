@@ -1,35 +1,58 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { useNavigation } from '@react-navigation/native';
 import PermissionService from '../services/PermissionService';
+import { PermissionAction } from '../types/permissions';
 
 interface PermissionGuardProps {
   children: React.ReactNode;
-  screenId: string;
+  /** اسم الشاشة في SCREEN_PERMISSIONS */
+  screenName?: string;
+  /** أو تحديد resource + action مباشرة */
+  resource?: string;
+  action?: PermissionAction;
+  /** @deprecated استخدم screenName بدلاً من screenId */
+  screenId?: string;
   fallbackComponent?: React.ComponentType<any>;
   showAccessDenied?: boolean;
-  navigation?: any;
 }
 
 const PermissionGuard: React.FC<PermissionGuardProps> = ({
   children,
+  screenName,
+  resource,
+  action = 'view',
   screenId,
   fallbackComponent: FallbackComponent,
   showAccessDenied = true,
-  navigation,
 }) => {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const navigation = useNavigation();
+
+  // دعم screenId القديم كـ fallback
+  const resolvedScreenName = screenName || screenId;
 
   useEffect(() => {
     checkPermission();
-  }, [screenId]);
+  }, [resolvedScreenName, resource, action]);
 
   const checkPermission = async () => {
     try {
       setIsLoading(true);
-      const canAccess = await PermissionService.canAccessScreen(screenId);
-      setHasPermission(canAccess);
+
+      if (resource) {
+        // فحص resource + action مباشرة
+        const perms = await PermissionService.fetchUserPermissions();
+        setHasPermission(PermissionService.hasPermission(perms, resource, action));
+      } else if (resolvedScreenName) {
+        // فحص بناءً على اسم الشاشة
+        const canAccess = await PermissionService.canAccessScreen(resolvedScreenName);
+        setHasPermission(canAccess);
+      } else {
+        setHasPermission(true); // لا صلاحية محددة = مسموح
+      }
     } catch (error) {
       console.error('Error checking permission:', error);
       setHasPermission(false);
@@ -39,12 +62,10 @@ const PermissionGuard: React.FC<PermissionGuardProps> = ({
   };
 
   const handleGoBack = () => {
-    if (navigation) {
-      if (navigation.canGoBack()) {
-        navigation.goBack();
-      } else {
-        navigation.navigate('Home');
-      }
+    if (navigation.canGoBack()) {
+      navigation.goBack();
+    } else {
+      (navigation as any).navigate('Home');
     }
   };
 
@@ -72,21 +93,19 @@ const PermissionGuard: React.FC<PermissionGuardProps> = ({
           <Icon name="lock" size={80} color="#e53e3e" />
           <Text style={styles.accessDeniedTitle}>ممنوع الوصول</Text>
           <Text style={styles.accessDeniedMessage}>
-            {PermissionService.getAccessDeniedMessage()}
+            {PermissionService.getAccessDeniedMessage(resolvedScreenName)}
           </Text>
           <Text style={styles.accessDeniedSubMessage}>
             يرجى التواصل مع المدير للحصول على الصلاحيات المطلوبة
           </Text>
           
-          {navigation && (
-            <TouchableOpacity 
-              style={styles.goBackButton}
-              onPress={handleGoBack}
-            >
-              <Icon name="arrow-back" size={20} color="#fff" />
-              <Text style={styles.goBackText}>العودة</Text>
-            </TouchableOpacity>
-          )}
+          <TouchableOpacity 
+            style={styles.goBackButton}
+            onPress={handleGoBack}
+          >
+            <Icon name="arrow-back" size={20} color="#fff" />
+            <Text style={styles.goBackText}>العودة</Text>
+          </TouchableOpacity>
         </View>
       </View>
     );

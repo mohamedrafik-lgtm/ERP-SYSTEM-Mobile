@@ -1,29 +1,64 @@
-import { useState, useEffect, useCallback } from 'react';
+// usePermissions Hook - يطابق نظام الويب (Resource + Action)
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import PermissionService from '../services/PermissionService';
-import { PermissionConfig, UserRole } from '../types/permissions';
+import {
+  UserPermissions,
+  PermissionAction,
+  ScreenPermissionConfig,
+  MenuSection,
+  UserRole,
+} from '../types/permissions';
 
 interface UsePermissionsReturn {
-  canAccess: (screenId: string) => Promise<boolean>;
-  canAccessSync: (screenId: string) => boolean;
-  allowedScreens: PermissionConfig[];
-  allowedMenuSections: any[];
+  /** الصلاحيات الخام من الـ API */
+  userPermissions: UserPermissions | null;
+  /** التحقق من صلاحية (resource + action) */
+  hasPermission: (resource: string, action: PermissionAction) => boolean;
+  /** اختصارات سريعة */
+  canView: (resource: string) => boolean;
+  canCreate: (resource: string) => boolean;
+  canEdit: (resource: string) => boolean;
+  canDelete: (resource: string) => boolean;
+  canManage: (resource: string) => boolean;
+  canExport: (resource: string) => boolean;
+  /** التحقق من صلاحية شاشة */
+  canAccessScreen: (screenName: string) => boolean;
+  /** التحقق من صلاحية إضافية لشاشة */
+  hasScreenAction: (screenName: string, actionKey: string) => boolean;
+  /** الشاشات المسموحة */
+  allowedScreens: ScreenPermissionConfig[];
+  /** أقسام القائمة المفلترة */
+  allowedMenuSections: MenuSection[];
+  /** التحقق من الدور */
+  hasRole: (roleName: string) => boolean;
+  hasAnyRole: (roleNames: string[]) => boolean;
+  /** معلومات الدور */
   userRole: string | null;
-  userRoleInfo: any;
-  isLoading: boolean;
+  userRoleInfo: {
+    name: string;
+    displayName: string;
+    color: string;
+    level: number;
+    allRoles: string[];
+  } | null;
+  /** اختصارات الأدوار */
   isSuperAdmin: boolean;
   isAdmin: boolean;
   isManager: boolean;
   isAccountant: boolean;
-  hasMinimumRole: (role: UserRole) => boolean;
+  isInstructor: boolean;
+  /** حالة التحميل */
+  isLoading: boolean;
+  /** إعادة التحميل */
   refresh: () => Promise<void>;
 }
 
 export const usePermissions = (): UsePermissionsReturn => {
-  const [allowedScreens, setAllowedScreens] = useState<PermissionConfig[]>([]);
-  const [allowedMenuSections, setAllowedMenuSections] = useState<any[]>([]);
-  const [userRoleInfo, setUserRoleInfo] = useState<any>(null);
+  const [userPermissions, setUserPermissions] = useState<UserPermissions | null>(null);
+  const [allowedScreens, setAllowedScreens] = useState<ScreenPermissionConfig[]>([]);
+  const [allowedMenuSections, setAllowedMenuSections] = useState<MenuSection[]>([]);
+  const [userRoleInfo, setUserRoleInfo] = useState<UsePermissionsReturn['userRoleInfo']>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [cachedPermissions, setCachedPermissions] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     loadPermissions();
@@ -32,26 +67,18 @@ export const usePermissions = (): UsePermissionsReturn => {
   const loadPermissions = async () => {
     try {
       setIsLoading(true);
-      
-      // تحميل الصلاحيات والقوائم المسموحة
-      const [screens, menuSections, roleInfo] = await Promise.all([
+
+      const [perms, screens, sections, roleInfo] = await Promise.all([
+        PermissionService.fetchUserPermissions(),
         PermissionService.getAllowedScreens(),
         PermissionService.getAllowedMenuSections(),
         PermissionService.getCurrentUserRoleInfo(),
       ]);
 
+      setUserPermissions(perms);
       setAllowedScreens(screens);
-      setAllowedMenuSections(menuSections);
+      setAllowedMenuSections(sections);
       setUserRoleInfo(roleInfo);
-
-      // تخزين الصلاحيات في الذاكرة المؤقتة للوصول السريع
-      const permissionsCache: Record<string, boolean> = {};
-      screens.forEach(screen => {
-        permissionsCache[screen.id] = true;
-        permissionsCache[screen.screen] = true;
-      });
-      setCachedPermissions(permissionsCache);
-
     } catch (error) {
       console.error('Error loading permissions:', error);
     } finally {
@@ -59,56 +86,159 @@ export const usePermissions = (): UsePermissionsReturn => {
     }
   };
 
-  const canAccess = useCallback(async (screenId: string): Promise<boolean> => {
-    return await PermissionService.canAccessScreen(screenId);
-  }, []);
+  // ============ Permission Checks ============
 
-  const canAccessSync = useCallback((screenId: string): boolean => {
-    return cachedPermissions[screenId] || false;
-  }, [cachedPermissions]);
+  const hasPermission = useCallback(
+    (resource: string, action: PermissionAction): boolean => {
+      return PermissionService.hasPermission(userPermissions, resource, action);
+    },
+    [userPermissions],
+  );
 
-  const hasMinimumRole = useCallback((role: UserRole): boolean => {
-    if (!userRoleInfo) return false;
-    const userLevel = userRoleInfo.level || 999;
-    const requiredLevel = PermissionService.getAllScreens().find(s => s.allowedRoles.includes(role))?.priority || 999;
-    return userLevel <= requiredLevel;
-  }, [userRoleInfo]);
+  const canView = useCallback(
+    (resource: string) => hasPermission(resource, 'view'),
+    [hasPermission],
+  );
+
+  const canCreate = useCallback(
+    (resource: string) => hasPermission(resource, 'create'),
+    [hasPermission],
+  );
+
+  const canEdit = useCallback(
+    (resource: string) => hasPermission(resource, 'edit'),
+    [hasPermission],
+  );
+
+  const canDelete = useCallback(
+    (resource: string) => hasPermission(resource, 'delete'),
+    [hasPermission],
+  );
+
+  const canManage = useCallback(
+    (resource: string) => hasPermission(resource, 'manage'),
+    [hasPermission],
+  );
+
+  const canExport = useCallback(
+    (resource: string) => hasPermission(resource, 'export'),
+    [hasPermission],
+  );
+
+  // ============ Screen Access ============
+
+  const canAccessScreen = useCallback(
+    (screenName: string): boolean => {
+      return allowedScreens.some(s => s.screenName === screenName);
+    },
+    [allowedScreens],
+  );
+
+  const hasScreenAction = useCallback(
+    (screenName: string, actionKey: string): boolean => {
+      const config = PermissionService.findScreen(screenName);
+      if (!config?.additionalPermissions?.[actionKey]) return false;
+      const { resource, action } = config.additionalPermissions[actionKey];
+      return PermissionService.hasPermission(userPermissions, resource, action);
+    },
+    [userPermissions],
+  );
+
+  // ============ Role Checks ============
+
+  const hasRole = useCallback(
+    (roleName: string): boolean => {
+      return userPermissions?.roles.includes(roleName) || false;
+    },
+    [userPermissions],
+  );
+
+  const hasAnyRole = useCallback(
+    (roleNames: string[]): boolean => {
+      return roleNames.some(r => userPermissions?.roles.includes(r) || false);
+    },
+    [userPermissions],
+  );
+
+  const isSuperAdmin = useMemo(
+    () => userPermissions?.roles.includes('super_admin') || false,
+    [userPermissions],
+  );
+  const isAdmin = useMemo(
+    () => hasAnyRole(['super_admin', 'admin']),
+    [hasAnyRole],
+  );
+  const isManager = useMemo(
+    () => hasAnyRole(['super_admin', 'admin', 'manager']),
+    [hasAnyRole],
+  );
+  const isAccountant = useMemo(
+    () => hasAnyRole(['super_admin', 'admin', 'manager', 'accountant']),
+    [hasAnyRole],
+  );
+  const isInstructor = useMemo(
+    () => userPermissions?.roles.includes('instructor') || false,
+    [userPermissions],
+  );
 
   const refresh = useCallback(async () => {
+    await PermissionService.clearCache();
     await loadPermissions();
   }, []);
 
   return {
-    canAccess,
-    canAccessSync,
+    userPermissions,
+    hasPermission,
+    canView,
+    canCreate,
+    canEdit,
+    canDelete,
+    canManage,
+    canExport,
+    canAccessScreen,
+    hasScreenAction,
     allowedScreens,
     allowedMenuSections,
+    hasRole,
+    hasAnyRole,
     userRole: userRoleInfo?.name || null,
     userRoleInfo,
+    isSuperAdmin,
+    isAdmin,
+    isManager,
+    isAccountant,
+    isInstructor,
     isLoading,
-    isSuperAdmin: userRoleInfo?.name === 'super_admin',
-    isAdmin: ['super_admin', 'admin'].includes(userRoleInfo?.name),
-    isManager: ['super_admin', 'admin', 'manager'].includes(userRoleInfo?.name),
-    isAccountant: ['super_admin', 'admin', 'manager', 'accountant'].includes(userRoleInfo?.name),
-    hasMinimumRole,
     refresh,
   };
 };
 
-// Hook للتحقق من صلاحية شاشة واحدة
-export const useScreenPermission = (screenId: string) => {
+// ============ Hook لفحص صلاحية شاشة واحدة ============
+
+export const useScreenPermission = (screenName: string) => {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [screenActions, setScreenActions] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     checkPermission();
-  }, [screenId]);
+  }, [screenName]);
 
   const checkPermission = async () => {
     try {
       setIsLoading(true);
-      const canAccess = await PermissionService.canAccessScreen(screenId);
+      const canAccess = await PermissionService.canAccessScreen(screenName);
       setHasPermission(canAccess);
+
+      // فحص الصلاحيات الإضافية
+      const config = PermissionService.findScreen(screenName);
+      if (config?.additionalPermissions) {
+        const actions: Record<string, boolean> = {};
+        for (const key of Object.keys(config.additionalPermissions)) {
+          actions[key] = await PermissionService.hasScreenAction(screenName, key);
+        }
+        setScreenActions(actions);
+      }
     } catch (error) {
       console.error('Error checking screen permission:', error);
       setHasPermission(false);
@@ -117,61 +247,18 @@ export const useScreenPermission = (screenId: string) => {
     }
   };
 
-  const refresh = useCallback(async () => {
-    await checkPermission();
-  }, [screenId]);
-
   return {
     hasPermission,
     isLoading,
-    refresh,
-  };
-};
-
-// Hook للتحقق من دور المستخدم
-export const useUserRole = () => {
-  const [roleInfo, setRoleInfo] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    loadRoleInfo();
-  }, []);
-
-  const loadRoleInfo = async () => {
-    try {
-      setIsLoading(true);
-      const info = await PermissionService.getCurrentUserRoleInfo();
-      setRoleInfo(info);
-    } catch (error) {
-      console.error('Error loading role info:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const hasRole = useCallback((role: UserRole): boolean => {
-    return roleInfo?.name === role;
-  }, [roleInfo]);
-
-  const hasMinimumRole = useCallback(async (role: UserRole): Promise<boolean> => {
-    return await PermissionService.hasMinimumRole(role);
-  }, []);
-
-  const refresh = useCallback(async () => {
-    await loadRoleInfo();
-  }, []);
-
-  return {
-    roleInfo,
-    isLoading,
-    hasRole,
-    hasMinimumRole,
-    refresh,
-    isSuperAdmin: roleInfo?.name === 'super_admin',
-    isAdmin: ['super_admin', 'admin'].includes(roleInfo?.name),
-    isManager: ['super_admin', 'admin', 'manager'].includes(roleInfo?.name),
-    isAccountant: ['super_admin', 'admin', 'manager', 'accountant'].includes(roleInfo?.name),
-    isEmployee: ['super_admin', 'admin', 'manager', 'accountant', 'employee'].includes(roleInfo?.name),
+    /** صلاحيات إضافية (create, edit, delete, manage, إلخ) */
+    actions: screenActions,
+    canCreate: screenActions.create || false,
+    canEdit: screenActions.edit || false,
+    canDelete: screenActions.delete || false,
+    canManage: screenActions.manage || false,
+    canExport: screenActions.export || false,
+    canTransfer: screenActions.transfer || false,
+    refresh: checkPermission,
   };
 };
 

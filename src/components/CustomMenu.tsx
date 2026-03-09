@@ -154,7 +154,10 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
       }
     } else {
       try {
-        navigation.navigate(item.screen);
+        const screenName = item.screen || item.screenName;
+        if (screenName) {
+          navigation.navigate(screenName);
+        }
       } catch (error) {
         console.error('Navigation error:', error);
         Toast.show({
@@ -228,27 +231,30 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
                   <View key={sectionIndex} style={styles.menuSection}>
                     <Text style={styles.sectionTitle}>{section.title}</Text>
                     {section.items
-                      .sort((a: MenuItem, b: MenuItem) => a.priority - b.priority)
-                      .map((item: MenuItem) => (
+                      .sort((a: any, b: any) => a.priority - b.priority)
+                      .map((item: any) => {
+                      const itemScreen = item.screen || item.screenName;
+                      const isActive = activeRouteName === itemScreen;
+                      return (
                       <TouchableOpacity
-                        key={item.id}
+                        key={item.id || item.screenName}
                         style={[
                           styles.menuItem,
-                          activeRouteName === item.screen && styles.activeMenuItem,
+                          isActive && styles.activeMenuItem,
                         ]}
                         onPress={() => handleMenuPress(item)}
                       >
                         <View style={styles.menuItemContent}>
                           <View style={[
                             styles.iconContainer,
-                            activeRouteName === item.screen && styles.activeIconContainer,
+                            isActive && styles.activeIconContainer,
                             item.isLogout && styles.logoutIconContainer,
                           ]}>
                             <Icon
                               name={item.icon}
                               size={22}
                               color={
-                                activeRouteName === item.screen
+                                isActive
                                   ? '#1a237e'
                                   : item.isLogout
                                   ? '#e53e3e'
@@ -260,18 +266,18 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
                           <Text
                             style={[
                               styles.menuText,
-                              activeRouteName === item.screen && styles.activeMenuText,
+                              isActive && styles.activeMenuText,
                               item.isLogout && styles.logoutText,
                             ]}
                           >
                             {item.title}
                           </Text>
                         </View>
-                        {activeRouteName === item.screen && (
+                        {isActive && (
                           <View style={styles.activeIndicator} />
                         )}
                       </TouchableOpacity>
-                    ))}
+                    );})}
                   </View>
                 ))
               )}
