@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity, Alert } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import Toast from 'react-native-toast-message';
 import CustomMenu from '../components/CustomMenu';
 import AuthService from '../services/AuthService';
 import type { RoleByIdResponse } from '../types/permissions';
@@ -11,6 +12,7 @@ const RoleDetailsScreen = ({ navigation, route }: any) => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [role, setRole] = useState<RoleByIdResponse | null>(null);
+  const [togglingPerm, setTogglingPerm] = useState<string | null>(null);
 
   const loadRole = async () => {
     try {
@@ -74,6 +76,56 @@ const RoleDetailsScreen = ({ navigation, route }: any) => {
       loadRole(); // إعادة تحميل البيانات
     } catch (error: any) {
       Alert.alert('خطأ', error.message || 'فشل في تغيير حالة الدور');
+    }
+  };
+
+  const handleDeleteRole = () => {
+    if (role?.isSystem) {
+      Alert.alert('تنبيه', 'لا يمكن حذف الأدوار النظامية');
+      return;
+    }
+    Alert.alert('تأكيد الحذف', 'هل أنت متأكد من حذف هذا الدور؟ لا يمكن التراجع عن هذا الإجراء.', [
+      { text: 'إلغاء', style: 'cancel' },
+      {
+        text: 'حذف', style: 'destructive', onPress: async () => {
+          try {
+            await AuthService.deleteRole(id);
+            Toast.show({ type: 'success', text1: 'نجح', text2: 'تم حذف الدور بنجاح' });
+            navigation.goBack();
+          } catch (error: any) {
+            Alert.alert('خطأ', error.message || 'فشل في حذف الدور');
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleTogglePermission = async (permissionId: string, currentGranted: boolean) => {
+    if (!role) return;
+    setTogglingPerm(permissionId);
+    try {
+      await AuthService.assignPermissionsToRole(id, {
+        permissions: [{ permissionId, granted: !currentGranted }],
+      });
+      // Update local state instantly
+      setRole((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          rolePermissions: prev.rolePermissions.map((rp) =>
+            rp.permissionId === permissionId ? { ...rp, granted: !currentGranted } : rp
+          ),
+        };
+      });
+      Toast.show({
+        type: 'success',
+        text1: !currentGranted ? 'تم السماح' : 'تم الرفض',
+        text2: !currentGranted ? 'تم منح الصلاحية بنجاح' : 'تم رفض الصلاحية بنجاح',
+      });
+    } catch (err: any) {
+      Alert.alert('خطأ', err.message || 'فشل في تغيير حالة الصلاحية');
+    } finally {
+      setTogglingPerm(null);
     }
   };
 
@@ -172,6 +224,33 @@ const RoleDetailsScreen = ({ navigation, route }: any) => {
               </View>
             </View>
 
+            {/* Action buttons */}
+            <View style={styles.actionRow}>
+              <TouchableOpacity
+                style={[styles.roleActionBtn, { backgroundColor: '#1a237e' }]}
+                onPress={() => navigation.navigate('ManageRolePermissions', { roleId: id, roleName: role.displayName })}
+              >
+                <Icon name="key" size={18} color="#fff" />
+                <Text style={styles.roleActionBtnText}>إدارة الصلاحيات</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.roleActionBtn, { backgroundColor: '#f59e0b' }]}
+                onPress={() => navigation.navigate('CreateEditRole', { role })}
+              >
+                <Icon name="edit" size={18} color="#fff" />
+                <Text style={styles.roleActionBtnText}>تعديل الدور</Text>
+              </TouchableOpacity>
+              {!role.isSystem && (
+                <TouchableOpacity
+                  style={[styles.roleActionBtn, { backgroundColor: '#dc2626' }]}
+                  onPress={handleDeleteRole}
+                >
+                  <Icon name="delete" size={18} color="#fff" />
+                  <Text style={styles.roleActionBtnText}>حذف</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
             <View style={styles.card}>
               <Text style={styles.sectionTitle}>الصلاحيات</Text>
               <View style={{ gap: 10 }}>
@@ -186,9 +265,23 @@ const RoleDetailsScreen = ({ navigation, route }: any) => {
                         <Text style={styles.permissionTitle}>{rp.permission.displayName || `${rp.permission.resource}.${rp.permission.action}`}</Text>
                         <Text style={styles.permissionSubtitle}>#{rp.permission.resource} · {rp.permission.action}</Text>
                       </View>
-                      <Text style={[styles.permissionBadge, rp.granted ? styles.badgeGranted : styles.badgeDenied]}>
-                        {rp.granted ? 'مسموح' : 'مرفوض'}
-                      </Text>
+                      <TouchableOpacity
+                        style={[styles.permissionBadgeBtn, rp.granted ? styles.badgeGrantedBtn : styles.badgeDeniedBtn]}
+                        onPress={() => handleTogglePermission(rp.permissionId, rp.granted)}
+                        disabled={togglingPerm === rp.permissionId}
+                        activeOpacity={0.7}
+                      >
+                        {togglingPerm === rp.permissionId ? (
+                          <ActivityIndicator size="small" color={rp.granted ? '#059669' : '#dc2626'} />
+                        ) : (
+                          <>
+                            <Icon name={rp.granted ? 'check-circle' : 'cancel'} size={14} color={rp.granted ? '#059669' : '#dc2626'} />
+                            <Text style={[styles.permissionBadgeText, { color: rp.granted ? '#059669' : '#dc2626' }]}>
+                              {rp.granted ? 'مسموح' : 'مرفوض'}
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
                     </View>
                   );
                 })}
@@ -436,6 +529,27 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  permissionBadgeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  permissionBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  badgeGrantedBtn: {
+    backgroundColor: '#ecfdf5',
+    borderColor: '#a7f3d0',
+  },
+  badgeDeniedBtn: {
+    backgroundColor: '#fef2f2',
+    borderColor: '#fecaca',
+  },
   badgeGranted: {
     backgroundColor: '#ecfdf5',
     color: '#059669',
@@ -514,6 +628,26 @@ const styles = StyleSheet.create({
   removeButton: {
     backgroundColor: '#fef2f2',
     borderColor: '#dc2626',
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  roleActionBtn: {
+    flex: 1,
+    minWidth: 100,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  roleActionBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#fff',
   },
 });
 

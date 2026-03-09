@@ -36,6 +36,8 @@ import RequestsSettingsScreen from './src/screens/RequestsSettingsScreen';
 import PermissionsScreen from './src/screens/PermissionsScreen';
 import RoleDetailsScreen from './src/screens/RoleDetailsScreen';
 import AddPermissionScreen from './src/screens/AddPermissionScreen';
+import CreateEditRoleScreen from './src/screens/CreateEditRoleScreen';
+import ManageRolePermissionsScreen from './src/screens/ManageRolePermissionsScreen';
 import AddUserScreen from './src/screens/AddUserScreen';
 import UsersListScreen from './src/screens/UsersListScreen';
 import EditUserScreen from './src/screens/EditUserScreen';
@@ -135,6 +137,8 @@ const GuardedRequestsSettings = withPermissionGuard(RequestsSettingsScreen, 'Req
 const GuardedPermissions = withPermissionGuard(PermissionsScreen, 'Permissions');
 const GuardedRoleDetails = withPermissionGuard(RoleDetailsScreen, 'RoleDetails');
 const GuardedAddPermission = withPermissionGuard(AddPermissionScreen, 'AddPermission');
+const GuardedCreateEditRole = withPermissionGuard(CreateEditRoleScreen, 'Permissions');
+const GuardedManageRolePermissions = withPermissionGuard(ManageRolePermissionsScreen, 'Permissions');
 const GuardedAcademicSupplies = withPermissionGuard(AcademicSuppliesScreen, 'AcademicSupplies');
 const GuardedDeliveryTracking = withPermissionGuard(DeliveryTrackingScreen, 'DeliveryTracking');
 const GuardedAddStudyMaterial = withPermissionGuard(AddStudyMaterialScreen, 'AddStudyMaterial');
@@ -241,6 +245,8 @@ function App() {
           <Stack.Screen name="Permissions" component={GuardedPermissions} />
           <Stack.Screen name="RoleDetails" component={GuardedRoleDetails} />
           <Stack.Screen name="AddPermission" component={GuardedAddPermission} />
+          <Stack.Screen name="CreateEditRole" component={GuardedCreateEditRole} />
+          <Stack.Screen name="ManageRolePermissions" component={GuardedManageRolePermissions} />
           <Stack.Screen name="AddUser" component={GuardedAddUser} />
           <Stack.Screen name="UsersList" component={GuardedUsersList} />
           <Stack.Screen name="EditUser" component={GuardedEditUser} />

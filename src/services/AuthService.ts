@@ -4618,6 +4618,177 @@ class AuthService {
       throw error;
     }
   }
+
+  // ==================== PERMISSIONS MANAGEMENT ====================
+
+  // Create a new role
+  static async createRole(roleData: import('../types/permissions').CreateRoleRequest): Promise<import('../types/permissions').RoleWithRelations> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/permissions/roles`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(roleData),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed to create role: ${response.status}`);
+      }
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error creating role:', error);
+      throw error;
+    }
+  }
+
+  // Update a role
+  static async updateRole(roleId: string, roleData: import('../types/permissions').UpdateRoleRequest): Promise<import('../types/permissions').RoleWithRelations> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/permissions/roles/${roleId}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(roleData),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed to update role: ${response.status}`);
+      }
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error updating role:', error);
+      throw error;
+    }
+  }
+
+  // Delete a role
+  static async deleteRole(roleId: string): Promise<void> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/permissions/roles/${roleId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed to delete role: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('[AuthService] Error deleting role:', error);
+      throw error;
+    }
+  }
+
+  // Get all permissions
+  static async getAllPermissions(category?: string): Promise<import('../types/permissions').PermissionItem[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const params = category ? `?category=${encodeURIComponent(category)}` : '';
+      const response = await fetch(`${baseUrl}/api/permissions/permissions${params}`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch permissions: ${response.status}`);
+      }
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching permissions:', error);
+      throw error;
+    }
+  }
+
+  // Assign permissions to a role
+  static async assignPermissionsToRole(roleId: string, data: import('../types/permissions').AssignPermissionsToRoleRequest): Promise<void> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/permissions/roles/${roleId}/permissions`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed to assign permissions: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('[AuthService] Error assigning permissions to role:', error);
+      throw error;
+    }
+  }
+
+  // Get permissions stats
+  static async getPermissionStats(): Promise<import('../types/permissions').PermissionStats> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/permissions/stats`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch permission stats: ${response.status}`);
+      }
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching permission stats:', error);
+      throw error;
+    }
+  }
+
+  // Get all users (for assigning roles)
+  static async getAllUsers(): Promise<any[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/users?limit=1000`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch users: ${response.status}`);
+      }
+      const data = await response.json();
+      return data.data || data;
+    } catch (error) {
+      console.error('[AuthService] Error fetching all users:', error);
+      throw error;
+    }
+  }
+
+  // Assign role to user (using the proper endpoint)
+  static async assignRoleToUser(data: { userId: string; roleId: string }): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/permissions/assign-role`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed to assign role: ${response.status}`);
+      }
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error assigning role to user:', error);
+      throw error;
+    }
+  }
 }
 
 export default AuthService;

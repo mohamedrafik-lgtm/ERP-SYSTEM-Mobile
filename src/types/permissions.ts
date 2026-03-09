@@ -877,3 +877,99 @@ export const ROLE_COLORS: Record<string, string> = {
   employee: '#805ad5',
   trainee_entry_clerk: '#dd6b20',
 };
+
+// ==================== API RESPONSE TYPES ====================
+
+export interface PermissionItem {
+  id: string;
+  resource: string;
+  action: string;
+  displayName: string;
+  description?: string;
+  category?: string;
+  conditions?: any;
+  isSystem: boolean;
+  createdAt: string;
+  updatedAt: string;
+  _count?: {
+    rolePermissions: number;
+    userPermissions: number;
+  };
+}
+
+export interface RolePermissionItem {
+  permissionId: string;
+  granted: boolean;
+  conditions?: any;
+  expiresAt?: string | null;
+  permission: PermissionItem;
+}
+
+export interface UserRoleItem {
+  userId: string;
+  roleId: string;
+  isActive: boolean;
+  assignedAt: string;
+  expiresAt?: string | null;
+  user: {
+    id: string;
+    name: string;
+    email: string;
+  };
+}
+
+export interface RoleWithRelations {
+  id: string;
+  name: string;
+  displayName: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+  priority: number;
+  isSystem: boolean;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  rolePermissions?: RolePermissionItem[];
+  userRoles?: UserRoleItem[];
+  _count?: {
+    userRoles: number;
+  };
+}
+
+export type RolesResponse = RoleWithRelations[];
+
+export type RoleByIdResponse = RoleWithRelations;
+
+export interface CreateRoleRequest {
+  name: string;
+  displayName: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+  priority?: number;
+  isActive?: boolean;
+}
+
+export interface UpdateRoleRequest {
+  displayName?: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+  priority?: number;
+  isActive?: boolean;
+}
+
+export interface AssignPermissionsToRoleRequest {
+  permissions: Array<{
+    permissionId: string;
+    granted: boolean;
+  }>;
+}
+
+export interface PermissionStats {
+  totalRoles: number;
+  activeRoles: number;
+  totalPermissions: number;
+  totalUsers: number;
+}

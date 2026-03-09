@@ -184,6 +184,15 @@ const PermissionsScreen = ({ navigation }: any) => {
           </View>
         )}
       </ScrollView>
+
+      {/* FAB: إضافة دور جديد */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => navigation.navigate('CreateEditRole')}
+        activeOpacity={0.8}
+      >
+        <Icon name="add" size={26} color="#fff" />
+      </TouchableOpacity>
     </View>
   );
 };
