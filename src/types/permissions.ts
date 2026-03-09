@@ -725,6 +725,47 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     priority: 3,
     showInMenu: false,
   },
+  // ============ حضور الموظفين ============
+  StaffAttendance: {
+    screenName: 'StaffAttendance',
+    title: 'حضور الموظفين',
+    icon: 'fingerprint',
+    requiredPermission: { resource: 'dashboard.users', action: 'view' },
+    category: 'staff_attendance',
+    priority: 1,
+    showInMenu: true,
+    description: 'تسجيل وإدارة حضور وغياب الموظفين',
+  },
+  StaffAttendanceLogs: {
+    screenName: 'StaffAttendanceLogs',
+    title: 'سجل الحضور',
+    icon: 'list-alt',
+    requiredPermission: { resource: 'dashboard.users', action: 'view' },
+    category: 'staff_attendance',
+    priority: 2,
+    showInMenu: true,
+    description: 'عرض سجلات الحضور والانصراف',
+  },
+  StaffLeaveRequests: {
+    screenName: 'StaffLeaveRequests',
+    title: 'طلبات الإجازة',
+    icon: 'event-busy',
+    requiredPermission: { resource: 'dashboard.users', action: 'view' },
+    category: 'staff_attendance',
+    priority: 3,
+    showInMenu: true,
+    description: 'إدارة طلبات إجازات الموظفين',
+  },
+  StaffAttendanceSettings: {
+    screenName: 'StaffAttendanceSettings',
+    title: 'إعدادات الحضور',
+    icon: 'settings',
+    requiredPermission: { resource: 'dashboard.settings', action: 'view' },
+    category: 'staff_attendance',
+    priority: 4,
+    showInMenu: true,
+    description: 'إعدادات نظام الحضور والعطلات',
+  },
 };
 
 // ==================== MENU SECTIONS ====================
@@ -829,7 +870,16 @@ export const MENU_SECTIONS: MenuSection[] = [
     items: Object.values(SCREEN_PERMISSIONS).filter(s => s.category === 'marketing' && s.showInMenu),
   },
 
-  // ============ 9. الأتمتة والنظام ============
+  // ============ 9. حضور الموظفين ============
+  {
+    title: 'حضور الموظفين',
+    category: 'staff_attendance',
+    icon: 'fingerprint',
+    requiredPermissions: [{ resource: 'dashboard.users', action: 'view' }],
+    items: Object.values(SCREEN_PERMISSIONS).filter(s => s.category === 'staff_attendance' && s.showInMenu),
+  },
+
+  // ============ 10. الأتمتة والنظام ============
   {
     title: 'الأتمتة التلقائية',
     category: 'automation',

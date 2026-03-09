@@ -1,18 +1,148 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Dimensions, Animated } from 'react-native';
+import React, {useState, useEffect, useCallback, useRef} from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+  Dimensions,
+  Animated,
+  RefreshControl,
+  Image,
+} from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import CustomMenu from '../components/CustomMenu';
 import AuthService from '../services/AuthService';
 import BranchService from '../services/BranchService';
-import { usePermissions } from '../hooks/usePermissions';
+import {usePermissions} from '../hooks/usePermissions';
 
-const { width } = Dimensions.get('window');
+const {width} = Dimensions.get('window');
+const CARD_W = (width - 56) / 2;
 
-const HomeScreen = ({ navigation }: any) => {
-  const { userRoleInfo, isAdmin, isSuperAdmin, isLoading: permissionsLoading } = usePermissions();
-  // فقط super_admin و admin و accountant يمكنهم الوصول للبيانات المحاسبية
-  const canAccessFinancial = isSuperAdmin || isAdmin || (userRoleInfo?.name === 'accountant');
-  
+// ====== Animated Horizontal Bar ======
+const AnimBar = ({
+  pct,
+  color,
+  delay = 0,
+}: {
+  pct: number;
+  color: string;
+  delay?: number;
+}) => {
+  const w = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(w, {
+      toValue: Math.min(pct, 100),
+      duration: 900,
+      delay,
+      useNativeDriver: false,
+    }).start();
+  }, [pct, delay, w]);
+  return (
+    <View style={barStyles.track}>
+      <Animated.View
+        style={[
+          barStyles.fill,
+          {
+            backgroundColor: color,
+            width: w.interpolate({
+              inputRange: [0, 100],
+              outputRange: ['0%', '100%'],
+            }),
+          },
+        ]}
+      />
+    </View>
+  );
+};
+
+const barStyles = StyleSheet.create({
+  track: {
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#f1f5f9',
+    overflow: 'hidden',
+  },
+  fill: {height: 10, borderRadius: 5},
+});
+
+// ====== Vertical Mini Bar Chart ======
+const VerticalBarChart = ({
+  data,
+}: {
+  data: {label: string; value: number; color: string}[];
+}) => {
+  const maxVal = Math.max(...data.map(d => d.value), 1);
+  const barAnims = useRef(data.map(() => new Animated.Value(0))).current;
+
+  useEffect(() => {
+    barAnims.forEach((anim, i) => {
+      Animated.timing(anim, {
+        toValue: 1,
+        duration: 700,
+        delay: i * 120,
+        useNativeDriver: false,
+      }).start();
+    });
+  }, [barAnims]);
+
+  return (
+    <View style={vbStyles.container}>
+      {data.map((d, i) => {
+        const targetH = Math.max((d.value / maxVal) * 100, 6);
+        return (
+          <View key={d.label} style={vbStyles.col}>
+            <Text style={[vbStyles.value, {color: d.color}]}>{d.value}</Text>
+            <Animated.View
+              style={[
+                vbStyles.bar,
+                {
+                  backgroundColor: d.color,
+                  height: barAnims[i]
+                    ? barAnims[i].interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, targetH],
+                      })
+                    : targetH,
+                },
+              ]}
+            />
+            <Text style={vbStyles.label}>{d.label}</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+};
+
+const vbStyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-around',
+    height: 150,
+    paddingTop: 10,
+    paddingBottom: 4,
+  },
+  col: {alignItems: 'center', flex: 1},
+  value: {fontSize: 13, fontWeight: '800', marginBottom: 6},
+  bar: {width: 30, borderRadius: 8, minHeight: 6},
+  label: {
+    fontSize: 10,
+    color: '#6b7280',
+    marginTop: 8,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+});
+
+// ====== Main Component ======
+const HomeScreen = ({navigation}: any) => {
+  const {userRoleInfo, isAdmin, isSuperAdmin} = usePermissions();
+  const canAccessFinancial =
+    isSuperAdmin || isAdmin || userRoleInfo?.name === 'accountant';
+
   const [stats, setStats] = useState({
     totalPrograms: 0,
     totalStudents: 0,
@@ -23,642 +153,377 @@ const HomeScreen = ({ navigation }: any) => {
     totalBalance: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [branchName, setBranchName] = useState('');
 
-  // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
-  const statsAnimations = useRef([
-    new Animated.Value(0),
-    new Animated.Value(0),
-    new Animated.Value(0),
-    new Animated.Value(0),
-  ]).current;
-  const actionsAnimations = useRef([
-    new Animated.Value(0),
-    new Animated.Value(0),
-    new Animated.Value(0),
-    new Animated.Value(0),
-  ]).current;
 
   useEffect(() => {
-    fetchStats();
-    fetchBranchInfo();
-    startAnimations();
+    fetchData();
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const startAnimations = () => {
-    // Welcome section animation
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 1000,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 1,
-        duration: 1200,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    // Logo rotation animation
-    Animated.loop(
-      Animated.timing(rotateAnim, {
-        toValue: 1,
-        duration: 10000,
-        useNativeDriver: true,
-      })
-    ).start();
-
-    // Stats cards staggered animation
-    setTimeout(() => {
-      statsAnimations.forEach((anim, index) => {
-        Animated.timing(anim, {
-          toValue: 1,
-          duration: 600,
-          delay: index * 150,
-          useNativeDriver: true,
-        }).start();
-      });
-    }, 500);
-
-    // Action buttons staggered animation
-    setTimeout(() => {
-      actionsAnimations.forEach((anim, index) => {
-        Animated.timing(anim, {
-          toValue: 1,
-          duration: 600,
-          delay: index * 100,
-          useNativeDriver: true,
-        }).start();
-      });
-    }, 1000);
-  };
-
-  const fetchBranchInfo = async () => {
+  const fetchData = useCallback(async () => {
     try {
-      const branch = await BranchService.getSelectedBranch();
+      setLoading(true);
+      const [branch, programs, studentsResp, activeResp, fees, safes] =
+        await Promise.all([
+          BranchService.getSelectedBranch().catch(() => null),
+          AuthService.getAllPrograms().catch(() => []),
+          AuthService.getTrainees({
+            page: 1,
+            limit: 1,
+            includeDetails: false,
+          }).catch(() => ({data: [], pagination: {total: 0}})),
+          AuthService.getTrainees({
+            page: 1,
+            limit: 1,
+            includeDetails: false,
+            status: 'ACTIVE',
+          }).catch(() => ({data: [], pagination: {total: 0}})),
+          canAccessFinancial
+            ? AuthService.getAllTraineeFees().catch(() => [])
+            : Promise.resolve([]),
+          canAccessFinancial
+            ? AuthService.getAllSafes().catch(() => [])
+            : Promise.resolve([]),
+        ]);
+
       if (branch) {
         setBranchName(branch.name);
       }
-    } catch (error) {
-      console.error('Error fetching branch info:', error);
-    }
-  };
 
-  const fetchStats = async () => {
-    try {
-      setLoading(true);
-      
-      // جلب البرامج
-      const programs = await AuthService.getAllPrograms().catch((error) => {
-        console.warn('🔍 HomeScreen.fetchStats() - Error fetching programs:', error);
-        return [];
-      });
-      
-      // جلب الطلاب مع pagination - مع معالجة أفضل للأخطاء
-      let studentsResponse: import('../types/student').IPaginatedTraineesResponse = { 
-        data: [], 
-        pagination: { 
-          total: 0, 
-          page: 1, 
-          totalPages: 1, 
-          limit: 1, 
-          hasNext: false, 
-          hasPrev: false 
-        } 
-      };
-      try {
-        studentsResponse = await AuthService.getTrainees({ 
-          page: 1, 
-          limit: 1, 
-          includeDetails: false 
-        });
-        console.log('🔍 HomeScreen.fetchStats() - Students response:', studentsResponse);
-      } catch (error) {
-        console.warn('🔍 HomeScreen.fetchStats() - Error fetching students:', error);
-        // إذا كان الخطأ من الخادم، لا نعرض إشعار للمستخدم في الصفحة الرئيسية
-        if (error instanceof Error && !error.message.includes('Internal server error')) {
-          console.error('Non-server error in HomeScreen:', error);
-        }
-      }
-      
-      // جلب الرسوم (فقط إذا كان المستخدم محاسب/مدير/سوبر أدمن)
-      let fees: any[] = [];
-      let safes: any[] = [];
-      if (canAccessFinancial) {
-        fees = await AuthService.getAllTraineeFees().catch((error) => {
-          console.warn('🔍 HomeScreen.fetchStats() - Error fetching fees:', error);
-          return [];
-        });
-        
-        // جلب الخزائن
-        safes = await AuthService.getAllSafes().catch((error) => {
-          console.warn('🔍 HomeScreen.fetchStats() - Error fetching safes:', error);
-          return [];
-        });
-      }
-
-      // حساب الطلاب النشطين - مع معالجة أفضل للأخطاء
-      let activeStudentsResponse: import('../types/student').IPaginatedTraineesResponse = { 
-        data: [], 
-        pagination: { 
-          total: 0, 
-          page: 1, 
-          totalPages: 1, 
-          limit: 1, 
-          hasNext: false, 
-          hasPrev: false 
-        } 
-      };
-      try {
-        activeStudentsResponse = await AuthService.getTrainees({ 
-          page: 1, 
-          limit: 1, 
-          includeDetails: false,
-          status: 'ACTIVE'
-        });
-        console.log('🔍 HomeScreen.fetchStats() - Active students response:', activeStudentsResponse);
-      } catch (error) {
-        console.warn('🔍 HomeScreen.fetchStats() - Error fetching active students:', error);
-        // إذا كان الخطأ من الخادم، لا نعرض إشعار للمستخدم في الصفحة الرئيسية
-        if (error instanceof Error && !error.message.includes('Internal server error')) {
-          console.error('Non-server error in HomeScreen:', error);
-        }
-      }
-
-      // حساب الرسوم المطبقة
-      const appliedFees = fees.filter(fee => fee.isApplied).length;
-
-      // حساب إجمالي الرصيد من الخزائن
-      const totalBalance = safes.reduce((sum, safe) => sum + safe.balance, 0);
+      const appliedFees = (fees as any[]).filter(
+        (f: any) => f.isApplied,
+      ).length;
+      const totalBalance = (safes as any[]).reduce(
+        (sum: number, safe: any) => sum + safe.balance,
+        0,
+      );
 
       setStats({
-        totalPrograms: programs.length,
-        totalStudents: studentsResponse.pagination?.total || studentsResponse.data?.length || 0,
-        totalFees: fees.length,
-        totalSafes: safes.length,
-        activeStudents: activeStudentsResponse.pagination?.total || activeStudentsResponse.data?.length || 0,
-        appliedFees: appliedFees,
-        totalBalance: totalBalance,
+        totalPrograms: (programs as any[]).length,
+        totalStudents:
+          (studentsResp as any).pagination?.total ||
+          (studentsResp as any).data?.length ||
+          0,
+        totalFees: (fees as any[]).length,
+        totalSafes: (safes as any[]).length,
+        activeStudents:
+          (activeResp as any).pagination?.total ||
+          (activeResp as any).data?.length ||
+          0,
+        appliedFees,
+        totalBalance,
       });
-    } catch (error) {
-      console.error('🔍 HomeScreen.fetchStats() - General error:', error);
+    } catch (e) {
+      console.error('HomeScreen fetch error:', e);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  }, [canAccessFinancial]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchData();
   };
 
-  const getCurrentTime = () => {
-    const now = new Date();
-    const hour = now.getHours();
-    if (hour < 12) return 'صباح الخير';
-    if (hour < 18) return 'مساء الخير';
-    return 'مساء الخير';
-  };
+  const greeting = (() => {
+    const h = new Date().getHours();
+    return h < 12 ? 'صباح الخير' : 'مساء الخير';
+  })();
 
-  const getCurrentDate = () => {
-    const now = new Date();
-    return now.toLocaleDateString('ar-EG', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
+  const dateStr = new Date().toLocaleDateString('ar-EG', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  const studentActivePct =
+    stats.totalStudents > 0
+      ? (stats.activeStudents / stats.totalStudents) * 100
+      : 0;
+  const feesAppliedPct =
+    stats.totalFees > 0 ? (stats.appliedFees / stats.totalFees) * 100 : 0;
+  const inactiveStudents = stats.totalStudents - stats.activeStudents;
+  const unappliedFees = stats.totalFees - stats.appliedFees;
+
+  const quickActions = [
+    {icon: 'school', label: 'الطلاب', screen: 'StudentsList', bg: '#1a237e'},
+    {icon: 'book', label: 'البرامج', screen: 'Programs', bg: '#059669'},
+    {icon: 'schedule', label: 'الجداول', screen: 'Schedules', bg: '#0ea5e9'},
+    {
+      icon: 'fingerprint',
+      label: 'الحضور',
+      screen: 'StaffAttendance',
+      bg: '#7c3aed',
+    },
+    ...(canAccessFinancial
+      ? [
+          {
+            icon: 'account-balance',
+            label: 'الخزائن',
+            screen: 'Treasury',
+            bg: '#dc2626',
+          },
+          {
+            icon: 'account-balance-wallet',
+            label: 'الرسوم',
+            screen: 'Fees',
+            bg: '#d97706',
+          },
+        ]
+      : []),
+    {
+      icon: 'groups',
+      label: 'التوزيع',
+      screen: 'DistributionManagement',
+      bg: '#6366f1',
+    },
+    {icon: 'lock', label: 'الصلاحيات', screen: 'Permissions', bg: '#475569'},
+  ];
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View style={st.container}>
+      {/* Header */}
+      <View style={st.header}>
         <CustomMenu navigation={navigation} activeRouteName="Home" />
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>الرئيسية</Text>
+        <View style={st.headerCenter}>
+          <Text style={st.headerTitle}>الرئيسية</Text>
           {branchName ? (
-            <Text style={styles.branchIndicator}>{branchName}</Text>
+            <Text style={st.branchBadge}>{branchName}</Text>
           ) : null}
         </View>
-        <View style={styles.placeholder} />
+        <TouchableOpacity style={st.refreshBtn} onPress={onRefresh}>
+          <Icon name="refresh" size={22} color="#1a237e" />
+        </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Welcome Section */}
-        <Animated.View 
-          style={[
-            styles.welcomeSection,
-            {
-              opacity: fadeAnim,
-              transform: [
-                { translateY: slideAnim },
-                { scale: scaleAnim }
-              ]
-            }
-          ]}
-        >
-          <Animated.Image
+      <ScrollView
+        style={st.scroll}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{paddingBottom: 30}}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }>
+        {/* Welcome Card */}
+        <Animated.View style={[st.welcomeCard, {opacity: fadeAnim}]}>
+          <Image
             source={require('../../img/502585454_122235753458244801_413190920156398012_n-removebg-preview.png')}
-            style={[
-              styles.logo,
-              {
-                transform: [{
-                  rotate: rotateAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: ['0deg', '360deg']
-                  })
-                }]
-              }
-            ]}
+            style={st.logo}
             resizeMode="contain"
           />
-          <Animated.Text 
-            style={[
-              styles.greeting,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }]
-              }
-            ]}
-          >
-            {getCurrentTime()}
-          </Animated.Text>
-          <Animated.Text 
-            style={[
-              styles.title,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }]
-              }
-            ]}
-          >
-            مرحباً بك في النظام الإداري
-          </Animated.Text>
-          <Animated.Text 
-            style={[
-              styles.subtitle,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }]
-              }
-            ]}
-          >
-            مركز طيبة للتدريب
-          </Animated.Text>
-          <Animated.Text 
-            style={[
-              styles.date,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }]
-              }
-            ]}
-          >
-            {getCurrentDate()}
-          </Animated.Text>
-        </Animated.View>
-
-        {/* Stats Cards */}
-        <View style={styles.statsSection}>
-          <Text style={styles.sectionTitle}>إحصائيات سريعة</Text>
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color="#1a237e" />
-              <Text style={styles.loadingText}>جاري تحميل البيانات...</Text>
-            </View>
-          ) : (
-            <View style={styles.statsGrid}>
-              <Animated.View 
-                style={[
-                  styles.statCard, 
-                  styles.statCardPrimary,
-                  {
-                    opacity: statsAnimations[0],
-                    transform: [{
-                      translateY: statsAnimations[0].interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [30, 0]
-                      })
-                    }, {
-                      scale: statsAnimations[0].interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.8, 1]
-                      })
-                    }]
-                  }
-                ]}
-              >
-                <View style={[styles.statIcon, { backgroundColor: '#dbeafe' }]}>
-                  <Icon name="book" size={28} color="#1a237e" />
-                </View>
-                <Text style={styles.statNumber}>{stats.totalPrograms}</Text>
-                <Text style={styles.statLabel}>البرامج التدريبية</Text>
-              </Animated.View>
-
-              <Animated.View 
-                style={[
-                  styles.statCard, 
-                  styles.statCardSuccess,
-                  {
-                    opacity: statsAnimations[1],
-                    transform: [{
-                      translateY: statsAnimations[1].interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [30, 0]
-                      })
-                    }, {
-                      scale: statsAnimations[1].interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.8, 1]
-                      })
-                    }]
-                  }
-                ]}
-              >
-                <View style={[styles.statIcon, { backgroundColor: '#dcfce7' }]}>
-                  <Icon name="school" size={28} color="#059669" />
-                </View>
-                <Text style={styles.statNumber}>{stats.totalStudents}</Text>
-                <Text style={styles.statLabel}>إجمالي الطلاب</Text>
-                <Text style={styles.statSubtext}>{stats.activeStudents} نشط</Text>
-              </Animated.View>
-
-              {canAccessFinancial && (
-                <Animated.View 
-                  style={[
-                    styles.statCard, 
-                    styles.statCardWarning,
-                    {
-                      opacity: statsAnimations[2],
-                      transform: [{
-                        translateY: statsAnimations[2].interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [30, 0]
-                        })
-                      }, {
-                        scale: statsAnimations[2].interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0.8, 1]
-                        })
-                      }]
-                    }
-                  ]}
-                >
-                  <View style={[styles.statIcon, { backgroundColor: '#fef3c7' }]}>
-                    <Icon name="account-balance-wallet" size={28} color="#d97706" />
-                  </View>
-                  <Text style={styles.statNumber}>{stats.totalFees}</Text>
-                  <Text style={styles.statLabel}>الرسوم المالية</Text>
-                  <Text style={styles.statSubtext}>{stats.appliedFees} مطبقة</Text>
-                </Animated.View>
-              )}
-
-              {canAccessFinancial && (
-                <Animated.View 
-                  style={[
-                    styles.statCard, 
-                    styles.statCardPurple,
-                    {
-                      opacity: statsAnimations[3],
-                      transform: [{
-                        translateY: statsAnimations[3].interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [30, 0]
-                        })
-                      }, {
-                        scale: statsAnimations[3].interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [0.8, 1]
-                        })
-                      }]
-                    }
-                  ]}
-                >
-                  <View style={[styles.statIcon, { backgroundColor: '#ede9fe' }]}>
-                    <Icon name="account-balance" size={28} color="#7c3aed" />
-                  </View>
-                  <Text style={styles.statNumber}>{stats.totalSafes}</Text>
-                  <Text style={styles.statLabel}>الخزائن المالية</Text>
-                  <Text style={styles.statSubtext}>{stats.totalBalance.toLocaleString()} ج.م</Text>
-                </Animated.View>
-              )}
-            </View>
-          )}
-        </View>
-
-        {/* Quick Actions */}
-        <View style={styles.actionsSection}>
-          <Text style={styles.sectionTitle}>الوصول السريع</Text>
-          <View style={styles.quickActions}>
-            <Animated.View
-              style={{
-                opacity: actionsAnimations[0],
-                transform: [{
-                  translateX: actionsAnimations[0].interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [-50, 0]
-                  })
-                }, {
-                  scale: actionsAnimations[0].interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.8, 1]
-                  })
-                }]
-              }}
-            >
-              <TouchableOpacity 
-                style={[styles.actionButton, styles.actionButtonPrimary]}
-                onPress={() => navigation.navigate('StudentsList')}
-                activeOpacity={0.8}
-              >
-                <View style={styles.actionIconContainer}>
-                  <Icon name="school" size={32} color="#fff" />
-                </View>
-                <Text style={styles.actionText}>الطلاب</Text>
-                <Text style={styles.actionSubtext}>إدارة الطلاب</Text>
-              </TouchableOpacity>
-            </Animated.View>
-            
-            <Animated.View
-              style={{
-                opacity: actionsAnimations[1],
-                transform: [{
-                  translateX: actionsAnimations[1].interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [50, 0]
-                  })
-                }, {
-                  scale: actionsAnimations[1].interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.8, 1]
-                  })
-                }]
-              }}
-            >
-              <TouchableOpacity 
-                style={[styles.actionButton, styles.actionButtonSuccess]}
-                onPress={() => navigation.navigate('Programs')}
-                activeOpacity={0.8}
-              >
-                <View style={styles.actionIconContainer}>
-                  <Icon name="book" size={32} color="#fff" />
-                </View>
-                <Text style={styles.actionText}>البرامج</Text>
-                <Text style={styles.actionSubtext}>البرامج التدريبية</Text>
-              </TouchableOpacity>
-            </Animated.View>
-            
-            {canAccessFinancial && (
-              <Animated.View
-                style={{
-                  opacity: actionsAnimations[2],
-                  transform: [{
-                    translateX: actionsAnimations[2].interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [-50, 0]
-                    })
-                  }, {
-                    scale: actionsAnimations[2].interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.8, 1]
-                    })
-                  }]
-                }}
-              >
-                <TouchableOpacity 
-                  style={[styles.actionButton, styles.actionButtonDanger]}
-                  onPress={() => navigation.navigate('Treasury')}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.actionIconContainer}>
-                    <Icon name="account-balance" size={32} color="#fff" />
-                  </View>
-                  <Text style={styles.actionText}>الخزائن</Text>
-                  <Text style={styles.actionSubtext}>إدارة الخزائن</Text>
-                </TouchableOpacity>
-              </Animated.View>
-            )}
-            
-            {canAccessFinancial && (
-              <Animated.View
-                style={{
-                  opacity: actionsAnimations[3],
-                  transform: [{
-                    translateX: actionsAnimations[3].interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [50, 0]
-                    })
-                  }, {
-                    scale: actionsAnimations[3].interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.8, 1]
-                    })
-                  }]
-                }}
-              >
-                <TouchableOpacity 
-                  style={[styles.actionButton, styles.actionButtonPurple]}
-                  onPress={() => navigation.navigate('Fees')}
-                  activeOpacity={0.8}
-                >
-                  <View style={styles.actionIconContainer}>
-                    <Icon name="account-balance-wallet" size={32} color="#fff" />
-                  </View>
-                  <Text style={styles.actionText}>الرسوم</Text>
-                  <Text style={styles.actionSubtext}>إدارة الرسوم</Text>
-                </TouchableOpacity>
-              </Animated.View>
-            )}
+          <View style={{flex: 1}}>
+            <Text style={st.greeting}>
+              {greeting} {'👋'}
+            </Text>
+            <Text style={st.welcomeTitle}>مركز طيبة للتدريب</Text>
+            <Text style={st.dateText}>{dateStr}</Text>
           </View>
-        </View>
-
-        {/* Recent Activity */}
-        <Animated.View 
-          style={[
-            styles.activitySection,
-            {
-              opacity: fadeAnim,
-              transform: [{
-                translateY: fadeAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [30, 0]
-                })
-              }]
-            }
-          ]}
-        >
-          <Text style={styles.sectionTitle}>النشاط الأخير</Text>
-          <Animated.View 
-            style={[
-              styles.activityCard,
-              {
-                transform: [{
-                  scale: fadeAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.95, 1]
-                  })
-                }]
-              }
-            ]}
-          >
-            <View style={styles.activityItem}>
-              <View style={[styles.activityIcon, { backgroundColor: '#e3f2fd' }]}>
-                <Icon name="add" size={20} color="#1a237e" />
-              </View>
-              <View style={styles.activityContent}>
-                <Text style={styles.activityTitle}>مرحباً بك في النظام</Text>
-                <Text style={styles.activityDescription}>
-                  تم تسجيل الدخول بنجاح إلى النظام الإداري لمركز طيبة للتدريب
-                </Text>
-                <Text style={styles.activityTime}>الآن</Text>
-              </View>
-            </View>
-          </Animated.View>
         </Animated.View>
 
-        {/* System Info */}
-        <Animated.View 
-          style={[
-            styles.infoSection,
-            {
-              opacity: fadeAnim,
-              transform: [{
-                translateY: fadeAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [40, 0]
-                })
-              }]
-            }
-          ]}
-        >
-          <Animated.View 
-            style={[
-              styles.infoCard,
-              {
-                transform: [{
-                  scale: fadeAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0.9, 1]
-                  })
-                }]
-              }
-            ]}
-          >
-            <Icon name="info" size={24} color="#1a237e" />
-            <View style={styles.infoContent}>
-              <Text style={styles.infoTitle}>معلومات النظام</Text>
-              <Text style={styles.infoText}>
-                نظام إداري متكامل لإدارة مركز طيبة للتدريب
-              </Text>
-              <Text style={styles.infoVersion}>الإصدار 1.0.0</Text>
+        {loading ? (
+          <View style={st.loadingBox}>
+            <ActivityIndicator size="large" color="#1a237e" />
+            <Text style={st.loadingText}>جاري تحميل البيانات...</Text>
+          </View>
+        ) : (
+          <>
+            {/* ---- Overview Stats ---- */}
+            <Text style={st.sectionTitle}>نظرة عامة</Text>
+            <View style={st.statsGrid}>
+              <View style={[st.statCard, {borderTopColor: '#1a237e'}]}>
+                <View style={[st.statIconBox, {backgroundColor: '#eef2ff'}]}>
+                  <Icon name="book" size={22} color="#1a237e" />
+                </View>
+                <Text style={st.statNum}>{stats.totalPrograms}</Text>
+                <Text style={st.statLabel}>البرامج</Text>
+              </View>
+              <View style={[st.statCard, {borderTopColor: '#059669'}]}>
+                <View style={[st.statIconBox, {backgroundColor: '#ecfdf5'}]}>
+                  <Icon name="school" size={22} color="#059669" />
+                </View>
+                <Text style={st.statNum}>{stats.totalStudents}</Text>
+                <Text style={st.statLabel}>الطلاب</Text>
+                <Text style={st.statSub}>{stats.activeStudents} نشط</Text>
+              </View>
+              {canAccessFinancial && (
+                <View style={[st.statCard, {borderTopColor: '#d97706'}]}>
+                  <View
+                    style={[st.statIconBox, {backgroundColor: '#fffbeb'}]}>
+                    <Icon
+                      name="account-balance-wallet"
+                      size={22}
+                      color="#d97706"
+                    />
+                  </View>
+                  <Text style={st.statNum}>{stats.totalFees}</Text>
+                  <Text style={st.statLabel}>الرسوم</Text>
+                  <Text style={st.statSub}>{stats.appliedFees} مطبقة</Text>
+                </View>
+              )}
+              {canAccessFinancial && (
+                <View style={[st.statCard, {borderTopColor: '#7c3aed'}]}>
+                  <View
+                    style={[st.statIconBox, {backgroundColor: '#f5f3ff'}]}>
+                    <Icon name="account-balance" size={22} color="#7c3aed" />
+                  </View>
+                  <Text style={st.statNum}>{stats.totalSafes}</Text>
+                  <Text style={st.statLabel}>الخزائن</Text>
+                  <Text style={st.statSub}>
+                    {stats.totalBalance.toLocaleString()} ج.م
+                  </Text>
+                </View>
+              )}
             </View>
-          </Animated.View>
-        </Animated.View>
+
+            {/* ---- Analytics: Vertical Bar Chart ---- */}
+            <Text style={st.sectionTitle}>التحليلات</Text>
+            <View style={st.chartCard}>
+              <Text style={st.chartTitle}>مقارنة البيانات</Text>
+              <VerticalBarChart
+                data={[
+                  {
+                    label: 'البرامج',
+                    value: stats.totalPrograms,
+                    color: '#1a237e',
+                  },
+                  {
+                    label: 'الطلاب',
+                    value: stats.totalStudents,
+                    color: '#059669',
+                  },
+                  {
+                    label: 'نشط',
+                    value: stats.activeStudents,
+                    color: '#0ea5e9',
+                  },
+                  ...(canAccessFinancial
+                    ? [
+                        {
+                          label: 'الرسوم',
+                          value: stats.totalFees,
+                          color: '#d97706',
+                        },
+                        {
+                          label: 'الخزائن',
+                          value: stats.totalSafes,
+                          color: '#7c3aed',
+                        },
+                      ]
+                    : []),
+                ]}
+              />
+            </View>
+
+            {/* ---- Student Status Bars ---- */}
+            <View style={st.chartCard}>
+              <Text style={st.chartTitle}>حالة الطلاب</Text>
+              <View style={{gap: 14}}>
+                <View>
+                  <View style={st.barRow}>
+                    <Text style={st.barLabel}>نشط</Text>
+                    <Text style={st.barVal}>
+                      {stats.activeStudents} ({Math.round(studentActivePct)}%)
+                    </Text>
+                  </View>
+                  <AnimBar pct={studentActivePct} color="#059669" />
+                </View>
+                <View>
+                  <View style={st.barRow}>
+                    <Text style={st.barLabel}>غير نشط</Text>
+                    <Text style={st.barVal}>
+                      {inactiveStudents} ({Math.round(100 - studentActivePct)}
+                      %)
+                    </Text>
+                  </View>
+                  <AnimBar
+                    pct={100 - studentActivePct}
+                    color="#ef4444"
+                    delay={200}
+                  />
+                </View>
+              </View>
+            </View>
+
+            {/* ---- Fee Status Bars ---- */}
+            {canAccessFinancial && (
+              <View style={st.chartCard}>
+                <Text style={st.chartTitle}>حالة الرسوم</Text>
+                <View style={{gap: 14}}>
+                  <View>
+                    <View style={st.barRow}>
+                      <Text style={st.barLabel}>مطبقة</Text>
+                      <Text style={st.barVal}>
+                        {stats.appliedFees} ({Math.round(feesAppliedPct)}%)
+                      </Text>
+                    </View>
+                    <AnimBar pct={feesAppliedPct} color="#0ea5e9" />
+                  </View>
+                  <View>
+                    <View style={st.barRow}>
+                      <Text style={st.barLabel}>غير مطبقة</Text>
+                      <Text style={st.barVal}>
+                        {unappliedFees} ({Math.round(100 - feesAppliedPct)}%)
+                      </Text>
+                    </View>
+                    <AnimBar
+                      pct={100 - feesAppliedPct}
+                      color="#f59e0b"
+                      delay={200}
+                    />
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {/* ---- Balance Highlight ---- */}
+            {canAccessFinancial && stats.totalBalance > 0 && (
+              <View
+                style={[
+                  st.chartCard,
+                  {flexDirection: 'row', alignItems: 'center', gap: 14},
+                ]}>
+                <View
+                  style={[
+                    st.statIconBox,
+                    {backgroundColor: '#f0fdf4', width: 52, height: 52},
+                  ]}>
+                  <Icon name="trending-up" size={26} color="#059669" />
+                </View>
+                <View style={{flex: 1}}>
+                  <Text style={st.barLabel}>إجمالي الرصيد</Text>
+                  <Text style={st.balanceNum}>
+                    {stats.totalBalance.toLocaleString()} ج.م
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* ---- Quick Actions ---- */}
+            <Text style={st.sectionTitle}>الوصول السريع</Text>
+            <View style={st.actionsGrid}>
+              {quickActions.map((a, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={[st.actionCard, {backgroundColor: a.bg}]}
+                  activeOpacity={0.85}
+                  onPress={() => navigation.navigate(a.screen)}>
+                  <View style={st.actionIconWrap}>
+                    <Icon name={a.icon} size={26} color="#fff" />
+                  </View>
+                  <Text style={st.actionLabel}>{a.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        )}
       </ScrollView>
     </View>
   );
@@ -666,405 +531,174 @@ const HomeScreen = ({ navigation }: any) => {
 
 export default HomeScreen;
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-    paddingTop: 40,
-  },
+const st = StyleSheet.create({
+  container: {flex: 1, backgroundColor: '#f4f6fa', paddingTop: 40},
   header: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     backgroundColor: '#fff',
-    elevation: 8,
+    elevation: 4,
     shadowColor: '#1a237e',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
   },
-  headerCenter: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#1a237e',
-    letterSpacing: 0.5,
-  },
-  branchIndicator: {
-    fontSize: 12,
+  headerCenter: {flex: 1, alignItems: 'center'},
+  headerTitle: {fontSize: 20, fontWeight: '800', color: '#1a237e'},
+  branchBadge: {
+    fontSize: 11,
     color: '#059669',
-    fontWeight: '600',
-    backgroundColor: '#dcfce7',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 16,
-    marginTop: 6,
+    fontWeight: '700',
+    backgroundColor: '#ecfdf5',
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+    marginTop: 4,
     borderWidth: 1,
     borderColor: '#bbf7d0',
+    overflow: 'hidden',
   },
-  placeholder: {
-    width: 44,
-  },
-  content: {
-    flex: 1,
-    padding: 20,
-  },
-  welcomeSection: {
-    alignItems: 'center',
-    paddingVertical: 32,
-    paddingHorizontal: 24,
-    backgroundColor: '#fff',
-    borderRadius: 24,
-    marginBottom: 24,
-    shadowColor: '#1a237e',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
-    elevation: 12,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-  },
-  logo: {
-    width: 120,
-    height: 120,
-    marginBottom: 20,
-    borderRadius: 60,
-    backgroundColor: '#fff',
-    elevation: 8,
-    shadowColor: '#1a237e',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    borderWidth: 4,
-    borderColor: '#f1f5f9',
-  },
-  greeting: {
-    fontSize: 20,
-    color: '#059669',
-    fontWeight: '700',
-    marginBottom: 12,
-    textAlign: 'center',
-    letterSpacing: 0.5,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#1a237e',
-    marginBottom: 8,
-    textAlign: 'center',
-    letterSpacing: 0.5,
-  },
-  subtitle: {
-    fontSize: 20,
-    color: '#475569',
-    fontWeight: '600',
-    textAlign: 'center',
-    marginBottom: 12,
-    letterSpacing: 0.3,
-  },
-  date: {
-    fontSize: 15,
-    color: '#64748b',
-    textAlign: 'center',
-    fontWeight: '500',
-    backgroundColor: '#f8fafc',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  statsSection: {
-    marginBottom: 28,
-  },
-  sectionTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#1a237e',
-    marginBottom: 20,
-    textAlign: 'right',
-    letterSpacing: 0.5,
-  },
-  loadingContainer: {
+  refreshBtn: {padding: 8, borderRadius: 10, backgroundColor: '#f3f4f6'},
+  scroll: {flex: 1, padding: 16},
+
+  // Welcome
+  welcomeCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 32,
     backgroundColor: '#fff',
-    borderRadius: 20,
-    marginHorizontal: 4,
+    borderRadius: 18,
+    padding: 16,
+    marginBottom: 20,
+    gap: 14,
+    elevation: 3,
+    shadowColor: '#1a237e',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
   },
-  loadingText: {
-    marginLeft: 12,
-    fontSize: 16,
-    color: '#64748b',
-    fontWeight: '500',
+  logo: {width: 64, height: 64, borderRadius: 32, backgroundColor: '#f8fafc'},
+  greeting: {fontSize: 14, color: '#059669', fontWeight: '700'},
+  welcomeTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1a237e',
+    marginTop: 2,
   },
+  dateText: {fontSize: 12, color: '#6b7280', marginTop: 4, fontWeight: '500'},
+
+  // Loading
+  loadingBox: {alignItems: 'center', paddingVertical: 60, gap: 12},
+  loadingText: {fontSize: 14, color: '#6b7280', fontWeight: '500'},
+
+  // Sections
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1a237e',
+    marginBottom: 12,
+    marginTop: 4,
+  },
+
+  // Stats Grid
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 12,
+    gap: 10,
+    marginBottom: 20,
   },
   statCard: {
+    width: CARD_W,
     backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 20,
-    width: (width - 64) / 2,
-    alignItems: 'center',
-    shadowColor: '#1a237e',
-    shadowOffset: {
-      width: 0,
-      height: 6,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-    transform: [{ scale: 1 }],
-  },
-  statIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-    elevation: 4,
+    borderRadius: 16,
+    padding: 14,
+    borderTopWidth: 3,
+    elevation: 2,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOffset: {width: 0, height: 1},
+    shadowOpacity: 0.04,
     shadowRadius: 4,
   },
-  statNumber: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#1a237e',
-    marginBottom: 6,
-    letterSpacing: 0.5,
+  statIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
   },
-  statLabel: {
-    fontSize: 13,
-    color: '#475569',
-    textAlign: 'center',
-    marginBottom: 4,
-    fontWeight: '600',
-  },
-  statSubtext: {
+  statNum: {fontSize: 24, fontWeight: '800', color: '#111827'},
+  statLabel: {fontSize: 12, fontWeight: '600', color: '#6b7280', marginTop: 2},
+  statSub: {
     fontSize: 11,
-    color: '#64748b',
-    textAlign: 'center',
-    fontWeight: '500',
-    backgroundColor: '#f8fafc',
-    paddingHorizontal: 8,
+    color: '#6b7280',
+    marginTop: 4,
+    backgroundColor: '#f9fafb',
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 10,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    fontWeight: '500',
+    overflow: 'hidden',
   },
-  actionsSection: {
-    marginBottom: 28,
+
+  // Charts
+  chartCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 12,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 1},
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
   },
-  quickActions: {
+  chartTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#374151',
+    marginBottom: 12,
+  },
+  barRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  barLabel: {fontSize: 13, color: '#374151', fontWeight: '600'},
+  barVal: {fontSize: 12, color: '#6b7280', fontWeight: '700'},
+  balanceNum: {fontSize: 22, fontWeight: '800', color: '#059669'},
+
+  // Actions
+  actionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 12,
+    gap: 10,
+    marginBottom: 20,
   },
-  actionButton: {
-    paddingVertical: 24,
-    paddingHorizontal: 20,
-    borderRadius: 20,
+  actionCard: {
+    width: CARD_W,
+    borderRadius: 16,
+    padding: 18,
     alignItems: 'center',
-    elevation: 8,
+    elevation: 3,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    width: (width - 64) / 2,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
   },
-  actionText: {
-    color: '#fff',
-    fontSize: 17,
-    fontWeight: '700',
-    marginTop: 12,
-    marginBottom: 6,
-    letterSpacing: 0.3,
-  },
-  actionSubtext: {
-    color: '#fff',
-    fontSize: 13,
-    opacity: 0.9,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  activitySection: {
-    marginBottom: 28,
-  },
-  activityCard: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 20,
-    shadowColor: '#1a237e',
-    shadowOffset: {
-      width: 0,
-      height: 6,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-  },
-  activityItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  activityIcon: {
+  actionIconWrap: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-    elevation: 4,
-    shadowColor: '#1a237e',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  activityContent: {
-    flex: 1,
-  },
-  activityTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1a237e',
-    marginBottom: 6,
-    letterSpacing: 0.3,
-  },
-  activityDescription: {
-    fontSize: 15,
-    color: '#475569',
-    lineHeight: 22,
-    marginBottom: 10,
-    fontWeight: '500',
-  },
-  activityTime: {
-    fontSize: 13,
-    color: '#64748b',
-    fontWeight: '600',
-    backgroundColor: '#f8fafc',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-  },
-  infoSection: {
-    marginBottom: 32,
-  },
-  infoCard: {
-    backgroundColor: '#f0f9ff',
-    borderRadius: 20,
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderLeftWidth: 6,
-    borderLeftColor: '#1a237e',
-    shadowColor: '#1a237e',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 6,
-    borderWidth: 1,
-    borderColor: '#dbeafe',
-  },
-  infoContent: {
-    flex: 1,
-    marginLeft: 16,
-  },
-  infoTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1a237e',
-    marginBottom: 6,
-    letterSpacing: 0.3,
-  },
-  infoText: {
-    fontSize: 15,
-    color: '#475569',
-    lineHeight: 22,
-    marginBottom: 10,
-    fontWeight: '500',
-  },
-  infoVersion: {
-    fontSize: 13,
-    color: '#64748b',
-    fontWeight: '600',
-    backgroundColor: '#dbeafe',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
-  },
-  // Action Button Variants
-  actionButtonPrimary: {
-    backgroundColor: '#1a237e',
-    shadowColor: '#1a237e',
-  },
-  actionButtonSuccess: {
-    backgroundColor: '#059669',
-    shadowColor: '#059669',
-  },
-  actionButtonDanger: {
-    backgroundColor: '#dc2626',
-    shadowColor: '#dc2626',
-  },
-  actionButtonPurple: {
-    backgroundColor: '#7c3aed',
-    shadowColor: '#7c3aed',
-  },
-  // Stat Card Variants
-  statCardPrimary: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#1a237e',
-  },
-  statCardSuccess: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#059669',
-  },
-  statCardWarning: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#d97706',
-  },
-  statCardPurple: {
-    borderLeftWidth: 4,
-    borderLeftColor: '#7c3aed',
-  },
-  // Action Icon Container
-  actionIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
     backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 8,
   },
+  actionLabel: {fontSize: 14, fontWeight: '700', color: '#fff'},
 });
-

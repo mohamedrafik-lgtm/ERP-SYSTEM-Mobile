@@ -73,6 +73,10 @@ import BranchSelectionScreen from './src/screens/BranchSelectionScreen';
 import AcademicSuppliesScreen from './src/screens/AcademicSuppliesScreen';
 import DeliveryTrackingScreen from './src/screens/DeliveryTrackingScreen';
 import AddStudyMaterialScreen from './src/screens/AddStudyMaterialScreen';
+import StaffAttendanceScreen from './src/screens/StaffAttendanceScreen';
+import StaffAttendanceLogsScreen from './src/screens/StaffAttendanceLogsScreen';
+import StaffLeaveRequestsScreen from './src/screens/StaffLeaveRequestsScreen';
+import StaffAttendanceSettingsScreen from './src/screens/StaffAttendanceSettingsScreen';
 import AuthService from './src/services/AuthService';
 import BranchService from './src/services/BranchService';
 import { enableScreens } from 'react-native-screens';
@@ -142,6 +146,10 @@ const GuardedManageRolePermissions = withPermissionGuard(ManageRolePermissionsSc
 const GuardedAcademicSupplies = withPermissionGuard(AcademicSuppliesScreen, 'AcademicSupplies');
 const GuardedDeliveryTracking = withPermissionGuard(DeliveryTrackingScreen, 'DeliveryTracking');
 const GuardedAddStudyMaterial = withPermissionGuard(AddStudyMaterialScreen, 'AddStudyMaterial');
+const GuardedStaffAttendance = withPermissionGuard(StaffAttendanceScreen, 'StaffAttendance');
+const GuardedStaffAttendanceLogs = withPermissionGuard(StaffAttendanceLogsScreen, 'StaffAttendance');
+const GuardedStaffLeaveRequests = withPermissionGuard(StaffLeaveRequestsScreen, 'StaffAttendance');
+const GuardedStaffAttendanceSettings = withPermissionGuard(StaffAttendanceSettingsScreen, 'StaffAttendance');
 
 const Stack = createNativeStackNavigator();
 
@@ -281,6 +289,10 @@ function App() {
           <Stack.Screen name="AcademicSupplies" component={GuardedAcademicSupplies} />
           <Stack.Screen name="DeliveryTracking" component={GuardedDeliveryTracking} />
           <Stack.Screen name="AddStudyMaterial" component={GuardedAddStudyMaterial} />
+          <Stack.Screen name="StaffAttendance" component={GuardedStaffAttendance} />
+          <Stack.Screen name="StaffAttendanceLogs" component={GuardedStaffAttendanceLogs} />
+          <Stack.Screen name="StaffLeaveRequests" component={GuardedStaffLeaveRequests} />
+          <Stack.Screen name="StaffAttendanceSettings" component={GuardedStaffAttendanceSettings} />
         </Stack.Navigator>
       </NavigationContainer>
       <Toast />

@@ -103,6 +103,13 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
         isLogout: true,
       });
     }
+
+    // ضمان أن قسم النظام (تسجيل الخروج) يكون آخر قسم دائماً
+    const sysIdx = sectionsWithLogout.indexOf(systemSection);
+    if (sysIdx !== -1 && sysIdx !== sectionsWithLogout.length - 1) {
+      sectionsWithLogout.splice(sysIdx, 1);
+      sectionsWithLogout.push(systemSection);
+    }
     
     return sectionsWithLogout;
   };
