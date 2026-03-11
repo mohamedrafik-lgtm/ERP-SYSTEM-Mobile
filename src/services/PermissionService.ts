@@ -170,6 +170,16 @@ class PermissionService {
         perms[`${r}.create`] = true;
         perms[`${r}.edit`] = true;
       });
+      // Staff attendance
+      const staffResources = [
+        'staff-attendance', 'staff-attendance.enrollments',
+        'staff-attendance.leaves', 'staff-attendance.settings',
+        'staff-attendance.holidays',
+      ];
+      staffResources.forEach(r => {
+        perms[`${r}.view`] = true;
+        perms[`${r}.manage`] = true;
+      });
       return perms;
     }
 

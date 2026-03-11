@@ -62,7 +62,8 @@ export type MenuCategory =
   | 'financial'
   | 'student_requests'
   | 'system'
-  | 'academic_supplies';
+  | 'academic_supplies'
+  | 'staff_attendance';
 
 export interface MenuSection {
   title: string;
@@ -725,12 +726,15 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     priority: 3,
     showInMenu: false,
   },
-  // ============ حضور الموظفين ============
+  // ============ حضور و غياب الموظفين ============
   StaffAttendance: {
     screenName: 'StaffAttendance',
-    title: 'حضور الموظفين',
+    title: 'حضور و غياب الموظفين',
     icon: 'fingerprint',
-    requiredPermission: { resource: 'dashboard.users', action: 'view' },
+    requiredPermission: { resource: 'staff-attendance', action: 'view' },
+    additionalPermissions: {
+      manage: { resource: 'staff-attendance', action: 'manage' },
+    },
     category: 'staff_attendance',
     priority: 1,
     showInMenu: true,
@@ -740,7 +744,7 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     screenName: 'StaffAttendanceLogs',
     title: 'سجل الحضور',
     icon: 'list-alt',
-    requiredPermission: { resource: 'dashboard.users', action: 'view' },
+    requiredPermission: { resource: 'staff-attendance', action: 'view' },
     category: 'staff_attendance',
     priority: 2,
     showInMenu: true,
@@ -750,7 +754,10 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     screenName: 'StaffLeaveRequests',
     title: 'طلبات الإجازة',
     icon: 'event-busy',
-    requiredPermission: { resource: 'dashboard.users', action: 'view' },
+    requiredPermission: { resource: 'staff-attendance.leaves', action: 'view' },
+    additionalPermissions: {
+      manage: { resource: 'staff-attendance.leaves', action: 'manage' },
+    },
     category: 'staff_attendance',
     priority: 3,
     showInMenu: true,
@@ -760,11 +767,41 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     screenName: 'StaffAttendanceSettings',
     title: 'إعدادات الحضور',
     icon: 'settings',
-    requiredPermission: { resource: 'dashboard.settings', action: 'view' },
+    requiredPermission: { resource: 'staff-attendance.settings', action: 'view' },
+    additionalPermissions: {
+      manage: { resource: 'staff-attendance.settings', action: 'manage' },
+      manageHolidays: { resource: 'staff-attendance.holidays', action: 'manage' },
+    },
     category: 'staff_attendance',
     priority: 4,
     showInMenu: true,
     description: 'إعدادات نظام الحضور والعطلات',
+  },
+  StaffAttendanceEmployees: {
+    screenName: 'StaffAttendanceEmployees',
+    title: 'الموظفين المسجلين',
+    icon: 'people',
+    requiredPermission: { resource: 'staff-attendance.enrollments', action: 'view' },
+    additionalPermissions: {
+      manage: { resource: 'staff-attendance.enrollments', action: 'manage' },
+    },
+    category: 'staff_attendance',
+    priority: 5,
+    showInMenu: true,
+    description: 'إدارة تسجيل الموظفين في نظام الحضور',
+  },
+  StaffAttendanceEmployeeDetail: {
+    screenName: 'StaffAttendanceEmployeeDetail',
+    title: 'تفاصيل الموظف',
+    icon: 'person',
+    requiredPermission: { resource: 'staff-attendance.enrollments', action: 'view' },
+    additionalPermissions: {
+      manage: { resource: 'staff-attendance.enrollments', action: 'manage' },
+    },
+    category: 'staff_attendance',
+    priority: 6,
+    showInMenu: false,
+    description: 'عرض تفاصيل حضور موظف محدد',
   },
 };
 
@@ -870,12 +907,17 @@ export const MENU_SECTIONS: MenuSection[] = [
     items: Object.values(SCREEN_PERMISSIONS).filter(s => s.category === 'marketing' && s.showInMenu),
   },
 
-  // ============ 9. حضور الموظفين ============
+  // ============ 9. حضور و غياب الموظفين - HR ============
   {
-    title: 'حضور الموظفين',
+    title: 'حضور و غياب الموظفين',
     category: 'staff_attendance',
     icon: 'fingerprint',
-    requiredPermissions: [{ resource: 'dashboard.users', action: 'view' }],
+    requiredPermissions: [
+      { resource: 'staff-attendance', action: 'view' },
+      { resource: 'staff-attendance.enrollments', action: 'view' },
+      { resource: 'staff-attendance.leaves', action: 'view' },
+    ],
+    requireAll: false,
     items: Object.values(SCREEN_PERMISSIONS).filter(s => s.category === 'staff_attendance' && s.showInMenu),
   },
 

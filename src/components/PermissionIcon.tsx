@@ -36,9 +36,9 @@ const PermissionIcon: React.FC<PermissionIconProps> = ({
     return showText ? (
       <View style={[styles.container, style]}>
         <Icon 
-          name=\"lock\" 
+          name="lock" 
           size={iconSize} 
-          color=\"#e53e3e\" 
+          color="#e53e3e" 
         />
         <Text style={[styles.text, { fontSize }, styles.deniedText]}>
           غير مسموح
@@ -46,9 +46,9 @@ const PermissionIcon: React.FC<PermissionIconProps> = ({
       </View>
     ) : (
       <Icon 
-        name=\"lock\" 
+        name="lock" 
         size={iconSize} 
-        color=\"#e53e3e\" 
+        color="#e53e3e" 
         style={style}
       />
     );
@@ -57,9 +57,9 @@ const PermissionIcon: React.FC<PermissionIconProps> = ({
   return showText ? (
     <View style={[styles.container, style]}>
       <Icon 
-        name=\"check-circle\" 
+        name="check-circle" 
         size={iconSize} 
-        color=\"#38a169\" 
+        color="#38a169" 
       />
       <Text style={[styles.text, { fontSize }, styles.allowedText]}>
         مسموح
@@ -67,9 +67,9 @@ const PermissionIcon: React.FC<PermissionIconProps> = ({
     </View>
   ) : (
     <Icon 
-      name=\"check-circle\" 
+      name="check-circle" 
       size={iconSize} 
-      color=\"#38a169\" 
+      color="#38a169" 
       style={style}
     />
   );

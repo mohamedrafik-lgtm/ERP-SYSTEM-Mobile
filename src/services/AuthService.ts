@@ -5235,6 +5235,181 @@ class AuthService {
       throw error;
     }
   }
+
+  // Update a holiday
+  static async updateStaffHoliday(holidayId: string, data: { name?: string; date?: string; endDate?: string; isRecurring?: boolean; notes?: string }): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/staff-attendance/holidays/${holidayId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed: ${response.status}`);
+      }
+      return response.json();
+    } catch (error) { console.error('[AuthService] Error updating holiday:', error); throw error; }
+  }
+
+  // Get attendance logs for a specific user (admin)
+  static async getStaffLogsForUser(userId: string, params?: { startDate?: string; endDate?: string }): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const query = new URLSearchParams();
+      if (params?.startDate) query.append('startDate', params.startDate);
+      if (params?.endDate) query.append('endDate', params.endDate);
+      const qs = query.toString() ? `?${query.toString()}` : '';
+      const response = await fetch(`${baseUrl}/api/staff-attendance/logs/user/${userId}${qs}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error(`Failed: ${response.status}`);
+      return response.json();
+    } catch (error) { console.error('[AuthService] Error getting user logs:', error); throw error; }
+  }
+
+  // Get user attendance dashboard (admin)
+  static async getUserAttendanceDashboard(userId: string, params?: { startDate?: string; endDate?: string }): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const query = new URLSearchParams();
+      if (params?.startDate) query.append('startDate', params.startDate);
+      if (params?.endDate) query.append('endDate', params.endDate);
+      const qs = query.toString() ? `?${query.toString()}` : '';
+      const response = await fetch(`${baseUrl}/api/staff-attendance/dashboard/user/${userId}${qs}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error(`Failed: ${response.status}`);
+      return response.json();
+    } catch (error) { console.error('[AuthService] Error getting user dashboard:', error); throw error; }
+  }
+
+  // Bulk enroll staff
+  static async bulkEnrollStaff(data: import('../types/staffAttendance').BulkEnrollDto): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/staff-attendance/enrollments/bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed: ${response.status}`);
+      }
+      return response.json();
+    } catch (error) { console.error('[AuthService] Error bulk enrolling:', error); throw error; }
+  }
+
+  // Update enrollment settings
+  static async updateEnrollment(userId: string, data: import('../types/staffAttendance').UpdateEnrollmentDto): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/staff-attendance/enrollments/${userId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed: ${response.status}`);
+      }
+      return response.json();
+    } catch (error) { console.error('[AuthService] Error updating enrollment:', error); throw error; }
+  }
+
+  // Get staff attendance zones
+  static async getStaffZones(): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/staff-attendance/zones`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error(`Failed: ${response.status}`);
+      return response.json();
+    } catch (error) { console.error('[AuthService] Error getting zones:', error); throw error; }
+  }
+
+  // Create zone
+  static async createStaffZone(data: { name: string; latitude: number; longitude: number; radius?: number; color?: string; isGlobal?: boolean; employeeIds?: string[] }): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/staff-attendance/zones`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed: ${response.status}`);
+      }
+      return response.json();
+    } catch (error) { console.error('[AuthService] Error creating zone:', error); throw error; }
+  }
+
+  // Delete zone
+  static async deleteStaffZone(zoneId: string): Promise<void> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/staff-attendance/zones/${zoneId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) throw new Error(`Failed: ${response.status}`);
+    } catch (error) { console.error('[AuthService] Error deleting zone:', error); throw error; }
+  }
+
+  // Update zone
+  static async updateStaffZone(zoneId: string, data: { name?: string; radius?: number; isActive?: boolean; isGlobal?: boolean; employeeIds?: string[] }): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/staff-attendance/zones/${zoneId}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error(`Failed: ${response.status}`);
+      return response.json();
+    } catch (error) { console.error('[AuthService] Error updating zone:', error); throw error; }
+  }
+
+  // Update log (admin)
+  static async updateAttendanceLog(logId: string, data: { status?: string; notes?: string; checkInTime?: string; checkOutTime?: string }): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/staff-attendance/logs/${logId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed: ${response.status}`);
+      }
+      return response.json();
+    } catch (error) { console.error('[AuthService] Error updating log:', error); throw error; }
+  }
 }
 
 export default AuthService;

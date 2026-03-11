@@ -17,13 +17,13 @@ const ExampleProtectedScreen: React.FC<ExampleProtectedScreenProps> = ({
 
   return (
     <PermissionGuard 
-      screenId=\"Treasury\" 
+      screenId="Treasury" 
       navigation={navigation}
       showAccessDenied={true}
     >
       <ScrollView style={styles.container}>
         <View style={styles.header}>
-          <Icon name=\"account-balance\" size={48} color=\"#1a237e\" />
+          <Icon name="account-balance" size={48} color="#1a237e" />
           <Text style={styles.title}>الخزائن المالية</Text>
           <Text style={styles.subtitle}>
             مرحباً {userRoleInfo?.displayName || 'المستخدم'}
@@ -37,15 +37,15 @@ const ExampleProtectedScreen: React.FC<ExampleProtectedScreenProps> = ({
           
           <View style={styles.featureList}>
             <View style={styles.featureItem}>
-              <Icon name=\"check-circle\" size={20} color=\"#38a169\" />
+              <Icon name="check-circle" size={20} color="#38a169" />
               <Text style={styles.featureText}>عرض الخزائن المالية</Text>
             </View>
             <View style={styles.featureItem}>
-              <Icon name=\"check-circle\" size={20} color=\"#38a169\" />
+              <Icon name="check-circle" size={20} color="#38a169" />
               <Text style={styles.featureText}>إدارة المعاملات المالية</Text>
             </View>
             <View style={styles.featureItem}>
-              <Icon name=\"check-circle\" size={20} color=\"#38a169\" />
+              <Icon name="check-circle" size={20} color="#38a169" />
               <Text style={styles.featureText}>تقارير مالية مفصلة</Text>
             </View>
           </View>

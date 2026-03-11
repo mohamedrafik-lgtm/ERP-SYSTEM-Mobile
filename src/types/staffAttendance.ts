@@ -9,22 +9,26 @@ export enum StaffAttendanceStatus {
   HOLIDAY = 'HOLIDAY',
 }
 
-export const StaffAttendanceStatusArabic: Record<StaffAttendanceStatus, string> = {
+export const StaffAttendanceStatusArabic: Record<string, string> = {
   [StaffAttendanceStatus.PRESENT]: 'حاضر',
   [StaffAttendanceStatus.ABSENT_UNEXCUSED]: 'غائب بدون إذن',
   [StaffAttendanceStatus.ABSENT_EXCUSED]: 'غائب بإذن',
   [StaffAttendanceStatus.LEAVE]: 'إذن',
   [StaffAttendanceStatus.DAY_OFF]: 'يوم عطلة',
   [StaffAttendanceStatus.HOLIDAY]: 'إجازة رسمية',
+  ON_LEAVE: 'في إجازة',
+  NOT_RECORDED: 'لم يسجل',
 };
 
-export const StaffAttendanceStatusColor: Record<StaffAttendanceStatus, string> = {
+export const StaffAttendanceStatusColor: Record<string, string> = {
   [StaffAttendanceStatus.PRESENT]: '#059669',
   [StaffAttendanceStatus.ABSENT_UNEXCUSED]: '#dc2626',
   [StaffAttendanceStatus.ABSENT_EXCUSED]: '#f59e0b',
   [StaffAttendanceStatus.LEAVE]: '#3b82f6',
   [StaffAttendanceStatus.DAY_OFF]: '#6b7280',
   [StaffAttendanceStatus.HOLIDAY]: '#8b5cf6',
+  ON_LEAVE: '#3b82f6',
+  NOT_RECORDED: '#9ca3af',
 };
 
 export enum StaffLeaveType {
@@ -41,6 +45,14 @@ export const StaffLeaveTypeArabic: Record<StaffLeaveType, string> = {
   [StaffLeaveType.EMERGENCY]: 'طارئ',
   [StaffLeaveType.ANNUAL]: 'سنوي',
   [StaffLeaveType.OTHER]: 'أخرى',
+};
+
+export const StaffLeaveTypeIcon: Record<StaffLeaveType, string> = {
+  [StaffLeaveType.ANNUAL]: 'event',
+  [StaffLeaveType.SICK]: 'local-hospital',
+  [StaffLeaveType.PERSONAL]: 'person',
+  [StaffLeaveType.EMERGENCY]: 'warning',
+  [StaffLeaveType.OTHER]: 'more-horiz',
 };
 
 export enum StaffLeaveStatus {
@@ -78,6 +90,7 @@ export interface StaffAttendanceSettings {
   locationLatitude?: number;
   locationLongitude?: number;
   locationRadius: number;
+  isActive: boolean;
 }
 
 // ====== Enrollment ======
@@ -92,8 +105,10 @@ export interface StaffAttendanceEnrollment {
   customWorkEndTime?: string;
   customWorkHoursPerDay?: number;
   customLateThresholdMinutes?: number;
-  customDaySchedules?: any;
+  customEarlyLeaveThresholdMinutes?: number;
+  customDaySchedules?: Record<string, {start: string; end: string}>;
   allowGlobalZones: boolean;
+  zoneIds?: string[];
   user: {
     id: string;
     name: string;
@@ -131,18 +146,36 @@ export interface StaffAttendanceLog {
   };
 }
 
-// ====== My Status ======
+// ====== My Status (matches backend response) ======
 export interface MyAttendanceStatus {
   isEnrolled: boolean;
-  todayLog?: StaffAttendanceLog;
+  systemActive: boolean;
+  todayLog: StaffAttendanceLog | null;
   isCheckedIn: boolean;
+  isWeeklyOff: boolean;
+  weeklyOffDay: string | null;
+  todayHoliday: {id: string; name: string; date: string} | null;
   settings: {
+    workHoursPerDay: number;
     workStartTime: string;
     workEndTime: string;
-    workHoursPerDay: number;
     lateThresholdMinutes: number;
     requireLocation: boolean;
+    requireCheckInLocation: boolean;
+    requireCheckOutLocation: boolean;
+    locationLatitude?: number;
+    locationLongitude?: number;
+    locationRadius: number;
+    timezone: string;
+    zones: StaffAttendanceZone[];
   };
+  customSchedule: {
+    customWorkDays?: string[];
+    customWorkStartTime?: string;
+    customWorkEndTime?: string;
+    customWorkHoursPerDay?: number;
+    customDaySchedules?: Record<string, {start: string; end: string}>;
+  } | null;
 }
 
 // ====== Leave Request ======
@@ -198,8 +231,26 @@ export interface StaffAttendanceDashboard {
   presentToday: number;
   absentToday: number;
   lateToday: number;
+  earlyLeaveToday?: number;
   onLeaveToday: number;
+  pendingLeaves: number;
+  averageWorkHours: number;
+  attendanceRate: number;
   todayLogs: StaffAttendanceLog[];
+}
+
+// ====== User Dashboard (per employee) ======
+export interface UserAttendanceDashboard {
+  totalDays: number;
+  presentDays: number;
+  absentDays: number;
+  lateDays: number;
+  earlyLeaveDays: number;
+  leaveDays: number;
+  averageWorkMinutes: number;
+  overtimeMinutes: number;
+  attendanceRate: number;
+  logs: StaffAttendanceLog[];
 }
 
 // ====== Request DTOs ======
@@ -231,4 +282,75 @@ export interface ManualRecordDto {
   checkInTime?: string;
   checkOutTime?: string;
   notes?: string;
+}
+
+export interface UpdateEnrollmentDto {
+  isActive?: boolean;
+  notes?: string;
+  customWorkDays?: string[];
+  customWorkStartTime?: string;
+  customWorkEndTime?: string;
+  customWorkHoursPerDay?: number;
+  customLateThresholdMinutes?: number;
+  customEarlyLeaveThresholdMinutes?: number;
+  customDaySchedules?: Record<string, {start: string; end: string}>;
+  allowGlobalZones?: boolean;
+  zoneIds?: string[];
+}
+
+export interface BulkEnrollDto {
+  userIds: string[];
+  notes?: string;
+}
+
+// ====== Today's Attendance Response (matches backend /today) ======
+export interface TodayEmployee {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    photoUrl?: string;
+    phone?: string;
+  };
+  log: StaffAttendanceLog | null;
+  status: string;
+}
+
+export interface TodayAttendanceResponse {
+  date: string;
+  employees: TodayEmployee[];
+  stats: {
+    total: number;
+    present: number;
+    absent: number;
+    excused: number;
+    onLeave: number;
+    notRecorded: number;
+    dayOff: number;
+    late: number;
+  };
+}
+
+// ====== User Logs Response (matches backend /logs/user/{id}) ======
+export interface UserLogsResponse {
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    phone?: string;
+    photoUrl?: string;
+  };
+  logs: StaffAttendanceLog[];
+  stats: {
+    totalDays: number;
+    presentDays: number;
+    absentDays: number;
+    excusedDays: number;
+    lateDays: number;
+    earlyLeaveDays: number;
+    totalWorkedMinutes: number;
+    totalRequiredMinutes: number;
+    totalOvertimeMinutes: number;
+    attendanceRate: number;
+  };
 }

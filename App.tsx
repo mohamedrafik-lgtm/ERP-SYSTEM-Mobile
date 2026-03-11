@@ -77,6 +77,8 @@ import StaffAttendanceScreen from './src/screens/StaffAttendanceScreen';
 import StaffAttendanceLogsScreen from './src/screens/StaffAttendanceLogsScreen';
 import StaffLeaveRequestsScreen from './src/screens/StaffLeaveRequestsScreen';
 import StaffAttendanceSettingsScreen from './src/screens/StaffAttendanceSettingsScreen';
+import StaffAttendanceEmployeesScreen from './src/screens/StaffAttendanceEmployeesScreen';
+import StaffAttendanceEmployeeDetailScreen from './src/screens/StaffAttendanceEmployeeDetailScreen';
 import AuthService from './src/services/AuthService';
 import BranchService from './src/services/BranchService';
 import { enableScreens } from 'react-native-screens';
@@ -147,9 +149,11 @@ const GuardedAcademicSupplies = withPermissionGuard(AcademicSuppliesScreen, 'Aca
 const GuardedDeliveryTracking = withPermissionGuard(DeliveryTrackingScreen, 'DeliveryTracking');
 const GuardedAddStudyMaterial = withPermissionGuard(AddStudyMaterialScreen, 'AddStudyMaterial');
 const GuardedStaffAttendance = withPermissionGuard(StaffAttendanceScreen, 'StaffAttendance');
-const GuardedStaffAttendanceLogs = withPermissionGuard(StaffAttendanceLogsScreen, 'StaffAttendance');
-const GuardedStaffLeaveRequests = withPermissionGuard(StaffLeaveRequestsScreen, 'StaffAttendance');
-const GuardedStaffAttendanceSettings = withPermissionGuard(StaffAttendanceSettingsScreen, 'StaffAttendance');
+const GuardedStaffAttendanceLogs = withPermissionGuard(StaffAttendanceLogsScreen, 'StaffAttendanceLogs');
+const GuardedStaffLeaveRequests = withPermissionGuard(StaffLeaveRequestsScreen, 'StaffLeaveRequests');
+const GuardedStaffAttendanceSettings = withPermissionGuard(StaffAttendanceSettingsScreen, 'StaffAttendanceSettings');
+const GuardedStaffAttendanceEmployees = withPermissionGuard(StaffAttendanceEmployeesScreen, 'StaffAttendanceEmployees');
+const GuardedStaffAttendanceEmployeeDetail = withPermissionGuard(StaffAttendanceEmployeeDetailScreen, 'StaffAttendanceEmployeeDetail');
 
 const Stack = createNativeStackNavigator();
 
@@ -293,6 +297,8 @@ function App() {
           <Stack.Screen name="StaffAttendanceLogs" component={GuardedStaffAttendanceLogs} />
           <Stack.Screen name="StaffLeaveRequests" component={GuardedStaffLeaveRequests} />
           <Stack.Screen name="StaffAttendanceSettings" component={GuardedStaffAttendanceSettings} />
+          <Stack.Screen name="StaffAttendanceEmployees" component={GuardedStaffAttendanceEmployees} />
+          <Stack.Screen name="StaffAttendanceEmployeeDetail" component={GuardedStaffAttendanceEmployeeDetail} />
         </Stack.Navigator>
       </NavigationContainer>
       <Toast />
