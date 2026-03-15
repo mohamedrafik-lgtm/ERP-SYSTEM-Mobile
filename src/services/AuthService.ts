@@ -2853,7 +2853,35 @@ class AuthService {
         throw new Error(errorText || `Failed to get quizzes: ${response.status}`);
       }
 
-      return response.json();
+      const result = await response.json();
+
+      // Backend قد يرجع Array مباشرة بدلاً من كائن pagination
+      if (Array.isArray(result)) {
+        return {
+          quizzes: result,
+          pagination: {
+            page: 1,
+            limit: result.length,
+            total: result.length,
+            totalPages: 1,
+          },
+        };
+      }
+
+      if (result && Array.isArray(result.quizzes)) {
+        return result;
+      }
+
+      // Fallback آمن لأي شكل استجابة غير متوقع
+      return {
+        quizzes: [],
+        pagination: {
+          page: 1,
+          limit: 0,
+          total: 0,
+          totalPages: 0,
+        },
+      };
     } catch (error) {
       console.error('[AuthService] Error getting quizzes:', error);
       throw error;
@@ -3042,6 +3070,556 @@ class AuthService {
       return response.json();
     } catch (error) {
       console.error('[AuthService] Error getting quiz attempts:', error);
+      throw error;
+    }
+  }
+
+  static async getQuizReport(quizId: number): Promise<import('../types/quiz').QuizReportResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/quizzes/${quizId}/report`;
+      console.log('[AuthService] Getting quiz report at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to get quiz report: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error getting quiz report:', error);
+      throw error;
+    }
+  }
+
+  static async getQuizAttemptDetails(attemptId: string): Promise<import('../types/quiz').QuizAttemptDetailsResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/quizzes/attempts/${attemptId}/details`;
+      console.log('[AuthService] Getting quiz attempt details at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to get attempt details: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error getting attempt details:', error);
+      throw error;
+    }
+  }
+
+  static async getAllPaperExams(contentId?: number): Promise<any[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const query = contentId ? `?contentId=${contentId}` : '';
+      const url = `${baseUrl}/api/paper-exams${query}`;
+      console.log('[AuthService] Getting paper exams at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to get paper exams: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (Array.isArray(result)) {
+        return result;
+      }
+
+      if (result && Array.isArray(result.data)) {
+        return result.data;
+      }
+
+      return [];
+    } catch (error) {
+      console.error('[AuthService] Error getting paper exams:', error);
+      throw error;
+    }
+  }
+
+  static async getPaperExamById(examId: number): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/paper-exams/${examId}`;
+      console.log('[AuthService] Getting paper exam by ID at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to get paper exam: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error getting paper exam by ID:', error);
+      throw error;
+    }
+  }
+
+  static async createPaperExam(payload: {
+    trainingContentId: number;
+    title: string;
+    description?: string;
+    instructions?: string;
+    examDate: string;
+    duration: number;
+    gradeType: 'YEAR_WORK' | 'PRACTICAL' | 'WRITTEN' | 'FINAL_EXAM';
+    totalMarks: number;
+    passingScore?: number;
+    academicYear: string;
+    semester?: 'FIRST' | 'SECOND';
+    notes?: string;
+    isPublished?: boolean;
+  }): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/paper-exams`;
+      console.log('[AuthService] Creating paper exam at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to create paper exam: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error creating paper exam:', error);
+      throw error;
+    }
+  }
+
+  static async updatePaperExam(
+    examId: number,
+    payload: {
+      trainingContentId?: number;
+      title?: string;
+      description?: string;
+      instructions?: string;
+      examDate?: string;
+      duration?: number;
+      gradeType?: 'YEAR_WORK' | 'PRACTICAL' | 'WRITTEN' | 'FINAL_EXAM';
+      totalMarks?: number;
+      passingScore?: number;
+      academicYear?: string;
+      semester?: 'FIRST' | 'SECOND';
+      notes?: string;
+      isPublished?: boolean;
+      status?: 'DRAFT' | 'PUBLISHED' | 'IN_PROGRESS' | 'COMPLETED' | 'ARCHIVED';
+    }
+  ): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/paper-exams/${examId}`;
+      console.log('[AuthService] Updating paper exam at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to update paper exam: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error updating paper exam:', error);
+      throw error;
+    }
+  }
+
+  static async getPaperExamReport(examId: number): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/paper-exams/${examId}/report`;
+      console.log('[AuthService] Getting paper exam report at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to get paper exam report: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error getting paper exam report:', error);
+      throw error;
+    }
+  }
+
+  static async uploadPaperExamGradesExcel(
+    examId: number,
+    file: { uri: string; name: string; type: string }
+  ): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/paper-exams/${examId}/upload-grades-excel`;
+      console.log('[AuthService] Uploading grades excel at URL:', url);
+
+      const formData = new FormData();
+      formData.append('file', {
+        uri: file.uri,
+        name: file.name,
+        type: file.type,
+      } as any);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to upload grades excel: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error uploading grades excel:', error);
+      throw error;
+    }
+  }
+
+  static async downloadPaperExamGradesTemplate(examId: number): Promise<{ path: string }> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/paper-exams/${examId}/download-grades-template`;
+      console.log('[AuthService] Downloading grades template at URL:', url);
+
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const BlobUtilModule = require('react-native-blob-util');
+      const BlobUtil = BlobUtilModule.default || BlobUtilModule;
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const RNModule = require('react-native');
+      const platform = RNModule.Platform?.OS || 'android';
+
+      const fileName = `exam-${examId}-grades-template-${Date.now()}.xlsx`;
+      const dirs = BlobUtil.fs.dirs;
+      const defaultPath = platform === 'android'
+        ? `${dirs.DownloadDir}/${fileName}`
+        : `${dirs.DocumentDir}/${fileName}`;
+
+      const config = platform === 'android'
+        ? {
+            path: defaultPath,
+            fileCache: true,
+            addAndroidDownloads: {
+              useDownloadManager: true,
+              notification: true,
+              title: fileName,
+              description: 'Grades template download',
+              mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+              path: defaultPath,
+            },
+          }
+        : {
+            path: defaultPath,
+            fileCache: true,
+          };
+
+      const response = await BlobUtil.config(config).fetch('GET', url, {
+        'Authorization': `Bearer ${token}`,
+      });
+
+      const savedPath = response.path();
+      if (!savedPath) {
+        throw new Error('Failed to save downloaded template file.');
+      }
+
+      return { path: savedPath };
+    } catch (error) {
+      console.error('[AuthService] Error downloading grades template:', error);
+      throw error;
+    }
+  }
+
+  static async deletePaperExam(examId: number): Promise<void> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/paper-exams/${examId}`;
+      console.log('[AuthService] Deleting paper exam at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to delete paper exam: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('[AuthService] Error deleting paper exam:', error);
+      throw error;
+    }
+  }
+
+  static async getGradeReleasePrograms(): Promise<any[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/grade-release/programs`;
+      console.log('[AuthService] Getting grade release programs at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to get grade release programs: ${response.status}`);
+      }
+
+      const result = await response.json();
+      return Array.isArray(result) ? result : [];
+    } catch (error) {
+      console.error('[AuthService] Error getting grade release programs:', error);
+      throw error;
+    }
+  }
+
+  static async createGradeRelease(payload: {
+    programId: number;
+    semester: 'FIRST' | 'SECOND';
+    academicYear: string;
+    requirePayment: boolean;
+    linkedFeeType?: string | null;
+    notes?: string | null;
+  }): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/grade-release`;
+      console.log('[AuthService] Creating grade release at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to create grade release: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error creating grade release:', error);
+      throw error;
+    }
+  }
+
+  static async deleteGradeRelease(settingId: string): Promise<void> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/grade-release/${settingId}`;
+      console.log('[AuthService] Deleting grade release at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to delete grade release: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('[AuthService] Error deleting grade release:', error);
       throw error;
     }
   }
@@ -3585,6 +4163,228 @@ class AuthService {
   }
 
   // ==================== GRADES MANAGEMENT APIs ====================
+
+  /**
+   * جلب برنامج تدريبي محدد مع الفصول
+   */
+  static async getProgramById(programId: number): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/programs/${programId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching program by id in AuthService:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * جلب طلاب الدور الثاني (مواد أقل من 50%)
+   */
+  static async getSecondRoundStudents(programId: number): Promise<any[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const apiBaseUrl = await getCurrentApiBaseUrl();
+      const queryParams = new URLSearchParams();
+      queryParams.append('programId', String(programId));
+
+      const url = `${apiBaseUrl}/api/grades/second-round?${queryParams.toString()}`;
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        if (response.status === 401) {
+          throw new Error('غير مصرح - يرجى تسجيل الدخول مرة أخرى');
+        }
+        throw new Error(`API Error ${response.status}: ${errorText || response.statusText}`);
+      }
+
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        return data;
+      }
+      if (Array.isArray(data?.data)) {
+        return data.data;
+      }
+      return [];
+    } catch (error) {
+      console.error('[AuthService] Error fetching second-round students:', error);
+
+      if ((error as Error).message.includes('Network request failed')) {
+        throw new Error('فشل في الاتصال بالخادم. تحقق من اتصال الإنترنت.');
+      }
+      if ((error as Error).message.includes('timeout')) {
+        throw new Error('انتهت مهلة الاتصال. حاول مرة أخرى.');
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * جلب المواد التدريبية لفصل دراسي محدد
+   */
+  static async getTrainingContentsByClassroom(classroomId: number): Promise<any[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const apiBaseUrl = await getCurrentApiBaseUrl();
+      const url = `${apiBaseUrl}/api/training-contents?classroomId=${classroomId}`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API Error ${response.status}: ${errorText || response.statusText}`);
+      }
+
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        return data;
+      }
+      if (Array.isArray(data?.contents)) {
+        return data.contents;
+      }
+      if (Array.isArray(data?.data)) {
+        return data.data;
+      }
+      return [];
+    } catch (error) {
+      console.error('[AuthService] Error fetching classroom training contents:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * معاينة درجات الرأفة قبل التطبيق
+   */
+  static async previewMercyGrades(params: {
+    classroomId: number;
+    bonusPoints: number;
+    threshold?: number;
+    contentIds?: number[];
+    minThreshold?: number;
+  }): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const apiBaseUrl = await getCurrentApiBaseUrl();
+      const query = new URLSearchParams();
+      query.append('classroomId', String(params.classroomId));
+      query.append('bonusPoints', String(params.bonusPoints));
+      query.append('threshold', String(params.threshold ?? 50));
+      query.append('minThreshold', String(params.minThreshold ?? 0));
+      if (params.contentIds && params.contentIds.length > 0) {
+        query.append('contentIds', params.contentIds.join(','));
+      }
+
+      const response = await fetch(`${apiBaseUrl}/api/grades/mercy-grades/preview?${query.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API Error ${response.status}: ${errorText || response.statusText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error previewing mercy grades:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * تطبيق درجات الرأفة
+   */
+  static async applyMercyGrades(params: {
+    classroomId: number;
+    bonusPoints: number;
+    threshold?: number;
+    contentIds?: number[];
+    minThreshold?: number;
+  }): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const apiBaseUrl = await getCurrentApiBaseUrl();
+      const response = await fetch(`${apiBaseUrl}/api/grades/mercy-grades/apply`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(params),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API Error ${response.status}: ${errorText || response.statusText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error applying mercy grades:', error);
+      throw error;
+    }
+  }
 
   /**
    * جلب المتدربين للدرجات

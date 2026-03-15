@@ -108,3 +108,96 @@ export interface QuizAttemptsResponse {
     totalPages: number;
   };
 }
+
+export interface QuizReportAttempt {
+  id: string | number;
+  traineeId: number;
+  attemptNumber: number;
+  status: string;
+  score: number | null;
+  percentage: number | null;
+  passed: boolean | null;
+  startedAt: string;
+  submittedAt: string | null;
+  trainee: {
+    id: number;
+    nameAr: string;
+    nationalId: string;
+  };
+}
+
+export interface QuizReportResponse {
+  quiz: {
+    id: number;
+    title: string;
+    trainingContent: {
+      name: string;
+      code: string;
+      classroom: {
+        name: string;
+      };
+    };
+    duration: number;
+    passingScore: number;
+  };
+  attempts: QuizReportAttempt[];
+  traineesWhoDidNotTakeQuiz: Array<{
+    id: number;
+    nameAr: string;
+    nationalId: string;
+  }>;
+}
+
+export interface QuizAttemptDetailsResponse {
+  id: string;
+  trainee: {
+    id: number;
+    nameAr: string;
+    nationalId: string;
+  };
+  quiz: {
+    id: number;
+    title: string;
+    showCorrectAnswers: boolean;
+    trainingContent: {
+      name: string;
+      code: string;
+    };
+  };
+  status: string;
+  score: number;
+  percentage: number;
+  passed: boolean;
+  startedAt: string;
+  submittedAt: string | null;
+  questions: Array<{
+    id: string;
+    question: {
+      id: number;
+      text: string;
+      options: Array<{
+        id: number;
+        text: string;
+        isCorrect: boolean;
+      }>;
+    };
+    points: number;
+    order: number;
+  }>;
+  answers: Array<{
+    id: string;
+    questionId: number;
+    selectedOptionId: number | null;
+    isCorrect: boolean;
+    earnedPoints: number;
+    question: {
+      id: number;
+      text: string;
+      options: Array<{
+        id: number;
+        text: string;
+        isCorrect: boolean;
+      }>;
+    };
+  }>;
+}

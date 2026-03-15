@@ -59,7 +59,18 @@ import AddDistributionScreen from './src/screens/AddDistributionScreen';
 import DistributionDetailsScreen from './src/screens/DistributionDetailsScreen';
 import ProgramDistributionsScreen from './src/screens/ProgramDistributionsScreen';
 import QuizManagementScreen from './src/screens/QuizManagementScreen';
+import QuizReportsScreen from './src/screens/QuizReportsScreen';
+import PaperExamsScreen from './src/screens/PaperExamsScreen';
+import AddPaperExamScreen from './src/screens/AddPaperExamScreen';
+import PaperExamDetailsScreen from './src/screens/PaperExamDetailsScreen';
+import EditPaperExamScreen from './src/screens/EditPaperExamScreen';
+import ControlSystemScreen from './src/screens/ControlSystemScreen';
+import GradeReleaseScreen from './src/screens/GradeReleaseScreen';
 import AddQuizScreen from './src/screens/AddQuizScreen';
+import QuizDetailsScreen from './src/screens/QuizDetailsScreen';
+import EditQuizScreen from './src/screens/EditQuizScreen';
+import QuizReportScreen from './src/screens/QuizReportScreen';
+import QuizAttemptDetailsScreen from './src/screens/QuizAttemptDetailsScreen';
 import TraineeAccountsScreen from './src/screens/TraineeAccountsScreen';
 import TraineeAccountDetailsScreen from './src/screens/TraineeAccountDetailsScreen';
 import ScheduleScreen from './src/screens/ScheduleScreen';
@@ -67,6 +78,8 @@ import SemesterSelectionScreen from './src/screens/SemesterSelectionScreen';
 import ScheduleDetailsScreen from './src/screens/ScheduleDetailsScreen';
 import TraineeGradesScreen from './src/screens/TraineeGradesScreen';
 import TraineeGradeDetailsScreen from './src/screens/TraineeGradeDetailsScreen';
+import SecondRoundStudentsScreen from './src/screens/SecondRoundStudentsScreen';
+import MercyGradesScreen from './src/screens/MercyGradesScreen';
 import GradeReportsScreen from './src/screens/GradeReportsScreen';
 import GradeSettingsScreen from './src/screens/GradeSettingsScreen';
 import BranchSelectionScreen from './src/screens/BranchSelectionScreen';
@@ -108,7 +121,18 @@ const GuardedProgramDistributions = withPermissionGuard(ProgramDistributionsScre
 const GuardedQuestions = withPermissionGuard(QuestionsScreen, 'Questions');
 const GuardedAddQuestion = withPermissionGuard(AddQuestionScreen, 'AddQuestion');
 const GuardedQuizManagement = withPermissionGuard(QuizManagementScreen, 'QuizManagement');
+const GuardedQuizReports = withPermissionGuard(QuizReportsScreen, 'QuizReports');
+const GuardedPaperExams = withPermissionGuard(PaperExamsScreen, 'PaperExams');
+const GuardedAddPaperExam = withPermissionGuard(AddPaperExamScreen, 'AddPaperExam');
+const GuardedPaperExamDetails = withPermissionGuard(PaperExamDetailsScreen, 'PaperExamDetails');
+const GuardedEditPaperExam = withPermissionGuard(EditPaperExamScreen, 'EditPaperExam');
+const GuardedControlSystem = withPermissionGuard(ControlSystemScreen, 'ControlSystem');
+const GuardedGradeRelease = withPermissionGuard(GradeReleaseScreen, 'GradeRelease');
 const GuardedAddQuiz = withPermissionGuard(AddQuizScreen, 'AddQuiz');
+const GuardedQuizDetails = withPermissionGuard(QuizDetailsScreen, 'QuizDetails');
+const GuardedEditQuiz = withPermissionGuard(EditQuizScreen, 'EditQuiz');
+const GuardedQuizReport = withPermissionGuard(QuizReportScreen, 'QuizReport');
+const GuardedQuizAttemptDetails = withPermissionGuard(QuizAttemptDetailsScreen, 'QuizAttemptDetails');
 const GuardedTraineeAccounts = withPermissionGuard(TraineeAccountsScreen, 'TraineeAccounts');
 const GuardedTraineeAccountDetails = withPermissionGuard(TraineeAccountDetailsScreen, 'TraineeAccountDetails');
 const GuardedSchedules = withPermissionGuard(ScheduleScreen, 'Schedules');
@@ -116,6 +140,8 @@ const GuardedSemesterSelection = withPermissionGuard(SemesterSelectionScreen, 'S
 const GuardedScheduleDetails = withPermissionGuard(ScheduleDetailsScreen, 'ScheduleDetails');
 const GuardedTraineeGrades = withPermissionGuard(TraineeGradesScreen, 'TraineeGrades');
 const GuardedTraineeGradeDetails = withPermissionGuard(TraineeGradeDetailsScreen, 'TraineeGradeDetails');
+const GuardedSecondRoundStudents = withPermissionGuard(SecondRoundStudentsScreen, 'SecondRoundStudents');
+const GuardedMercyGrades = withPermissionGuard(MercyGradesScreen, 'MercyGrades');
 const GuardedGradeReports = withPermissionGuard(GradeReportsScreen, 'GradeReports');
 const GuardedGradeSettings = withPermissionGuard(GradeSettingsScreen, 'GradeSettings');
 const GuardedMarketers = withPermissionGuard(MarketersScreen, 'Marketers');
@@ -280,7 +306,18 @@ function App() {
           <Stack.Screen name="DistributionDetails" component={GuardedDistributionDetails} />
           <Stack.Screen name="ProgramDistributions" component={GuardedProgramDistributions} />
           <Stack.Screen name="QuizManagement" component={GuardedQuizManagement} />
+          <Stack.Screen name="QuizReports" component={GuardedQuizReports} />
+          <Stack.Screen name="PaperExams" component={GuardedPaperExams} />
+          <Stack.Screen name="AddPaperExam" component={GuardedAddPaperExam} />
+          <Stack.Screen name="PaperExamDetails" component={GuardedPaperExamDetails} />
+          <Stack.Screen name="EditPaperExam" component={GuardedEditPaperExam} />
+          <Stack.Screen name="ControlSystem" component={GuardedControlSystem} />
+          <Stack.Screen name="GradeRelease" component={GuardedGradeRelease} />
           <Stack.Screen name="AddQuiz" component={GuardedAddQuiz} />
+          <Stack.Screen name="QuizDetails" component={GuardedQuizDetails} />
+          <Stack.Screen name="EditQuiz" component={GuardedEditQuiz} />
+          <Stack.Screen name="QuizReport" component={GuardedQuizReport} />
+          <Stack.Screen name="QuizAttemptDetails" component={GuardedQuizAttemptDetails} />
           <Stack.Screen name="TraineeAccounts" component={GuardedTraineeAccounts} />
           <Stack.Screen name="TraineeAccountDetails" component={GuardedTraineeAccountDetails} />
           <Stack.Screen name="Schedules" component={GuardedSchedules} />
@@ -288,6 +325,8 @@ function App() {
           <Stack.Screen name="ScheduleDetails" component={GuardedScheduleDetails} />
           <Stack.Screen name="TraineeGrades" component={GuardedTraineeGrades} />
           <Stack.Screen name="TraineeGradeDetails" component={GuardedTraineeGradeDetails} />
+          <Stack.Screen name="SecondRoundStudents" component={GuardedSecondRoundStudents} />
+          <Stack.Screen name="MercyGrades" component={GuardedMercyGrades} />
           <Stack.Screen name="GradeReports" component={GuardedGradeReports} />
           <Stack.Screen name="GradeSettings" component={GuardedGradeSettings} />
           <Stack.Screen name="AcademicSupplies" component={GuardedAcademicSupplies} />

@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import CustomMenu from '../components/CustomMenu';
+import SelectBox from '../components/SelectBox';
 import AuthService from '../services/AuthService';
 import Toast from 'react-native-toast-message';
 import { QuizResponse, QuizListResponse } from '../types/quiz';
@@ -22,6 +23,8 @@ interface QuizManagementScreenProps {
 
 const QuizManagementScreen: React.FC<QuizManagementScreenProps> = ({ navigation }) => {
   const [quizzes, setQuizzes] = useState<QuizResponse[]>([]);
+  const [trainingContents, setTrainingContents] = useState<any[]>([]);
+  const [selectedContentId, setSelectedContentId] = useState('all');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [stats, setStats] = useState({
@@ -32,15 +35,45 @@ const QuizManagementScreen: React.FC<QuizManagementScreenProps> = ({ navigation 
     averageScore: 0,
   });
 
+  const calculateStatsFromQuizzes = (quizItems: QuizResponse[]) => {
+    const now = new Date();
+    const totalQuizzes = quizItems.length;
+    const activeQuizzes = quizItems.filter((q) => {
+      const start = new Date(q.startDate);
+      const end = new Date(q.endDate);
+      return q.isActive && q.isPublished && now >= start && now <= end;
+    }).length;
+    const publishedQuizzes = quizItems.filter((q) => q.isPublished).length;
+    const totalAttempts = quizItems.reduce((sum, q) => sum + (q._count?.attempts || 0), 0);
+
+    setStats({
+      totalQuizzes,
+      activeQuizzes,
+      publishedQuizzes,
+      totalAttempts,
+      // متوسط الدرجات غير متاح من قائمة /quizzes الحالية
+      averageScore: 0,
+    });
+  };
+
+  const normalizeTrainingContents = (response: any): any[] => {
+    if (Array.isArray(response)) return response;
+    if (response && Array.isArray(response.data)) return response.data;
+    if (response && Array.isArray(response.trainingContents)) return response.trainingContents;
+    return [];
+  };
+
   const loadQuizzes = async () => {
     try {
       setLoading(true);
-      const data: QuizListResponse = await AuthService.getAllQuizzes({ limit: 50 });
-      setQuizzes(data.quizzes || []);
-      
-      // جلب الإحصائيات
-      const statsData = await AuthService.getQuizStats();
-      setStats(statsData);
+      const trainingContentId = selectedContentId !== 'all' ? Number(selectedContentId) : undefined;
+      const data: QuizListResponse = await AuthService.getAllQuizzes({
+        limit: 50,
+        trainingContentId,
+      });
+      const quizItems = data.quizzes || [];
+      setQuizzes(quizItems);
+      calculateStatsFromQuizzes(quizItems);
     } catch (error) {
       console.error('Error loading quizzes:', error);
       Toast.show({
@@ -50,20 +83,43 @@ const QuizManagementScreen: React.FC<QuizManagementScreenProps> = ({ navigation 
         position: 'bottom'
       });
       setQuizzes([]);
+      calculateStatsFromQuizzes([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
 
+  const loadTrainingContents = async () => {
+    try {
+      const response = await AuthService.getTrainingContents();
+      setTrainingContents(normalizeTrainingContents(response));
+    } catch (error) {
+      console.error('Error loading training contents for quiz filter:', error);
+      setTrainingContents([]);
+    }
+  };
+
+  useEffect(() => {
+    loadTrainingContents();
+  }, []);
+
   useEffect(() => {
     loadQuizzes();
-  }, []);
+  }, [selectedContentId]);
 
   const handleRefresh = () => {
     setRefreshing(true);
     loadQuizzes();
   };
+
+  const contentOptions = [
+    { value: 'all', label: 'جميع المواد التدريبية' },
+    ...trainingContents.map((content) => ({
+      value: String(content.id),
+      label: content.nameAr || content.nameEn || content.name || `مادة #${content.id}`,
+    })),
+  ];
 
   const handleDeleteQuiz = (quizId: number, quizTitle: string) => {
     Alert.alert(
@@ -141,7 +197,9 @@ const QuizManagementScreen: React.FC<QuizManagementScreenProps> = ({ navigation 
             <Text style={styles.statusText}>{getStatusText(item)}</Text>
           </View>
         </View>
-        <Text style={styles.trainingContent}>{item.trainingContent.nameAr}</Text>
+        <Text style={styles.trainingContent}>
+          {item.trainingContent?.nameAr || item.trainingContent?.nameEn || (item.trainingContent as any)?.name || '-'}
+        </Text>
       </View>
 
       <View style={styles.cardContent}>
@@ -152,11 +210,11 @@ const QuizManagementScreen: React.FC<QuizManagementScreenProps> = ({ navigation 
           </View>
           <View style={styles.infoItem}>
             <Icon name="quiz" size={16} color="#6b7280" />
-            <Text style={styles.infoText}>{item._count.questions} سؤال</Text>
+            <Text style={styles.infoText}>{item._count?.questions || 0} سؤال</Text>
           </View>
           <View style={styles.infoItem}>
             <Icon name="people" size={16} color="#6b7280" />
-            <Text style={styles.infoText}>{item._count.attempts} محاولة</Text>
+            <Text style={styles.infoText}>{item._count?.attempts || 0} محاولة</Text>
           </View>
         </View>
 
@@ -179,13 +237,6 @@ const QuizManagementScreen: React.FC<QuizManagementScreenProps> = ({ navigation 
       </View>
 
       <View style={styles.cardActions}>
-        <TouchableOpacity 
-          style={styles.viewBtn}
-          onPress={() => navigation.navigate('QuizDetails', { quizId: item.id })}
-        >
-          <Icon name="visibility" size={16} color="#1a237e" />
-          <Text style={styles.viewText}>عرض</Text>
-        </TouchableOpacity>
         <TouchableOpacity 
           style={styles.editBtn}
           onPress={() => navigation.navigate('EditQuiz', { quizId: item.id })}
@@ -210,7 +261,7 @@ const QuizManagementScreen: React.FC<QuizManagementScreenProps> = ({ navigation 
         <View style={styles.header}>
           <CustomMenu navigation={navigation} activeRouteName="QuizManagement" />
           <View style={styles.headerContent}>
-            <Text style={styles.title}>الاختبار المصغر</Text>
+            <Text style={styles.title}>اختبارات اون لاين</Text>
             <Text style={styles.subtitle}>جاري التحميل...</Text>
           </View>
         </View>
@@ -227,7 +278,7 @@ const QuizManagementScreen: React.FC<QuizManagementScreenProps> = ({ navigation 
       <View style={styles.header}>
         <CustomMenu navigation={navigation} activeRouteName="QuizManagement" />
         <View style={styles.headerContent}>
-          <Text style={styles.title}>الاختبار المصغر</Text>
+          <Text style={styles.title}>اختبارات اون لاين</Text>
           <Text style={styles.subtitle}>
             {quizzes.length} اختبار • {stats.activeQuizzes} نشط
           </Text>
@@ -246,6 +297,16 @@ const QuizManagementScreen: React.FC<QuizManagementScreenProps> = ({ navigation 
         }
       >
         {/* Stats Cards */}
+        <View style={styles.filterCard}>
+          <SelectBox
+            label="فلترة حسب المادة"
+            selectedValue={selectedContentId}
+            onValueChange={setSelectedContentId}
+            items={contentOptions}
+            placeholder="اختر المادة"
+          />
+        </View>
+
         <View style={styles.statsContainer}>
           <View style={styles.statsRow}>
             <View style={styles.statCard}>
@@ -337,6 +398,14 @@ const styles = StyleSheet.create({
   content: { flex: 1, padding: 20 },
   loadingContainer: { alignItems: 'center', paddingVertical: 40 },
   loadingText: { marginTop: 12, color: '#6b7280' },
+  filterCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    padding: 14,
+    marginBottom: 12,
+  },
   
   // Stats
   statsContainer: { marginBottom: 20 },

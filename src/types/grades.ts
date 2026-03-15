@@ -93,3 +93,101 @@ export interface ContentGrade {
     updatedAt: Date;
   } | null;  // null إذا لم تكن هناك درجات مسجلة للمادة
 }
+
+// Types for second-round students page
+export interface FailedSubject {
+  content: {
+    id: number;
+    name: string;
+    code?: string;
+  };
+  totalMarks: number;
+  maxMarks: number;
+  percentage: number;
+}
+
+export interface SecondRoundStudent {
+  trainee: {
+    id: number;
+    nameAr: string;
+    nameEn?: string;
+    nationalId: string;
+    photoUrl?: string | null;
+    program: {
+      id: number;
+      nameAr: string;
+      nameEn?: string;
+    };
+  };
+  failedSubjects: FailedSubject[];
+}
+
+export interface ClassroomSecondRound {
+  classroom: {
+    id: number;
+    name: string;
+  };
+  students: SecondRoundStudent[];
+  totalStudents: number;
+}
+
+// Types for mercy grades page
+export interface MercyGradeProgram {
+  id: number;
+  nameAr: string;
+}
+
+export interface MercyGradeClassroom {
+  id: number;
+  name: string;
+  classNumber?: number;
+}
+
+export interface MercyGradeTrainingContent {
+  id: number;
+  name: string;
+  code?: string;
+}
+
+export interface MercyPreviewItem {
+  traineeId: number;
+  traineeName: string;
+  nationalId: string;
+  contentName: string;
+  contentId: number;
+  currentTotal: number;
+  projectedTotal: number;
+  addedPoints: number;
+}
+
+export interface MercyPreviewResult {
+  classroomId: number;
+  classroomName: string;
+  programName: string;
+  bonusPoints: number;
+  threshold: number;
+  totalAffected: number;
+  preview: MercyPreviewItem[];
+}
+
+export interface MercyApplyDetail {
+  traineeId: number;
+  traineeName: string;
+  contentName: string;
+  oldTotal: number;
+  newTotal: number;
+  addedPoints: number;
+  distribution?: Record<string, { old: number; added: number; new: number; max: number }>;
+}
+
+export interface MercyApplyResult {
+  classroomId: number;
+  classroomName: string;
+  programName: string;
+  bonusPoints: number;
+  threshold: number;
+  totalUpdated: number;
+  totalErrors: number;
+  details: MercyApplyDetail[];
+  errors: string[];
+}
