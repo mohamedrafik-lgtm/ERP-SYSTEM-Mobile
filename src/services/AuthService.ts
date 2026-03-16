@@ -494,6 +494,99 @@ class AuthService {
     }
   }
 
+  // جلب البرامج التدريبية من endpoint التدريب
+  static async getTrainingPrograms(): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/training-programs`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching training programs in AuthService:', error);
+      throw error;
+    }
+  }
+
+  // جلب المتدربين في برنامج محدد
+  static async getTraineesByProgram(programId: number, search?: string): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const query = new URLSearchParams();
+      query.append('programId', String(programId));
+      if (search) {
+        query.append('search', search);
+      }
+
+      const response = await fetch(`${baseUrl}/api/trainees?${query.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching trainees by program in AuthService:', error);
+      throw error;
+    }
+  }
+
+  // جلب مدفوعات المتدربين لرسم محدد
+  static async getTraineePaymentsByFee(feeId: number): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/finances/trainee-payments?feeId=${feeId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching trainee payments by fee in AuthService:', error);
+      throw error;
+    }
+  }
+
   // جلب كل المستخدمين
   static async getAllUsers(role?: string): Promise<any[]> {
     try {
@@ -4296,6 +4389,129 @@ class AuthService {
       return [];
     } catch (error) {
       console.error('[AuthService] Error fetching classroom training contents:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * جلب المتدربين لفصل دراسي محدد
+   */
+  static async getTraineesByClassroom(classroomId: number): Promise<any[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const apiBaseUrl = await getCurrentApiBaseUrl();
+      const response = await fetch(`${apiBaseUrl}/api/trainees?classroomId=${classroomId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API Error ${response.status}: ${errorText || response.statusText}`);
+      }
+
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        return data;
+      }
+      if (Array.isArray(data?.trainees)) {
+        return data.trainees;
+      }
+      if (Array.isArray(data?.data)) {
+        return data.data;
+      }
+      return [];
+    } catch (error) {
+      console.error('[AuthService] Error fetching trainees by classroom:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * جلب درجات مادة داخل فصل
+   */
+  static async getGradesByContent(trainingContentId: number, classroomId: number): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const apiBaseUrl = await getCurrentApiBaseUrl();
+      const response = await fetch(
+        `${apiBaseUrl}/api/grades/content/${trainingContentId}?classroomId=${classroomId}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API Error ${response.status}: ${errorText || response.statusText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching grades by content:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * رفع/تحديث درجات جماعية لمادة داخل فصل
+   */
+  static async bulkUpdateGrades(payload: {
+    trainingContentId: number;
+    classroomId: number;
+    grades: Array<{
+      traineeId: number;
+      yearWorkMarks?: number;
+      practicalMarks?: number;
+      writtenMarks?: number;
+      attendanceMarks?: number;
+      quizzesMarks?: number;
+      finalExamMarks?: number;
+      notes?: string;
+    }>;
+  }): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const apiBaseUrl = await getCurrentApiBaseUrl();
+      const response = await fetch(`${apiBaseUrl}/api/grades/bulk`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API Error ${response.status}: ${errorText || response.statusText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error bulk updating grades:', error);
       throw error;
     }
   }

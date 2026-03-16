@@ -193,7 +193,7 @@ class StudyMaterialsService {
     if (params?.limit) queryParams.append('limit', params.limit.toString());
 
     const queryString = queryParams.toString();
-    const endpoint = `/api/study-materials/deliveries${queryString ? `?${queryString}` : ''}`;
+    const endpoint = `/api/study-materials/deliveries/list${queryString ? `?${queryString}` : ''}`;
 
     return this.request<MaterialDeliveriesResponse>(endpoint);
   }
@@ -245,6 +245,29 @@ class StudyMaterialsService {
       '/api/study-materials/deliveries',
       {
         method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+  }
+
+  /**
+   * تحديث حالة/بيانات سجل تسليم
+   * PATCH /api/study-materials/deliveries/:id
+   */
+  async updateDelivery(
+    id: string,
+    data: {
+      status?: 'PENDING' | 'DELIVERED' | 'RETURNED' | 'LOST';
+      deliveryDate?: string;
+      notes?: string;
+      returnDate?: string;
+      returnNotes?: string;
+    }
+  ): Promise<MaterialDelivery> {
+    return this.request<MaterialDelivery>(
+      `/api/study-materials/deliveries/${id}`,
+      {
+        method: 'PATCH',
         body: JSON.stringify(data),
       }
     );

@@ -514,6 +514,16 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     showInMenu: true,
     description: 'إدارة درجات المتدربين والتقييمات',
   },
+  BulkUploadGrades: {
+    screenName: 'BulkUploadGrades',
+    title: 'رفع درجات المتدربين',
+    icon: 'upload-file',
+    requiredPermission: { resource: 'dashboard.grades.bulk-upload', action: 'manage' },
+    category: 'grades',
+    priority: 1.2,
+    showInMenu: true,
+    description: 'رفع درجات المتدربين بشكل جماعي من ملف Excel',
+  },
   TraineeGradeDetails: {
     screenName: 'TraineeGradeDetails',
     title: 'تفاصيل الدرجات',
@@ -840,6 +850,15 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     showInMenu: true,
     description: 'تتبع حالة تسليم الأدوات الدراسية',
   },
+  DeliveryTrackingMaterial: {
+    screenName: 'DeliveryTrackingMaterial',
+    title: 'تفاصيل تسليم الأداة',
+    icon: 'assignment-turned-in',
+    requiredPermission: { resource: 'dashboard.id-cards', action: 'view' },
+    category: 'academic_supplies',
+    priority: 2.1,
+    showInMenu: false,
+  },
   AddStudyMaterial: {
     screenName: 'AddStudyMaterial',
     title: 'إضافة مادة دراسية',
@@ -982,6 +1001,7 @@ export const MENU_SECTIONS: MenuSection[] = [
     icon: 'grade',
     requiredPermissions: [
       { resource: 'dashboard.trainees', action: 'view' },
+      { resource: 'dashboard.grades.bulk-upload', action: 'manage' },
       { resource: 'dashboard.grades.second-round', action: 'manage' },
       { resource: 'dashboard.grades.mercy', action: 'manage' },
     ],

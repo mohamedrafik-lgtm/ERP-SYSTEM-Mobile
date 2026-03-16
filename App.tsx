@@ -79,6 +79,7 @@ import ScheduleScreen from './src/screens/ScheduleScreen';
 import SemesterSelectionScreen from './src/screens/SemesterSelectionScreen';
 import ScheduleDetailsScreen from './src/screens/ScheduleDetailsScreen';
 import TraineeGradesScreen from './src/screens/TraineeGradesScreen';
+import BulkUploadGradesScreen from './src/screens/BulkUploadGradesScreen';
 import TraineeGradeDetailsScreen from './src/screens/TraineeGradeDetailsScreen';
 import SecondRoundStudentsScreen from './src/screens/SecondRoundStudentsScreen';
 import MercyGradesScreen from './src/screens/MercyGradesScreen';
@@ -87,6 +88,7 @@ import GradeSettingsScreen from './src/screens/GradeSettingsScreen';
 import BranchSelectionScreen from './src/screens/BranchSelectionScreen';
 import AcademicSuppliesScreen from './src/screens/AcademicSuppliesScreen';
 import DeliveryTrackingScreen from './src/screens/DeliveryTrackingScreen';
+import DeliveryTrackingMaterialScreen from './src/screens/DeliveryTrackingMaterialScreen';
 import AddStudyMaterialScreen from './src/screens/AddStudyMaterialScreen';
 import StaffAttendanceScreen from './src/screens/StaffAttendanceScreen';
 import StaffAttendanceLogsScreen from './src/screens/StaffAttendanceLogsScreen';
@@ -141,6 +143,7 @@ const GuardedSchedules = withPermissionGuard(ScheduleScreen, 'Schedules');
 const GuardedSemesterSelection = withPermissionGuard(SemesterSelectionScreen, 'SemesterSelection');
 const GuardedScheduleDetails = withPermissionGuard(ScheduleDetailsScreen, 'ScheduleDetails');
 const GuardedTraineeGrades = withPermissionGuard(TraineeGradesScreen, 'TraineeGrades');
+const GuardedBulkUploadGrades = withPermissionGuard(BulkUploadGradesScreen, 'BulkUploadGrades');
 const GuardedTraineeGradeDetails = withPermissionGuard(TraineeGradeDetailsScreen, 'TraineeGradeDetails');
 const GuardedSecondRoundStudents = withPermissionGuard(SecondRoundStudentsScreen, 'SecondRoundStudents');
 const GuardedMercyGrades = withPermissionGuard(MercyGradesScreen, 'MercyGrades');
@@ -175,6 +178,7 @@ const GuardedCreateEditRole = withPermissionGuard(CreateEditRoleScreen, 'Permiss
 const GuardedManageRolePermissions = withPermissionGuard(ManageRolePermissionsScreen, 'Permissions');
 const GuardedAcademicSupplies = withPermissionGuard(AcademicSuppliesScreen, 'AcademicSupplies');
 const GuardedDeliveryTracking = withPermissionGuard(DeliveryTrackingScreen, 'DeliveryTracking');
+const GuardedDeliveryTrackingMaterial = withPermissionGuard(DeliveryTrackingMaterialScreen, 'DeliveryTrackingMaterial');
 const GuardedAddStudyMaterial = withPermissionGuard(AddStudyMaterialScreen, 'AddStudyMaterial');
 const GuardedStaffAttendance = withPermissionGuard(StaffAttendanceScreen, 'StaffAttendance');
 const GuardedStaffAttendanceLogs = withPermissionGuard(StaffAttendanceLogsScreen, 'StaffAttendanceLogs');
@@ -328,6 +332,7 @@ function App() {
           <Stack.Screen name="SemesterSelection" component={GuardedSemesterSelection} />
           <Stack.Screen name="ScheduleDetails" component={GuardedScheduleDetails} />
           <Stack.Screen name="TraineeGrades" component={GuardedTraineeGrades} />
+          <Stack.Screen name="BulkUploadGrades" component={GuardedBulkUploadGrades} />
           <Stack.Screen name="TraineeGradeDetails" component={GuardedTraineeGradeDetails} />
           <Stack.Screen name="SecondRoundStudents" component={GuardedSecondRoundStudents} />
           <Stack.Screen name="MercyGrades" component={GuardedMercyGrades} />
@@ -335,6 +340,7 @@ function App() {
           <Stack.Screen name="GradeSettings" component={GuardedGradeSettings} />
           <Stack.Screen name="AcademicSupplies" component={GuardedAcademicSupplies} />
           <Stack.Screen name="DeliveryTracking" component={GuardedDeliveryTracking} />
+          <Stack.Screen name="DeliveryTrackingMaterial" component={GuardedDeliveryTrackingMaterial} />
           <Stack.Screen name="AddStudyMaterial" component={GuardedAddStudyMaterial} />
           <Stack.Screen name="StaffAttendance" component={GuardedStaffAttendance} />
           <Stack.Screen name="StaffAttendanceLogs" component={GuardedStaffAttendanceLogs} />
