@@ -226,22 +226,21 @@ const ControlSystemScreen: React.FC<ControlSystemScreenProps> = ({ navigation })
   };
 
   const handleUploadExcel = async (examId: number) => {
-    let DocumentPickerLib: any;
+    let pickerLib: any;
     try {
       // Resolve at runtime to avoid static type resolution issues when typings are missing.
       // eslint-disable-next-line @typescript-eslint/no-var-requires
-      DocumentPickerLib = require('react-native-document-picker');
-      const DocumentPicker = DocumentPickerLib.default || DocumentPickerLib;
+      pickerLib = require('@react-native-documents/picker');
+      const picker = pickerLib.default || pickerLib;
 
-      const result = await DocumentPicker.pick({
+      const result = await picker.pick({
         type: [
-          DocumentPicker.types.xlsx,
-          DocumentPicker.types.xls,
+          picker.types.xlsx,
+          picker.types.xls,
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           'application/vnd.ms-excel',
         ],
         allowMultiSelection: false,
-        copyTo: 'cachesDirectory',
       });
 
       const file = Array.isArray(result) ? result[0] : result;
@@ -272,7 +271,8 @@ const ControlSystemScreen: React.FC<ControlSystemScreenProps> = ({ navigation })
 
       await loadData();
     } catch (error: any) {
-      const isCancel = !!DocumentPickerLib?.default?.isCancel?.(error);
+      const picker = pickerLib?.default || pickerLib;
+      const isCancel = !!picker?.isErrorWithCode?.(error) && error?.code === picker?.errorCodes?.OPERATION_CANCELED;
       if (isCancel) {
         return;
       }

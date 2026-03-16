@@ -654,14 +654,22 @@ export default function LecturesPage() {
                                   variant="outline"
                                   size="sm"
                                   leftIcon={<PencilIcon className="w-3.5 h-3.5" />}
-                                  onClick={() => editLecture({...lecture, id: Number(lecture.id)})}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    editLecture({ ...lecture, id: Number(lecture.id) });
+                                  }}
                                 >
                                   تعديل
                                 </Button>
                                 <Button
                                   variant="danger"
                                   size="sm"
-                                  onClick={() => setDeleteConfirm(Number(lecture.id))}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteConfirm(Number(lecture.id));
+                                  }}
                                   isLoading={isDeleting === Number(lecture.id)}
                                   disabled={isDeleting === Number(lecture.id)}
                                 >
@@ -681,7 +689,11 @@ export default function LecturesPage() {
                             <div className="flex flex-wrap gap-2 pt-1">
                               {lecture.youtubeUrl && (
                                 <button
-                                  onClick={() => openYoutubeViewer(lecture.youtubeUrl, lecture.title)}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openYoutubeViewer(lecture.youtubeUrl, lecture.title);
+                                  }}
                                   className="inline-flex items-center px-3 py-1.5 bg-red-50 text-red-700 rounded-lg text-xs font-medium hover:bg-red-100 transition-colors border border-red-200"
                                 >
                                   <PlayIcon className="h-3.5 w-3.5 ml-1" /> مشاهدة الفيديو
@@ -690,7 +702,11 @@ export default function LecturesPage() {
                               {lecture.pdfFile && (
                                 <>
                                   <button
-                                    onClick={() => openPdfViewer(lecture.pdfFile, lecture.title)}
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openPdfViewer(lecture.pdfFile, lecture.title);
+                                    }}
                                     className="inline-flex items-center px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-100 transition-colors border border-blue-200"
                                   >
                                     <DocumentIcon className="h-3.5 w-3.5 ml-1" /> عرض PDF

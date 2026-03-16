@@ -2393,9 +2393,9 @@ class AuthService {
       }
 
       const baseUrl = await this.getApiBaseUrl();
-      const query = new URLSearchParams();
-      if (params?.contentId) query.append('contentId', String(params.contentId));
-      const url = `${baseUrl}/api/lectures${query.toString() ? `?${query.toString()}` : ''}`;
+      const url = params?.contentId
+        ? `${baseUrl}/api/lectures/content/${params.contentId}`
+        : `${baseUrl}/api/lectures`;
       console.log('[AuthService] Fetching lectures from URL:', url);
 
       const response = await fetch(url, {

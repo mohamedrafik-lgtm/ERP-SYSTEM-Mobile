@@ -23,14 +23,15 @@ const EditLectureScreen = ({ route, navigation }: any) => {
 
   const handlePickPdf = async () => {
     try {
-      const DocumentPicker = (await import('react-native-document-picker')).default as any;
-      const res = await DocumentPicker.pick({ type: [DocumentPicker.types.pdf], allowMultiSelection: false, copyTo: 'cachesDirectory' });
+      const picker = await import('@react-native-documents/picker');
+      const res = await picker.pick({ type: [picker.types.pdf], allowMultiSelection: false });
       const file = Array.isArray(res) ? res[0] : (res as any);
       const pickedName = file?.name || 'selected.pdf';
       setField('pdfFile', pickedName);
       Toast.show({ type: 'success', text1: 'تم اختيار الملف', text2: pickedName });
     } catch (err: any) {
-      if (DocumentPicker.isCancel(err)) return;
+      const picker = await import('@react-native-documents/picker');
+      if (picker.isErrorWithCode(err) && err.code === picker.errorCodes.OPERATION_CANCELED) return;
       Alert.alert('خطأ', 'فشل اختيار ملف PDF');
     }
   };

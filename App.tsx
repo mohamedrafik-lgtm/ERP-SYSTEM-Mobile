@@ -54,6 +54,8 @@ import TraineeDocumentsScreen from './src/screens/TraineeDocumentsScreen';
 import LecturesScreen from './src/screens/LecturesScreen';
 import AddLectureScreen from './src/screens/AddLectureScreen';
 import EditLectureScreen from './src/screens/EditLectureScreen';
+import PdfViewerScreen from './src/screens/PdfViewerScreen';
+import YouTubeViewerScreen from './src/screens/YouTubeViewerScreen';
 import DistributionManagementScreen from './src/screens/DistributionManagementScreen';
 import AddDistributionScreen from './src/screens/AddDistributionScreen';
 import DistributionDetailsScreen from './src/screens/DistributionDetailsScreen';
@@ -301,6 +303,8 @@ function App() {
           <Stack.Screen name="Lectures" component={GuardedLectures} />
           <Stack.Screen name="AddLecture" component={GuardedAddLecture} />
           <Stack.Screen name="EditLecture" component={GuardedEditLecture} />
+          <Stack.Screen name="PdfViewer" component={PdfViewerScreen} />
+          <Stack.Screen name="YouTubeViewer" component={YouTubeViewerScreen} />
           <Stack.Screen name="DistributionManagement" component={GuardedDistributionManagement} />
           <Stack.Screen name="AddDistribution" component={GuardedAddDistribution} />
           <Stack.Screen name="DistributionDetails" component={GuardedDistributionDetails} />
