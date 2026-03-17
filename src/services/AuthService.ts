@@ -3801,37 +3801,6 @@ class AuthService {
    */
   static async getTraineeAccounts(params?: {
     search?: string;
-  static async getComprehensiveDashboard(): Promise<any> {
-    try {
-      const token = await this.getToken();
-      if (!token) {
-        throw new Error('Authentication token not found.');
-      }
-
-      const baseUrl = await this.getApiBaseUrl();
-      const response = await fetch(`${baseUrl}/api/dashboard/comprehensive`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || `Failed to fetch comprehensive dashboard: ${response.status}`);
-      }
-
-      return data;
-    } catch (error) {
-      console.error('[AuthService] Error fetching comprehensive dashboard:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * جلب بيانات التقرير المالي Dashboard
-   */
     isActive?: boolean;
     page?: number;
     limit?: number;
@@ -3926,6 +3895,34 @@ class AuthService {
       return data;
     } catch (error) {
       console.error('[AuthService] Error getting trainee accounts:', error);
+      throw error;
+    }
+  }
+
+  static async getComprehensiveDashboard(): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/dashboard/comprehensive`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || `Failed to fetch comprehensive dashboard: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error fetching comprehensive dashboard:', error);
       throw error;
     }
   }
@@ -4708,6 +4705,88 @@ class AuthService {
       return response.json();
     } catch (error) {
       console.error('[AuthService] Error applying mercy grades:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * معاينة تصفير مكون الدرجات
+   */
+  static async previewResetGradeComponent(params: {
+    contentIds: number[];
+    component: string;
+    threshold?: number;
+  }): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const apiBaseUrl = await getCurrentApiBaseUrl();
+      const query = new URLSearchParams();
+      query.append('contentIds', params.contentIds.join(','));
+      query.append('component', params.component);
+      query.append('threshold', String(params.threshold ?? 10));
+
+      const response = await fetch(`${apiBaseUrl}/api/grades/reset-component/preview?${query.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API Error ${response.status}: ${errorText || response.statusText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error previewing reset grade component:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * تطبيق تصفير مكون الدرجات
+   */
+  static async applyResetGradeComponent(params: {
+    contentIds: number[];
+    component: string;
+    threshold?: number;
+  }): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const apiBaseUrl = await getCurrentApiBaseUrl();
+      const response = await fetch(`${apiBaseUrl}/api/grades/reset-component/apply`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          contentIds: params.contentIds,
+          component: params.component,
+          threshold: params.threshold ?? 10,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API Error ${response.status}: ${errorText || response.statusText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error applying reset grade component:', error);
       throw error;
     }
   }

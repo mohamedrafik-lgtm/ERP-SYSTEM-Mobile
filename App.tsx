@@ -84,6 +84,7 @@ import BulkUploadGradesScreen from './src/screens/BulkUploadGradesScreen';
 import TraineeGradeDetailsScreen from './src/screens/TraineeGradeDetailsScreen';
 import SecondRoundStudentsScreen from './src/screens/SecondRoundStudentsScreen';
 import MercyGradesScreen from './src/screens/MercyGradesScreen';
+import ResetGradeComponentScreen from './src/screens/ResetGradeComponentScreen';
 import GradeReportsScreen from './src/screens/GradeReportsScreen';
 import GradeSettingsScreen from './src/screens/GradeSettingsScreen';
 import BranchSelectionScreen from './src/screens/BranchSelectionScreen';
@@ -149,6 +150,7 @@ const GuardedBulkUploadGrades = withPermissionGuard(BulkUploadGradesScreen, 'Bul
 const GuardedTraineeGradeDetails = withPermissionGuard(TraineeGradeDetailsScreen, 'TraineeGradeDetails');
 const GuardedSecondRoundStudents = withPermissionGuard(SecondRoundStudentsScreen, 'SecondRoundStudents');
 const GuardedMercyGrades = withPermissionGuard(MercyGradesScreen, 'MercyGrades');
+const GuardedResetGradeComponent = withPermissionGuard(ResetGradeComponentScreen, 'ResetGradeComponent');
 const GuardedGradeReports = withPermissionGuard(GradeReportsScreen, 'GradeReports');
 const GuardedGradeSettings = withPermissionGuard(GradeSettingsScreen, 'GradeSettings');
 const GuardedMarketers = withPermissionGuard(MarketersScreen, 'Marketers');
@@ -339,6 +341,7 @@ function App() {
           <Stack.Screen name="TraineeGradeDetails" component={GuardedTraineeGradeDetails} />
           <Stack.Screen name="SecondRoundStudents" component={GuardedSecondRoundStudents} />
           <Stack.Screen name="MercyGrades" component={GuardedMercyGrades} />
+          <Stack.Screen name="ResetGradeComponent" component={GuardedResetGradeComponent} />
           <Stack.Screen name="GradeReports" component={GuardedGradeReports} />
           <Stack.Screen name="GradeSettings" component={GuardedGradeSettings} />
           <Stack.Screen name="AcademicSupplies" component={GuardedAcademicSupplies} />
