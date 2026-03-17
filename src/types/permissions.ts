@@ -755,6 +755,16 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     showInMenu: true,
     description: 'عرض التقارير والإحصائيات المالية الشاملة',
   },
+  FinancialAuditLogs: {
+    screenName: 'FinancialAuditLogs',
+    title: 'سجل العمليات',
+    icon: 'history',
+    requiredPermission: { resource: 'dashboard.financial.audit-log', action: 'view' },
+    category: 'financial',
+    priority: 8.52,
+    showInMenu: true,
+    description: 'متابعة سجل العمليات المالية والتغييرات',
+  },
   GradeAppealFees: {
     screenName: 'GradeAppealFees',
     title: 'رسوم التظلمات',
@@ -1062,6 +1072,7 @@ export const MENU_SECTIONS: MenuSection[] = [
     icon: 'account-balance',
     requiredPermissions: [
       { resource: 'dashboard.financial', action: 'view' },
+      { resource: 'dashboard.financial.audit-log', action: 'view' },
       { resource: 'dashboard.grade-appeals', action: 'view' },
     ],
     requireAll: false,

@@ -5219,6 +5219,83 @@ class AuthService {
     }
   }
 
+  static async getFinancialAuditLogs(params?: {
+    action?: string;
+    entityType?: string;
+    entityId?: string;
+    userId?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const queryParams = new URLSearchParams();
+
+      if (params?.action) queryParams.append('action', params.action);
+      if (params?.entityType) queryParams.append('entityType', params.entityType);
+      if (params?.entityId) queryParams.append('entityId', params.entityId);
+      if (params?.userId) queryParams.append('userId', params.userId);
+      if (params?.dateFrom) queryParams.append('dateFrom', params.dateFrom);
+      if (params?.dateTo) queryParams.append('dateTo', params.dateTo);
+      if (params?.page) queryParams.append('page', String(params.page));
+      if (params?.limit) queryParams.append('limit', String(params.limit));
+
+      const url = `${baseUrl}/api/finances/audit-logs?${queryParams.toString()}`;
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to fetch financial audit logs: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching financial audit logs:', error);
+      throw error;
+    }
+  }
+
+  static async getFinancialAuditStatistics(): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/finances/audit-statistics`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to fetch financial audit statistics: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching financial audit statistics:', error);
+      throw error;
+    }
+  }
+
   // ==================== GRADE APPEALS FEE CONFIG APIs ====================
 
   static async getGradeAppealFeeConfigPrograms(): Promise<any[]> {
