@@ -755,6 +755,16 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     showInMenu: true,
     description: 'عرض التقارير والإحصائيات المالية الشاملة',
   },
+  GradeAppealFees: {
+    screenName: 'GradeAppealFees',
+    title: 'رسوم التظلمات',
+    icon: 'rule',
+    requiredPermission: { resource: 'dashboard.grade-appeals', action: 'view' },
+    category: 'financial',
+    priority: 8.55,
+    showInMenu: true,
+    description: 'تحديد رسوم التظلمات لكل برنامج تدريبي',
+  },
   PaymentSchedules: {
     screenName: 'PaymentSchedules',
     title: 'مواعيد السداد',
@@ -1050,7 +1060,11 @@ export const MENU_SECTIONS: MenuSection[] = [
     title: 'الإدارة المالية',
     category: 'financial',
     icon: 'account-balance',
-    requiredPermissions: [{ resource: 'dashboard.financial', action: 'view' }],
+    requiredPermissions: [
+      { resource: 'dashboard.financial', action: 'view' },
+      { resource: 'dashboard.grade-appeals', action: 'view' },
+    ],
+    requireAll: false,
     items: Object.values(SCREEN_PERMISSIONS).filter(s => s.category === 'financial' && s.showInMenu),
   },
 

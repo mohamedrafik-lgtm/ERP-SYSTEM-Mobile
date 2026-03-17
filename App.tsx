@@ -28,6 +28,7 @@ import AddFeeScreen from './src/screens/AddFeeScreen';
 import TraineePaymentsScreen from './src/screens/TraineePaymentsScreen';
 import TraineePaymentDetailsScreen from './src/screens/TraineePaymentDetailsScreen';
 import FinancialReportsScreen from './src/screens/FinancialReportsScreen';
+import GradeAppealFeesScreen from './src/screens/GradeAppealFeesScreen';
 import PaymentSchedulesScreen from './src/screens/PaymentSchedulesScreen';
 import PaymentScheduleDetailsScreen from './src/screens/PaymentScheduleDetailsScreen';
 import AddPaymentScheduleScreen from './src/screens/AddPaymentScheduleScreen';
@@ -169,6 +170,7 @@ const GuardedAddFee = withPermissionGuard(AddFeeScreen, 'AddFeeScreen');
 const GuardedTraineePayments = withPermissionGuard(TraineePaymentsScreen, 'TraineePayments');
 const GuardedTraineePaymentDetails = withPermissionGuard(TraineePaymentDetailsScreen, 'TraineePaymentDetails');
 const GuardedFinancialReports = withPermissionGuard(FinancialReportsScreen, 'FinancialReports');
+const GuardedGradeAppealFees = withPermissionGuard(GradeAppealFeesScreen, 'GradeAppealFees');
 const GuardedPaymentSchedules = withPermissionGuard(PaymentSchedulesScreen, 'PaymentSchedules');
 const GuardedPaymentScheduleDetails = withPermissionGuard(PaymentScheduleDetailsScreen, 'PaymentScheduleDetails');
 const GuardedAddPaymentSchedule = withPermissionGuard(AddPaymentScheduleScreen, 'AddPaymentSchedule');
@@ -285,6 +287,7 @@ function App() {
           <Stack.Screen name="TraineePayments" component={GuardedTraineePayments} />
           <Stack.Screen name="TraineePaymentDetails" component={GuardedTraineePaymentDetails} />
           <Stack.Screen name="FinancialReports" component={GuardedFinancialReports} />
+          <Stack.Screen name="GradeAppealFees" component={GuardedGradeAppealFees} />
           <Stack.Screen name="PaymentSchedules" component={GuardedPaymentSchedules} />
           <Stack.Screen name="PaymentScheduleDetails" component={GuardedPaymentScheduleDetails} />
           <Stack.Screen name="AddPaymentSchedule" component={GuardedAddPaymentSchedule} />
