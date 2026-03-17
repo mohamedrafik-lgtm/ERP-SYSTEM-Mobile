@@ -117,6 +117,16 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     priority: 2.1,
     showInMenu: false,
   },
+  TraineeTransfer: {
+    screenName: 'TraineeTransfer',
+    title: 'تحويل المتدربين',
+    icon: 'swap-horiz',
+    requiredPermission: { resource: 'dashboard.trainees', action: 'transfer' },
+    category: 'academic',
+    priority: 2.4,
+    showInMenu: true,
+    description: 'تحويل المتدربين بين البرامج التدريبية',
+  },
   EditTrainee: {
     screenName: 'EditTrainee',
     title: 'تعديل متدرب',

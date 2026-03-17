@@ -1,4 +1,4 @@
-import React, {useState, useEffect, useCallback, useRef} from 'react';
+import React, {useState, useEffect, useCallback} from 'react';
 import {
   View,
   Text,
@@ -7,10 +7,9 @@ import {
   ScrollView,
   ActivityIndicator,
   Dimensions,
-  Animated,
   RefreshControl,
-  Image,
 } from 'react-native';
+import {SafeAreaView} from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import CustomMenu from '../components/CustomMenu';
 import AuthService from '../services/AuthService';
@@ -18,124 +17,7 @@ import BranchService from '../services/BranchService';
 import {usePermissions} from '../hooks/usePermissions';
 
 const {width} = Dimensions.get('window');
-const CARD_W = (width - 56) / 2;
-
-// ====== Animated Horizontal Bar ======
-const AnimBar = ({
-  pct,
-  color,
-  delay = 0,
-}: {
-  pct: number;
-  color: string;
-  delay?: number;
-}) => {
-  const w = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.timing(w, {
-      toValue: Math.min(pct, 100),
-      duration: 900,
-      delay,
-      useNativeDriver: false,
-    }).start();
-  }, [pct, delay, w]);
-  return (
-    <View style={barStyles.track}>
-      <Animated.View
-        style={[
-          barStyles.fill,
-          {
-            backgroundColor: color,
-            width: w.interpolate({
-              inputRange: [0, 100],
-              outputRange: ['0%', '100%'],
-            }),
-          },
-        ]}
-      />
-    </View>
-  );
-};
-
-const barStyles = StyleSheet.create({
-  track: {
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#f1f5f9',
-    overflow: 'hidden',
-  },
-  fill: {height: 10, borderRadius: 5},
-});
-
-// ====== Vertical Mini Bar Chart ======
-const VerticalBarChart = ({
-  data,
-}: {
-  data: {label: string; value: number; color: string}[];
-}) => {
-  const maxVal = Math.max(...data.map(d => d.value), 1);
-  const barAnims = useRef(data.map(() => new Animated.Value(0))).current;
-
-  useEffect(() => {
-    barAnims.forEach((anim, i) => {
-      Animated.timing(anim, {
-        toValue: 1,
-        duration: 700,
-        delay: i * 120,
-        useNativeDriver: false,
-      }).start();
-    });
-  }, [barAnims]);
-
-  return (
-    <View style={vbStyles.container}>
-      {data.map((d, i) => {
-        const targetH = Math.max((d.value / maxVal) * 100, 6);
-        return (
-          <View key={d.label} style={vbStyles.col}>
-            <Text style={[vbStyles.value, {color: d.color}]}>{d.value}</Text>
-            <Animated.View
-              style={[
-                vbStyles.bar,
-                {
-                  backgroundColor: d.color,
-                  height: barAnims[i]
-                    ? barAnims[i].interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0, targetH],
-                      })
-                    : targetH,
-                },
-              ]}
-            />
-            <Text style={vbStyles.label}>{d.label}</Text>
-          </View>
-        );
-      })}
-    </View>
-  );
-};
-
-const vbStyles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-around',
-    height: 150,
-    paddingTop: 10,
-    paddingBottom: 4,
-  },
-  col: {alignItems: 'center', flex: 1},
-  value: {fontSize: 13, fontWeight: '800', marginBottom: 6},
-  bar: {width: 30, borderRadius: 8, minHeight: 6},
-  label: {
-    fontSize: 10,
-    color: '#6b7280',
-    marginTop: 8,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-});
+const CARD_W = (width - 38) / 2;
 
 // ====== Main Component ======
 const HomeScreen = ({navigation}: any) => {
@@ -144,82 +26,58 @@ const HomeScreen = ({navigation}: any) => {
     isSuperAdmin || isAdmin || userRoleInfo?.name === 'accountant';
 
   const [stats, setStats] = useState({
+    totalTrainees: 0,
+    activeTrainees: 0,
     totalPrograms: 0,
-    totalStudents: 0,
-    totalFees: 0,
-    totalSafes: 0,
-    activeStudents: 0,
-    appliedFees: 0,
-    totalBalance: 0,
+    attendanceRate: 0,
+    attendancePresent: 0,
+    attendanceAbsent: 0,
+    attendanceLate: 0,
+    monthlyRevenue: 0,
+    monthlyExpenses: 0,
+    monthlyNetIncome: 0,
+    totalUnpaid: 0,
   });
+  const [recentPayments, setRecentPayments] = useState<any[]>([]);
+  const [recentActivities, setRecentActivities] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [branchName, setBranchName] = useState('');
 
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-
   useEffect(() => {
     fetchData();
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 600,
-      useNativeDriver: true,
-    }).start();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [branch, programs, studentsResp, activeResp, fees, safes] =
+      const [branch, dashboard] =
         await Promise.all([
           BranchService.getSelectedBranch().catch(() => null),
-          AuthService.getAllPrograms().catch(() => []),
-          AuthService.getTrainees({
-            page: 1,
-            limit: 1,
-            includeDetails: false,
-          }).catch(() => ({data: [], pagination: {total: 0}})),
-          AuthService.getTrainees({
-            page: 1,
-            limit: 1,
-            includeDetails: false,
-            status: 'ACTIVE',
-          }).catch(() => ({data: [], pagination: {total: 0}})),
-          canAccessFinancial
-            ? AuthService.getAllTraineeFees().catch(() => [])
-            : Promise.resolve([]),
-          canAccessFinancial
-            ? AuthService.getAllSafes().catch(() => [])
-            : Promise.resolve([]),
+          AuthService.getComprehensiveDashboard().catch(() => null),
         ]);
 
       if (branch) {
         setBranchName(branch.name);
       }
 
-      const appliedFees = (fees as any[]).filter(
-        (f: any) => f.isApplied,
-      ).length;
-      const totalBalance = (safes as any[]).reduce(
-        (sum: number, safe: any) => sum + safe.balance,
-        0,
-      );
-
+      const backendStats = dashboard?.stats || {};
       setStats({
-        totalPrograms: (programs as any[]).length,
-        totalStudents:
-          (studentsResp as any).pagination?.total ||
-          (studentsResp as any).data?.length ||
-          0,
-        totalFees: (fees as any[]).length,
-        totalSafes: (safes as any[]).length,
-        activeStudents:
-          (activeResp as any).pagination?.total ||
-          (activeResp as any).data?.length ||
-          0,
-        appliedFees,
-        totalBalance,
+        totalTrainees: backendStats.totalTrainees || 0,
+        activeTrainees: backendStats.activeTrainees || 0,
+        totalPrograms: backendStats.totalPrograms || 0,
+        attendanceRate: backendStats.attendanceRate || 0,
+        attendancePresent: backendStats.attendancePresent || 0,
+        attendanceAbsent: backendStats.attendanceAbsent || 0,
+        attendanceLate: backendStats.attendanceLate || 0,
+        monthlyRevenue: backendStats.monthlyRevenue || 0,
+        monthlyExpenses: backendStats.monthlyExpenses || 0,
+        monthlyNetIncome: backendStats.monthlyNetIncome || 0,
+        totalUnpaid: backendStats.totalUnpaid || 0,
       });
+
+      setRecentPayments(Array.isArray(dashboard?.recentPayments) ? dashboard.recentPayments : []);
+      setRecentActivities(Array.isArray(dashboard?.recentActivities) ? dashboard.recentActivities : []);
     } catch (e) {
       console.error('HomeScreen fetch error:', e);
     } finally {
@@ -245,14 +103,8 @@ const HomeScreen = ({navigation}: any) => {
     day: 'numeric',
   });
 
-  const studentActivePct =
-    stats.totalStudents > 0
-      ? (stats.activeStudents / stats.totalStudents) * 100
-      : 0;
-  const feesAppliedPct =
-    stats.totalFees > 0 ? (stats.appliedFees / stats.totalFees) * 100 : 0;
-  const inactiveStudents = stats.totalStudents - stats.activeStudents;
-  const unappliedFees = stats.totalFees - stats.appliedFees;
+  const totalAttendanceThisMonth =
+    stats.attendancePresent + stats.attendanceAbsent + stats.attendanceLate;
 
   const quickActions = [
     {icon: 'school', label: 'الطلاب', screen: 'StudentsList', bg: '#1a237e'},
@@ -290,7 +142,7 @@ const HomeScreen = ({navigation}: any) => {
   ];
 
   return (
-    <View style={st.container}>
+    <SafeAreaView style={st.container} edges={['top']}>
       {/* Header */}
       <View style={st.header}>
         <CustomMenu navigation={navigation} activeRouteName="Home" />
@@ -313,20 +165,13 @@ const HomeScreen = ({navigation}: any) => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }>
         {/* Welcome Card */}
-        <Animated.View style={[st.welcomeCard, {opacity: fadeAnim}]}>
-          <Image
-            source={require('../../img/502585454_122235753458244801_413190920156398012_n-removebg-preview.png')}
-            style={st.logo}
-            resizeMode="contain"
-          />
+        <View style={st.welcomeCard}>
           <View style={{flex: 1}}>
-            <Text style={st.greeting}>
-              {greeting} {'👋'}
-            </Text>
-            <Text style={st.welcomeTitle}>مركز طيبة للتدريب</Text>
+            <Text style={st.greeting}>{greeting} 👋</Text>
+            <Text style={st.welcomeTitle}>لوحة التحكم الرئيسية</Text>
             <Text style={st.dateText}>{dateStr}</Text>
           </View>
-        </Animated.View>
+        </View>
 
         {loading ? (
           <View style={st.loadingBox}>
@@ -335,176 +180,136 @@ const HomeScreen = ({navigation}: any) => {
           </View>
         ) : (
           <>
-            {/* ---- Overview Stats ---- */}
-            <Text style={st.sectionTitle}>نظرة عامة</Text>
+            <Text style={st.sectionTitle}>الإحصائيات العامة</Text>
             <View style={st.statsGrid}>
               <View style={[st.statCard, {borderTopColor: '#1a237e'}]}>
                 <View style={[st.statIconBox, {backgroundColor: '#eef2ff'}]}>
-                  <Icon name="book" size={22} color="#1a237e" />
+                  <Icon name="school" size={22} color="#1a237e" />
                 </View>
-                <Text style={st.statNum}>{stats.totalPrograms}</Text>
-                <Text style={st.statLabel}>البرامج</Text>
+                <Text style={st.statNum}>{stats.totalTrainees}</Text>
+                <Text style={st.statLabel}>إجمالي المتدربين</Text>
               </View>
               <View style={[st.statCard, {borderTopColor: '#059669'}]}>
                 <View style={[st.statIconBox, {backgroundColor: '#ecfdf5'}]}>
-                  <Icon name="school" size={22} color="#059669" />
+                  <Icon name="person" size={22} color="#059669" />
                 </View>
-                <Text style={st.statNum}>{stats.totalStudents}</Text>
-                <Text style={st.statLabel}>الطلاب</Text>
-                <Text style={st.statSub}>{stats.activeStudents} نشط</Text>
+                <Text style={st.statNum}>{stats.activeTrainees}</Text>
+                <Text style={st.statLabel}>متدربون نشطون</Text>
               </View>
+              <View style={[st.statCard, {borderTopColor: '#0ea5e9'}]}>
+                <View style={[st.statIconBox, {backgroundColor: '#ecfeff'}]}>
+                  <Icon name="menu-book" size={22} color="#0ea5e9" />
+                </View>
+                <Text style={st.statNum}>{stats.totalPrograms}</Text>
+                <Text style={st.statLabel}>البرامج التدريبية</Text>
+              </View>
+              <View style={[st.statCard, {borderTopColor: '#7c3aed'}]}>
+                <View style={[st.statIconBox, {backgroundColor: '#f5f3ff'}]}>
+                  <Icon name="bar-chart" size={22} color="#7c3aed" />
+                </View>
+                <Text style={st.statNum}>{stats.attendanceRate}%</Text>
+                <Text style={st.statLabel}>نسبة الحضور</Text>
+              </View>
+
               {canAccessFinancial && (
-                <View style={[st.statCard, {borderTopColor: '#d97706'}]}>
+                <View style={[st.statCard, {borderTopColor: '#16a34a'}]}>
                   <View
-                    style={[st.statIconBox, {backgroundColor: '#fffbeb'}]}>
-                    <Icon
-                      name="account-balance-wallet"
-                      size={22}
-                      color="#d97706"
-                    />
+                    style={[st.statIconBox, {backgroundColor: '#f0fdf4'}]}>
+                    <Icon name="trending-up" size={22} color="#16a34a" />
                   </View>
-                  <Text style={st.statNum}>{stats.totalFees}</Text>
-                  <Text style={st.statLabel}>الرسوم</Text>
-                  <Text style={st.statSub}>{stats.appliedFees} مطبقة</Text>
+                  <Text style={st.statNum}>{Math.round(stats.monthlyRevenue).toLocaleString()}</Text>
+                  <Text style={st.statLabel}>إيراد الشهر (ج.م)</Text>
                 </View>
               )}
               {canAccessFinancial && (
-                <View style={[st.statCard, {borderTopColor: '#7c3aed'}]}>
+                <View style={[st.statCard, {borderTopColor: '#dc2626'}]}>
                   <View
-                    style={[st.statIconBox, {backgroundColor: '#f5f3ff'}]}>
-                    <Icon name="account-balance" size={22} color="#7c3aed" />
+                    style={[st.statIconBox, {backgroundColor: '#fef2f2'}]}>
+                    <Icon name="trending-down" size={22} color="#dc2626" />
                   </View>
-                  <Text style={st.statNum}>{stats.totalSafes}</Text>
-                  <Text style={st.statLabel}>الخزائن</Text>
-                  <Text style={st.statSub}>
-                    {stats.totalBalance.toLocaleString()} ج.م
-                  </Text>
+                  <Text style={st.statNum}>{Math.round(stats.monthlyExpenses).toLocaleString()}</Text>
+                  <Text style={st.statLabel}>مصروفات الشهر (ج.م)</Text>
                 </View>
               )}
             </View>
 
-            {/* ---- Analytics: Vertical Bar Chart ---- */}
-            <Text style={st.sectionTitle}>التحليلات</Text>
             <View style={st.chartCard}>
-              <Text style={st.chartTitle}>مقارنة البيانات</Text>
-              <VerticalBarChart
-                data={[
-                  {
-                    label: 'البرامج',
-                    value: stats.totalPrograms,
-                    color: '#1a237e',
-                  },
-                  {
-                    label: 'الطلاب',
-                    value: stats.totalStudents,
-                    color: '#059669',
-                  },
-                  {
-                    label: 'نشط',
-                    value: stats.activeStudents,
-                    color: '#0ea5e9',
-                  },
-                  ...(canAccessFinancial
-                    ? [
-                        {
-                          label: 'الرسوم',
-                          value: stats.totalFees,
-                          color: '#d97706',
-                        },
-                        {
-                          label: 'الخزائن',
-                          value: stats.totalSafes,
-                          color: '#7c3aed',
-                        },
-                      ]
-                    : []),
-                ]}
-              />
-            </View>
-
-            {/* ---- Student Status Bars ---- */}
-            <View style={st.chartCard}>
-              <Text style={st.chartTitle}>حالة الطلاب</Text>
-              <View style={{gap: 14}}>
-                <View>
-                  <View style={st.barRow}>
-                    <Text style={st.barLabel}>نشط</Text>
-                    <Text style={st.barVal}>
-                      {stats.activeStudents} ({Math.round(studentActivePct)}%)
-                    </Text>
-                  </View>
-                  <AnimBar pct={studentActivePct} color="#059669" />
+              <Text style={st.chartTitle}>ملخص الحضور (هذا الشهر)</Text>
+              <View style={st.attendanceRow}>
+                <View style={[st.attChip, {backgroundColor: '#dcfce7'}]}>
+                  <Text style={[st.attChipVal, {color: '#166534'}]}>{stats.attendancePresent}</Text>
+                  <Text style={st.attChipLabel}>حاضر</Text>
                 </View>
-                <View>
-                  <View style={st.barRow}>
-                    <Text style={st.barLabel}>غير نشط</Text>
-                    <Text style={st.barVal}>
-                      {inactiveStudents} ({Math.round(100 - studentActivePct)}
-                      %)
-                    </Text>
-                  </View>
-                  <AnimBar
-                    pct={100 - studentActivePct}
-                    color="#ef4444"
-                    delay={200}
-                  />
+                <View style={[st.attChip, {backgroundColor: '#fef3c7'}]}>
+                  <Text style={[st.attChipVal, {color: '#92400e'}]}>{stats.attendanceLate}</Text>
+                  <Text style={st.attChipLabel}>متأخر</Text>
+                </View>
+                <View style={[st.attChip, {backgroundColor: '#fee2e2'}]}>
+                  <Text style={[st.attChipVal, {color: '#991b1b'}]}>{stats.attendanceAbsent}</Text>
+                  <Text style={st.attChipLabel}>غائب</Text>
                 </View>
               </View>
+              <Text style={st.attMeta}>إجمالي السجلات: {totalAttendanceThisMonth}</Text>
             </View>
 
-            {/* ---- Fee Status Bars ---- */}
             {canAccessFinancial && (
               <View style={st.chartCard}>
-                <Text style={st.chartTitle}>حالة الرسوم</Text>
-                <View style={{gap: 14}}>
-                  <View>
-                    <View style={st.barRow}>
-                      <Text style={st.barLabel}>مطبقة</Text>
-                      <Text style={st.barVal}>
-                        {stats.appliedFees} ({Math.round(feesAppliedPct)}%)
-                      </Text>
-                    </View>
-                    <AnimBar pct={feesAppliedPct} color="#0ea5e9" />
+                <Text style={st.chartTitle}>الحالة المالية</Text>
+                <View style={st.finRow}>
+                  <View style={st.finCol}>
+                    <Text style={st.finLabel}>صافي الشهر</Text>
+                    <Text style={[st.finValue, {color: stats.monthlyNetIncome >= 0 ? '#059669' : '#dc2626'}]}>
+                      {Math.round(stats.monthlyNetIncome).toLocaleString()} ج.م
+                    </Text>
                   </View>
-                  <View>
-                    <View style={st.barRow}>
-                      <Text style={st.barLabel}>غير مطبقة</Text>
-                      <Text style={st.barVal}>
-                        {unappliedFees} ({Math.round(100 - feesAppliedPct)}%)
-                      </Text>
-                    </View>
-                    <AnimBar
-                      pct={100 - feesAppliedPct}
-                      color="#f59e0b"
-                      delay={200}
-                    />
+                  <View style={st.finDivider} />
+                  <View style={st.finCol}>
+                    <Text style={st.finLabel}>المديونيات</Text>
+                    <Text style={[st.finValue, {color: '#b91c1c'}]}>
+                      {Math.round(stats.totalUnpaid).toLocaleString()} ج.م
+                    </Text>
                   </View>
                 </View>
               </View>
             )}
 
-            {/* ---- Balance Highlight ---- */}
-            {canAccessFinancial && stats.totalBalance > 0 && (
-              <View
-                style={[
-                  st.chartCard,
-                  {flexDirection: 'row', alignItems: 'center', gap: 14},
-                ]}>
-                <View
-                  style={[
-                    st.statIconBox,
-                    {backgroundColor: '#f0fdf4', width: 52, height: 52},
-                  ]}>
-                  <Icon name="trending-up" size={26} color="#059669" />
-                </View>
-                <View style={{flex: 1}}>
-                  <Text style={st.barLabel}>إجمالي الرصيد</Text>
-                  <Text style={st.balanceNum}>
-                    {stats.totalBalance.toLocaleString()} ج.م
-                  </Text>
-                </View>
-              </View>
-            )}
+            <View style={st.chartCard}>
+              <Text style={st.chartTitle}>آخر المدفوعات</Text>
+              {recentPayments.length === 0 ? (
+                <Text style={st.emptyText}>لا توجد مدفوعات حديثة</Text>
+              ) : (
+                recentPayments.slice(0, 5).map((item, idx) => (
+                  <View key={item.id || idx} style={st.rowItem}>
+                    <View style={st.rowIconBox}>
+                      <Icon name="payments" size={16} color="#059669" />
+                    </View>
+                    <View style={{flex: 1}}>
+                      <Text style={st.rowTitle}>{item.traineeName}</Text>
+                      <Text style={st.rowSub}>{item.programName}</Text>
+                    </View>
+                    <Text style={st.rowAmount}>{Math.round(item.amount || 0).toLocaleString()} ج.م</Text>
+                  </View>
+                ))
+              )}
+            </View>
+
+            <View style={st.chartCard}>
+              <Text style={st.chartTitle}>آخر الأنشطة</Text>
+              {recentActivities.length === 0 ? (
+                <Text style={st.emptyText}>لا توجد أنشطة حديثة</Text>
+              ) : (
+                recentActivities.slice(0, 6).map((item, idx) => (
+                  <View key={item.id || idx} style={st.activityItem}>
+                    <View style={st.activityDot} />
+                    <View style={{flex: 1}}>
+                      <Text style={st.activityTitle}>{item.title}</Text>
+                      <Text style={st.activityDesc} numberOfLines={1}>{item.description}</Text>
+                    </View>
+                    <Text style={st.activityTime}>{item.time}</Text>
+                  </View>
+                ))
+              )}
+            </View>
 
             {/* ---- Quick Actions ---- */}
             <Text style={st.sectionTitle}>الوصول السريع</Text>
@@ -525,14 +330,14 @@ const HomeScreen = ({navigation}: any) => {
           </>
         )}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 };
 
 export default HomeScreen;
 
 const st = StyleSheet.create({
-  container: {flex: 1, backgroundColor: '#f4f6fa', paddingTop: 40},
+  container: {flex: 1, backgroundColor: '#f4f6fa'},
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -549,7 +354,7 @@ const st = StyleSheet.create({
     borderBottomRightRadius: 18,
   },
   headerCenter: {flex: 1, alignItems: 'center'},
-  headerTitle: {fontSize: 20, fontWeight: '800', color: '#1a237e'},
+  headerTitle: {fontSize: 18, fontWeight: '800', color: '#1a237e'},
   branchBadge: {
     fontSize: 11,
     color: '#059669',
@@ -564,24 +369,21 @@ const st = StyleSheet.create({
     overflow: 'hidden',
   },
   refreshBtn: {padding: 8, borderRadius: 10, backgroundColor: '#f3f4f6'},
-  scroll: {flex: 1, padding: 16},
+  scroll: {flex: 1, paddingHorizontal: 12},
 
   // Welcome
   welcomeCard: {
     flexDirection: 'row',
-    alignItems: 'center',
     backgroundColor: '#fff',
     borderRadius: 18,
-    padding: 16,
-    marginBottom: 20,
-    gap: 14,
+    padding: 14,
+    marginVertical: 12,
     elevation: 3,
     shadowColor: '#1a237e',
     shadowOffset: {width: 0, height: 2},
     shadowOpacity: 0.06,
     shadowRadius: 8,
   },
-  logo: {width: 64, height: 64, borderRadius: 32, backgroundColor: '#f8fafc'},
   greeting: {fontSize: 14, color: '#059669', fontWeight: '700'},
   welcomeTitle: {
     fontSize: 18,
@@ -600,7 +402,7 @@ const st = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     color: '#1a237e',
-    marginBottom: 12,
+    marginBottom: 10,
     marginTop: 4,
   },
 
@@ -608,14 +410,14 @@ const st = StyleSheet.create({
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 20,
+    gap: 8,
+    marginBottom: 12,
   },
   statCard: {
     width: CARD_W,
     backgroundColor: '#fff',
     borderRadius: 16,
-    padding: 14,
+    padding: 12,
     borderTopWidth: 3,
     elevation: 2,
     shadowColor: '#000',
@@ -631,26 +433,13 @@ const st = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 10,
   },
-  statNum: {fontSize: 24, fontWeight: '800', color: '#111827'},
+  statNum: {fontSize: 20, fontWeight: '800', color: '#111827'},
   statLabel: {fontSize: 12, fontWeight: '600', color: '#6b7280', marginTop: 2},
-  statSub: {
-    fontSize: 11,
-    color: '#6b7280',
-    marginTop: 4,
-    backgroundColor: '#f9fafb',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-    fontWeight: '500',
-    overflow: 'hidden',
-  },
-
-  // Charts
+  // Sections
   chartCard: {
     backgroundColor: '#fff',
     borderRadius: 16,
-    padding: 16,
+    padding: 14,
     marginBottom: 12,
     elevation: 2,
     shadowColor: '#000',
@@ -664,21 +453,125 @@ const st = StyleSheet.create({
     color: '#374151',
     marginBottom: 12,
   },
-  barRow: {
+  attendanceRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 6,
+    gap: 8,
   },
-  barLabel: {fontSize: 13, color: '#374151', fontWeight: '600'},
-  barVal: {fontSize: 12, color: '#6b7280', fontWeight: '700'},
-  balanceNum: {fontSize: 22, fontWeight: '800', color: '#059669'},
+  attChip: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  attChipVal: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  attChipLabel: {
+    fontSize: 12,
+    color: '#475569',
+    marginTop: 2,
+  },
+  attMeta: {
+    marginTop: 10,
+    color: '#64748b',
+    fontSize: 12,
+  },
+  finRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  finCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  finDivider: {
+    width: 1,
+    height: 46,
+    backgroundColor: '#e2e8f0',
+  },
+  finLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    marginBottom: 4,
+  },
+  finValue: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  rowItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  rowIconBox: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#ecfdf5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  rowTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  rowSub: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  rowAmount: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#166534',
+  },
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  activityDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#2563eb',
+    marginRight: 10,
+  },
+  activityTitle: {
+    fontSize: 12,
+    color: '#0f172a',
+    fontWeight: '700',
+  },
+  activityDesc: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  activityTime: {
+    fontSize: 10,
+    color: '#94a3b8',
+    marginLeft: 8,
+  },
+  emptyText: {
+    color: '#94a3b8',
+    fontSize: 12,
+    textAlign: 'center',
+    paddingVertical: 10,
+  },
 
   // Actions
   actionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
-    marginBottom: 20,
+    gap: 8,
+    marginBottom: 18,
   },
   actionCard: {
     width: CARD_W,

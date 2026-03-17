@@ -415,6 +415,85 @@ class AuthService {
     }
   }
 
+  // جلب المتدربين مع البيانات المالية المحسوبة (نفس endpoint الويب)
+  static async getTraineesWithFinancialData(params?: {
+    page?: number;
+    limit?: number;
+    programId?: number;
+    status?: string;
+    search?: string;
+  }): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const queryParams = new URLSearchParams();
+      if (params?.page) queryParams.append('page', String(params.page));
+      if (params?.limit) queryParams.append('limit', String(params.limit));
+      if (params?.programId) queryParams.append('programId', String(params.programId));
+      if (params?.status) queryParams.append('status', params.status);
+      if (params?.search) queryParams.append('search', params.search);
+
+      const baseUrl = await this.getApiBaseUrl();
+      const qs = queryParams.toString();
+      const url = `${baseUrl}/api/finances/trainees-financial-data${qs ? `?${qs}` : ''}`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error fetching trainees financial data in AuthService:', error);
+      throw error;
+    }
+  }
+
+  // تحويل متدرب من برنامج إلى برنامج آخر (نفس endpoint الويب)
+  static async transferTraineeProgram(
+    traineeId: number,
+    newProgramId: number,
+    deleteOldDebt: boolean = false,
+  ): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/trainees/transfer`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ traineeId, newProgramId, deleteOldDebt }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error transferring trainee in AuthService:', error);
+      throw error;
+    }
+  }
+
   // إضافة طالب جديد
   static async addTrainee(traineeData: any): Promise<any> {
     try {
@@ -3722,6 +3801,37 @@ class AuthService {
    */
   static async getTraineeAccounts(params?: {
     search?: string;
+  static async getComprehensiveDashboard(): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/dashboard/comprehensive`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || `Failed to fetch comprehensive dashboard: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error fetching comprehensive dashboard:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * جلب بيانات التقرير المالي Dashboard
+   */
     isActive?: boolean;
     page?: number;
     limit?: number;

@@ -13,6 +13,7 @@ import ProgramsScreen from './src/screens/ProgramsScreen';
 import AddProgramScreen from './src/screens/AddProgramScreen';
 import EditProgramScreen from './src/screens/EditProgramScreen';
 import StudentsListScreen from './src/screens/StudentsListScreen';
+import TraineeTransferScreen from './src/screens/TraineeTransferScreen';
 import AddStudentScreen from './src/screens/AddStudentScreen';
 import AddTrainingContentScreen from './src/screens/AddTrainingContentScreen';
 import TrainingContentsScreen from './src/screens/TrainingContentsScreen';
@@ -106,6 +107,7 @@ const GuardedPrograms = withPermissionGuard(ProgramsScreen, 'Programs');
 const GuardedAddProgram = withPermissionGuard(AddProgramScreen, 'AddProgram');
 const GuardedEditProgram = withPermissionGuard(EditProgramScreen, 'EditProgram');
 const GuardedStudentsList = withPermissionGuard(StudentsListScreen, 'StudentsList');
+const GuardedTraineeTransfer = withPermissionGuard(TraineeTransferScreen, 'TraineeTransfer');
 const GuardedAddStudent = withPermissionGuard(AddStudentScreen, 'AddStudent');
 const GuardedEditTrainee = withPermissionGuard(EditTraineeScreen, 'EditTrainee');
 const GuardedTraineeDocuments = withPermissionGuard(TraineeDocumentsScreen, 'TraineeDocuments');
@@ -266,6 +268,7 @@ function App() {
           <Stack.Screen name="AddProgram" component={GuardedAddProgram} />
           <Stack.Screen name="EditProgram" component={GuardedEditProgram} />
           <Stack.Screen name="StudentsList" component={GuardedStudentsList} />
+          <Stack.Screen name="TraineeTransfer" component={GuardedTraineeTransfer} />
           <Stack.Screen name="AddStudent" component={GuardedAddStudent} />
           <Stack.Screen name="TrainingContents" component={GuardedTrainingContents} />
           <Stack.Screen name="AddTrainingContent" component={GuardedAddTrainingContent} />
