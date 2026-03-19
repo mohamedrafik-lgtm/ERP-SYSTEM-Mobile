@@ -60,6 +60,8 @@ import EditLectureScreen from './src/screens/EditLectureScreen';
 import PdfViewerScreen from './src/screens/PdfViewerScreen';
 import YouTubeViewerScreen from './src/screens/YouTubeViewerScreen';
 import DistributionManagementScreen from './src/screens/DistributionManagementScreen';
+import DistributionStudentsManagementScreen from './src/screens/DistributionStudentsManagementScreen';
+import UndistributedTraineesScreen from './src/screens/UndistributedTraineesScreen';
 import AddDistributionScreen from './src/screens/AddDistributionScreen';
 import DistributionDetailsScreen from './src/screens/DistributionDetailsScreen';
 import ProgramDistributionsScreen from './src/screens/ProgramDistributionsScreen';
@@ -124,6 +126,8 @@ const GuardedLectures = withPermissionGuard(LecturesScreen, 'Lectures');
 const GuardedAddLecture = withPermissionGuard(AddLectureScreen, 'AddLecture');
 const GuardedEditLecture = withPermissionGuard(EditLectureScreen, 'EditLecture');
 const GuardedDistributionManagement = withPermissionGuard(DistributionManagementScreen, 'DistributionManagement');
+const GuardedDistributionStudentsManagement = withPermissionGuard(DistributionStudentsManagementScreen, 'DistributionStudentsManagement');
+const GuardedUndistributedTrainees = withPermissionGuard(UndistributedTraineesScreen, 'UndistributedTrainees');
 const GuardedAddDistribution = withPermissionGuard(AddDistributionScreen, 'AddDistribution');
 const GuardedDistributionDetails = withPermissionGuard(DistributionDetailsScreen, 'DistributionDetails');
 const GuardedProgramDistributions = withPermissionGuard(ProgramDistributionsScreen, 'ProgramDistributions');
@@ -321,6 +325,8 @@ function App() {
           <Stack.Screen name="PdfViewer" component={PdfViewerScreen} />
           <Stack.Screen name="YouTubeViewer" component={YouTubeViewerScreen} />
           <Stack.Screen name="DistributionManagement" component={GuardedDistributionManagement} />
+          <Stack.Screen name="DistributionStudentsManagement" component={GuardedDistributionStudentsManagement} />
+          <Stack.Screen name="UndistributedTrainees" component={GuardedUndistributedTrainees} />
           <Stack.Screen name="AddDistribution" component={GuardedAddDistribution} />
           <Stack.Screen name="DistributionDetails" component={GuardedDistributionDetails} />
           <Stack.Screen name="ProgramDistributions" component={GuardedProgramDistributions} />

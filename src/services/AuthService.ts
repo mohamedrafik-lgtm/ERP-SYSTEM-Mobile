@@ -2331,6 +2331,130 @@ class AuthService {
     }
   }
 
+  // Trainee Distribution: Update trainee assignment (move trainee between rooms)
+  static async updateTraineeDistributionAssignment(
+    assignmentId: string,
+    payload: { roomId: string; notes?: string },
+  ): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/trainee-distribution/assignment/${assignmentId}`;
+      console.log('[AuthService] Updating trainee distribution assignment at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to update trainee distribution assignment: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error updating trainee distribution assignment:', error);
+      throw error;
+    }
+  }
+
+  // Trainee Distribution: Get active distributions for a program
+  static async getActiveTraineeDistributions(programId: number): Promise<any[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/trainee-distribution/active/${programId}`;
+      console.log('[AuthService] Getting active trainee distributions at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to get active trainee distributions: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error getting active trainee distributions:', error);
+      throw error;
+    }
+  }
+
+  // Trainee Distribution: Get undistributed trainees list with filters and pagination
+  static async getUndistributedTrainees(params?: {
+    page?: number;
+    limit?: number;
+    programId?: number;
+    type?: import('../types/distribution').DistributionType;
+    search?: string;
+  }): Promise<{
+    trainees: any[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      totalPages: number;
+      hasNext: boolean;
+      hasPrev: boolean;
+    };
+  }> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const queryParams = new URLSearchParams();
+      if (params?.page) queryParams.append('page', String(params.page));
+      if (params?.limit) queryParams.append('limit', String(params.limit));
+      if (params?.programId) queryParams.append('programId', String(params.programId));
+      if (params?.type) queryParams.append('type', params.type);
+      if (params?.search) queryParams.append('search', params.search);
+
+      const queryString = queryParams.toString();
+      const url = `${baseUrl}/api/trainee-distribution/undistributed/trainees${queryString ? `?${queryString}` : ''}`;
+      console.log('[AuthService] Getting undistributed trainees at URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to get undistributed trainees: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error getting undistributed trainees:', error);
+      throw error;
+    }
+  }
+
   // WhatsApp Management: Get QR Code for WhatsApp connection
   static async getWhatsAppQRCode(): Promise<WhatsAppQRCodeResponse> {
     try {

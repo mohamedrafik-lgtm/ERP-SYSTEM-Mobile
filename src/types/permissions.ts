@@ -278,13 +278,23 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
   },
   DistributionManagement: {
     screenName: 'DistributionManagement',
-    title: 'إدارة التوزيع',
+    title: 'التوزيعات',
     icon: 'swap-horiz',
     requiredPermission: { resource: 'dashboard.trainees', action: 'view' },
     category: 'academic',
     priority: 4.8,
     showInMenu: true,
     description: 'توزيع المتدربين على المجموعات',
+  },
+  DistributionStudentsManagement: {
+    screenName: 'DistributionStudentsManagement',
+    title: 'إدارة التوزيع',
+    icon: 'groups',
+    requiredPermission: { resource: 'dashboard.trainees', action: 'view' },
+    category: 'academic',
+    priority: 4.805,
+    showInMenu: false,
+    description: 'إدارة المتدربين والتحويل بين مجموعات التوزيع',
   },
   AddDistribution: {
     screenName: 'AddDistribution',
@@ -312,6 +322,16 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     category: 'academic',
     priority: 4.83,
     showInMenu: false,
+  },
+  UndistributedTrainees: {
+    screenName: 'UndistributedTrainees',
+    title: 'طلاب غير موزعين',
+    icon: 'person-off',
+    requiredPermission: { resource: 'dashboard.trainees', action: 'view' },
+    category: 'academic',
+    priority: 4.84,
+    showInMenu: false,
+    description: 'عرض المتدربين الذين لم يتم توزيعهم على أي مجموعة',
   },
 
   // ============ إدارة الاختبارات ============

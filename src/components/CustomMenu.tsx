@@ -47,11 +47,11 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
   const [slideAnim] = useState(new Animated.Value(-width));
   const { allowedMenuSections, isLoading, userRoleInfo } = usePermissions();
 
-  // إضافة عناصر مخصصة (إدارة التوزيع + تسجيل الخروج) لجميع الأقسام المسموحة
+  // إضافة عناصر مخصصة (التوزيعات + إدارة التوزيع + طلاب غير موزعين + تسجيل الخروج) لجميع الأقسام المسموحة
   const getMenuSectionsWithLogout = () => {
     const sectionsWithLogout = [...allowedMenuSections];
     
-    // إضافة قسم/عنصر إدارة التوزيع إذا لم يكن موجوداً (فقط لـ admin و super_admin)
+    // إضافة قسم عناصر التوزيع إذا لم يكن موجوداً (فقط لـ admin و super_admin)
     const canAccessDistribution = userRoleInfo?.name === 'super_admin' || userRoleInfo?.name === 'admin';
     if (canAccessDistribution) {
       let distributionSection = sectionsWithLogout.find((section: any) => section.category === 'distribution');
@@ -63,14 +63,40 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
         };
         sectionsWithLogout.push(distributionSection);
       }
-      const hasDistributionItem = distributionSection.items.some((item: any) => item.id === 'DistributionManagement');
-      if (!hasDistributionItem) {
+      const hasDistributionsItem = distributionSection.items.some((item: any) => item.id === 'DistributionManagement');
+      if (!hasDistributionsItem) {
         distributionSection.items.push({
           id: 'DistributionManagement',
-          title: 'إدارة التوزيع',
-          icon: 'groups',
+          title: 'التوزيعات',
+          icon: 'account-tree',
           screen: 'DistributionManagement',
           priority: 50,
+          allowedRoles: ['super_admin', 'admin'],
+          category: 'distribution' as const,
+        });
+      }
+
+      const hasDistributionManagementItem = distributionSection.items.some((item: any) => item.id === 'DistributionStudentsManagement');
+      if (!hasDistributionManagementItem) {
+        distributionSection.items.push({
+          id: 'DistributionStudentsManagement',
+          title: 'إدارة التوزيع',
+          icon: 'groups',
+          screen: 'DistributionStudentsManagement',
+          priority: 51,
+          allowedRoles: ['super_admin', 'admin'],
+          category: 'distribution' as const,
+        });
+      }
+
+      const hasUndistributedItem = distributionSection.items.some((item: any) => item.id === 'UndistributedTrainees');
+      if (!hasUndistributedItem) {
+        distributionSection.items.push({
+          id: 'UndistributedTrainees',
+          title: 'طلاب غير موزعين',
+          icon: 'person-off',
+          screen: 'UndistributedTrainees',
+          priority: 52,
           allowedRoles: ['super_admin', 'admin'],
           category: 'distribution' as const,
         });

@@ -91,9 +91,21 @@ const DrawerMenu: React.FC<DrawerMenuProps> = ({ navigation, activeRouteName }) 
     },
     {
       id: 'DistributionManagement',
-      title: 'إدارة التوزيع',
+      title: 'التوزيعات',
       icon: 'groups',
       screen: 'DistributionManagement',
+    },
+    {
+      id: 'DistributionStudentsManagement',
+      title: 'إدارة التوزيع',
+      icon: 'account-tree',
+      screen: 'DistributionStudentsManagement',
+    },
+    {
+      id: 'UndistributedTrainees',
+      title: 'طلاب غير موزعين',
+      icon: 'person-off',
+      screen: 'UndistributedTrainees',
     },
     {
       id: 'Settings',

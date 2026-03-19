@@ -77,8 +77,8 @@ const DistributionManagementScreen = ({ navigation }: any) => {
       <View style={styles.header}>
         <CustomMenu navigation={navigation} activeRouteName="DistributionManagement" />
         <View style={styles.headerContent}>
-          <Text style={styles.title}>توزيع المتدربين على القاعات</Text>
-          <Text style={styles.subtitle}>إدارة توزيع المتدربين على القاعات الدراسية والمعامل</Text>
+          <Text style={styles.title}>التوزيعات</Text>
+          <Text style={styles.subtitle}>عرض وإدارة توزيعات البرامج على القاعات</Text>
         </View>
         <View style={{ width: 50 }} />
       </View>
@@ -163,7 +163,7 @@ const DistributionManagementScreen = ({ navigation }: any) => {
                     style={styles.primaryBtn} 
                     onPress={() => navigation.navigate('DistributionDetails', { distributionId: program.id })}
                   >
-                    <Text style={styles.primaryText}>إدارة التوزيع</Text>
+                    <Text style={styles.primaryText}>تفاصيل التوزيع</Text>
                   </TouchableOpacity>
                 </View>
               </View>

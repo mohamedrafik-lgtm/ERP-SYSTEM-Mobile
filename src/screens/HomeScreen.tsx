@@ -134,7 +134,7 @@ const HomeScreen = ({navigation}: any) => {
       : []),
     {
       icon: 'groups',
-      label: 'التوزيع',
+      label: 'التوزيعات',
       screen: 'DistributionManagement',
       bg: '#6366f1',
     },
