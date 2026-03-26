@@ -109,7 +109,7 @@ const TestLogin = ({ navigation }: any) => {
           });
           
           setTimeout(() => {
-            navigation.replace('Programs');
+            navigation.replace('Home');
           }, 1200);
           
         } catch (parseError) {
