@@ -28,11 +28,13 @@ interface CachedPermissions {
  * manage > delete > edit > create > view
  */
 const ACTION_HIERARCHY: Record<PermissionAction, number> = {
+  read: 1,
   view: 1,
   create: 2,
   edit: 3,
   delete: 4,
   export: 5,
+  export_data: 5,
   transfer: 5,
   manage: 6,
 };
@@ -159,11 +161,14 @@ class PermissionService {
     if (role === 'manager') {
       const managerResources = [
         'dashboard', 'dashboard.trainees', 'dashboard.programs',
-        'dashboard.training-contents', 'dashboard.questions',
-        'dashboard.attendance', 'dashboard.financial',
-        'dashboard.reports', 'dashboard.deferral-requests',
+        'dashboard.training-contents', 'dashboard.questions', 'dashboard.quizzes',
+        'dashboard.attendance', 'dashboard.schedule', 'dashboard.classrooms',
+        'dashboard.financial', 'dashboard.financial.reports', 'dashboard.financial.payment-schedules',
+        'dashboard.grades', 'dashboard.deferral-requests',
         'dashboard.trainee-requests', 'dashboard.trainee-documents',
-        'marketing.employees', 'marketing.targets', 'marketing.applications',
+        'dashboard.trainees.distribution',
+        'marketing.employees', 'marketing.targets', 'marketing.applications', 'marketing.stats',
+        'study-materials', 'study-materials.deliveries',
       ];
       managerResources.forEach(r => {
         perms[`${r}.view`] = true;
@@ -188,10 +193,12 @@ class PermissionService {
       perms['dashboard.view'] = true;
       perms['dashboard.financial.view'] = true;
       perms['dashboard.financial.manage'] = true;
+      perms['dashboard.financial.reports.view'] = true;
+      perms['dashboard.financial.payment-schedules.view'] = true;
       perms['dashboard.trainees.view'] = true;
       perms['dashboard.trainees.create'] = true;
       perms['dashboard.programs.view'] = true;
-      perms['dashboard.reports.view'] = true;
+      perms['dashboard.grades.view'] = true;
       perms['dashboard.deferral-requests.view'] = true;
       perms['dashboard.attendance.view'] = true;
       return perms;
@@ -203,7 +210,8 @@ class PermissionService {
       perms['dashboard.trainees.view'] = true;
       perms['dashboard.programs.view'] = true;
       perms['dashboard.attendance.view'] = true;
-      perms['dashboard.id-cards.view'] = true;
+      perms['study-materials.view'] = true;
+      perms['study-materials.deliveries.view'] = true;
       return perms;
     }
 
@@ -246,6 +254,9 @@ class PermissionService {
     // super_admin يحصل على كل شيء
     if (userPerms.roles.includes('super_admin')) return true;
 
+    // admin يحصل على كل شيء (مطابقة منطق الويب)
+    if (userPerms.roles.includes('admin')) return true;
+
     const key = `${resource}.${action}`;
 
     // فحص مباشر
@@ -261,6 +272,32 @@ class PermissionService {
     if (action === 'view') {
       if (userPerms.permissions[`${resource}.edit`] === true) return true;
       if (userPerms.permissions[`${resource}.create`] === true) return true;
+      if (userPerms.permissions[`${resource}.delete`] === true) return true;
+      if (userPerms.permissions[`${resource}.export`] === true) return true;
+      if (userPerms.permissions[`${resource}.export_data`] === true) return true;
+    }
+
+    // دعم read كمرادف للعرض لبعض الموارد
+    if (action === 'read') {
+      if (userPerms.permissions[`${resource}.view`] === true) return true;
+      if (userPerms.permissions[`${resource}.manage`] === true) return true;
+    }
+
+    // صلاحيات مترابطة خاصة (مطابقة منطق الويب)
+    if (resource === 'dashboard.trainees' && action === 'view') {
+      if (
+        userPerms.permissions['dashboard.trainee-documents.view'] === true ||
+        userPerms.permissions['dashboard.trainee-documents.edit'] === true ||
+        userPerms.permissions['dashboard.trainee-documents.delete'] === true
+      ) {
+        return true;
+      }
+    }
+
+    if (resource === 'dashboard.trainees' && action === 'edit') {
+      if (userPerms.permissions['dashboard.trainee-documents.edit'] === true) {
+        return true;
+      }
     }
 
     return false;

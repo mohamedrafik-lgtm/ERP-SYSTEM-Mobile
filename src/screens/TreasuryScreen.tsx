@@ -71,8 +71,20 @@ const TreasuryScreen = ({ navigation }: TreasuryScreenProps) => {
   const fetchTransactions = async (safeId: string) => {
     try {
       setTransactionsLoading(true);
-      const data = await AuthService.getSafeTransactions(safeId);
-      setTransactions(data);
+      const response = await AuthService.getSafeTransactions(safeId) as any;
+
+      // Defensive parsing: support array, { data: [] }, { data: { data: [] } }
+      let normalized: ITransaction[] = [];
+      if (Array.isArray(response)) {
+        normalized = response;
+      } else if (response && Array.isArray(response.data)) {
+        normalized = response.data;
+      } else if (response && response.data && Array.isArray(response.data.data)) {
+        normalized = response.data.data;
+      }
+
+      console.log('[TreasuryScreen] transactions normalized count:', normalized.length);
+      setTransactions(normalized);
     } catch (error) {
       console.error('Error fetching transactions:', error);
       const errorMessage = error instanceof Error ? error.message : 'فشل في تحميل المعاملات';
@@ -87,6 +99,7 @@ const TreasuryScreen = ({ navigation }: TreasuryScreenProps) => {
         });
       } else {
         Alert.alert('خطأ', errorMessage);
+        setTransactions([]);
       }
     } finally {
       setTransactionsLoading(false);

@@ -1930,7 +1930,24 @@ class AuthService {
       const data = await response.json();
       console.log(`[AuthService] Safe transactions fetched successfully:`, data);
 
-      return data;
+      // API قد يرجع { success, data, total } أو مصفوفة مباشرة
+      if (Array.isArray(data)) {
+        console.log('[AuthService] Safe transactions normalized count:', data.length);
+        return data;
+      }
+
+      if (data && Array.isArray(data.data)) {
+        console.log('[AuthService] Safe transactions normalized count:', data.data.length);
+        return data.data;
+      }
+
+      if (data && data.data && Array.isArray(data.data.data)) {
+        console.log('[AuthService] Safe transactions normalized count:', data.data.data.length);
+        return data.data.data;
+      }
+
+      console.log('[AuthService] Safe transactions normalized count: 0');
+      return [];
     } catch (error) {
       console.error('[AuthService] Error fetching safe transactions:', error);
       throw error;
