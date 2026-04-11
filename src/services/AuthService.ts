@@ -1993,6 +1993,51 @@ class AuthService {
     }
   }
 
+  // Create Trainee Payment
+  static async createTraineePayment(paymentData: {
+    feeId: number;
+    traineeId: number;
+    amount: number;
+    safeId: string;
+    notes?: string;
+  }): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      console.log(`[AuthService] Creating trainee payment:`, paymentData);
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/finances/trainee-payments`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(paymentData),
+      });
+
+      console.log(`[AuthService] Create trainee payment response status: ${response.status}`);
+      console.log(`[AuthService] Create trainee payment response headers:`, Object.fromEntries(response.headers.entries()));
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[AuthService] Create trainee payment failed: ${response.status} - ${errorText}`);
+        throw new Error(`Failed to create trainee payment: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log(`[AuthService] Trainee payment created successfully:`, data);
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error creating trainee payment:', error);
+      throw error;
+    }
+  }
+
   // Create Trainee Fee
   static async createTraineeFee(feeData: import('../types/student').CreateTraineeFeePayload): Promise<any> {
     try {
@@ -2792,6 +2837,38 @@ class AuthService {
       try { return await response.json(); } catch { return { success: true }; }
     } catch (error) {
       console.error('[AuthService] Error deleting lecture:', error);
+      throw error;
+    }
+  }
+
+  // Trainee Management: Get Trainee By ID
+  static async getTraineeById(traineeId: number): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/trainees/${traineeId}`;
+      console.log('[AuthService] Fetching trainee by id from URL:', url);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to fetch trainee: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching trainee by id:', error);
       throw error;
     }
   }

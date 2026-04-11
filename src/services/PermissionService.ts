@@ -304,6 +304,53 @@ class PermissionService {
   }
 
   /**
+   * مطابقة منطق الويب للصفحات المالية:
+   * السماح للمحاسب/المدير/الإدمن بدخول صفحات /dashboard/finances
+   */
+  private static canAccessFinancialPages(userPerms: UserPermissions | null): boolean {
+    if (!userPerms) return false;
+
+    return (
+      this.hasPermission(userPerms, 'dashboard.financial', 'view') ||
+      this.hasPermission(userPerms, 'dashboard.financial', 'manage') ||
+      userPerms.roles.includes('accountant') ||
+      userPerms.roles.includes('admin') ||
+      userPerms.roles.includes('manager') ||
+      userPerms.roles.includes('super_admin')
+    );
+  }
+
+  /**
+   * فحص صلاحية مع fallback مطابق للويب للموارد المالية فقط
+   */
+  private static hasPermissionWithWebFallback(
+    userPerms: UserPermissions | null,
+    resource: string,
+    action: PermissionAction,
+  ): boolean {
+    if (this.hasPermission(userPerms, resource, action)) {
+      return true;
+    }
+
+    if (resource.startsWith('dashboard.financial')) {
+      return this.canAccessFinancialPages(userPerms);
+    }
+
+    return false;
+  }
+
+  /**
+   * توحيد فحص صلاحية الشاشة بين الحارس والقائمة
+   */
+  private static canAccessScreenConfig(
+    userPerms: UserPermissions | null,
+    config: ScreenPermissionConfig,
+  ): boolean {
+    const { resource, action } = config.requiredPermission;
+    return this.hasPermissionWithWebFallback(userPerms, resource, action);
+  }
+
+  /**
    * التحقق من صلاحية الوصول لشاشة
    */
   static async canAccessScreen(screenName: string): Promise<boolean> {
@@ -313,8 +360,7 @@ class PermissionService {
     const perms = await this.fetchUserPermissions();
     if (!perms) return false;
 
-    const { resource, action } = config.requiredPermission;
-    return this.hasPermission(perms, resource, action);
+    return this.canAccessScreenConfig(perms, config);
   }
 
   /**
@@ -341,10 +387,9 @@ class PermissionService {
     const perms = await this.fetchUserPermissions();
     if (!perms) return [];
 
-    return Object.values(SCREEN_PERMISSIONS).filter(screen => {
-      const { resource, action } = screen.requiredPermission;
-      return this.hasPermission(perms, resource, action);
-    });
+    return Object.values(SCREEN_PERMISSIONS).filter(screen =>
+      this.canAccessScreenConfig(perms, screen),
+    );
   }
 
   /**
@@ -358,18 +403,25 @@ class PermissionService {
       .map(section => {
         // فلترة عناصر القسم
         const allowedItems = section.items.filter(item => {
-          const { resource, action } = item.requiredPermission;
-          return this.hasPermission(perms, resource, action);
+          return this.canAccessScreenConfig(perms, item);
         });
 
         // التحقق من صلاحية القسم ككل
         if (section.requiredPermissions && allowedItems.length > 0) {
           const hasAccess = section.requireAll
             ? section.requiredPermissions.every(p =>
-                this.hasPermission(perms, p.resource, p.action as PermissionAction),
+                this.hasPermissionWithWebFallback(
+                  perms,
+                  p.resource,
+                  p.action as PermissionAction,
+                ),
               )
             : section.requiredPermissions.some(p =>
-                this.hasPermission(perms, p.resource, p.action as PermissionAction),
+                this.hasPermissionWithWebFallback(
+                  perms,
+                  p.resource,
+                  p.action as PermissionAction,
+                ),
               );
 
           if (!hasAccess) return null;

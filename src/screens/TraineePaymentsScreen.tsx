@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, {useCallback, useEffect, useMemo, useState} from 'react';
 import {
   View,
   Text,
@@ -9,500 +9,429 @@ import {
   Alert,
   RefreshControl,
   SafeAreaView,
+  ActivityIndicator,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AuthService from '../services/AuthService';
-import { TraineePaymentResponse, PaymentStatus } from '../types/student';
 
-const TraineePaymentsScreen = ({ navigation }: any) => {
-  const [payments, setPayments] = useState<TraineePaymentResponse[]>([]);
+type AggregatePaymentStatus = 'paid' | 'partial' | 'unpaid';
+
+interface TraineeWithFinancialData {
+  id: number;
+  nameAr: string;
+  nationalId: string;
+  phone?: string;
+  photoUrl?: string | null;
+  totalAmount: number;
+  paidAmount: number;
+  remainingAmount: number;
+  paymentStatus: AggregatePaymentStatus;
+  paymentsCount: number;
+  program?: {
+    nameAr?: string;
+  } | null;
+}
+
+interface PaginationMeta {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrev: boolean;
+}
+
+interface FinancialDataResponse {
+  data: TraineeWithFinancialData[];
+  pagination: PaginationMeta;
+}
+
+const LIMIT_OPTIONS = [10, 20, 30, 50, 100];
+
+const normalizeFinancialDataResponse = (raw: any, page: number, limit: number): FinancialDataResponse => {
+  const emptyPagination: PaginationMeta = {
+    page,
+    limit,
+    total: 0,
+    totalPages: 0,
+    hasNext: false,
+    hasPrev: false,
+  };
+
+  if (Array.isArray(raw)) {
+    return {
+      data: raw,
+      pagination: {
+        ...emptyPagination,
+        total: raw.length,
+        totalPages: raw.length > 0 ? 1 : 0,
+      },
+    };
+  }
+
+  if (raw && Array.isArray(raw.data)) {
+    const pagination = raw.pagination || {};
+    return {
+      data: raw.data,
+      pagination: {
+        page: Number(pagination.page) || page,
+        limit: Number(pagination.limit) || limit,
+        total: Number(pagination.total) || raw.data.length,
+        totalPages: Number(pagination.totalPages) || (raw.data.length > 0 ? 1 : 0),
+        hasNext: Boolean(pagination.hasNext),
+        hasPrev: Boolean(pagination.hasPrev),
+      },
+    };
+  }
+
+  return {
+    data: [],
+    pagination: emptyPagination,
+  };
+};
+
+const getStatusLabel = (status: AggregatePaymentStatus): string => {
+  switch (status) {
+    case 'paid':
+      return 'مدفوع بالكامل';
+    case 'partial':
+      return 'مدفوع جزئيا';
+    case 'unpaid':
+      return 'غير مدفوع';
+    default:
+      return 'غير محدد';
+  }
+};
+
+const getStatusColors = (status: AggregatePaymentStatus) => {
+  switch (status) {
+    case 'paid':
+      return {
+        text: '#166534',
+        background: '#dcfce7',
+      };
+    case 'partial':
+      return {
+        text: '#92400e',
+        background: '#fef3c7',
+      };
+    case 'unpaid':
+      return {
+        text: '#991b1b',
+        background: '#fee2e2',
+      };
+    default:
+      return {
+        text: '#374151',
+        background: '#f3f4f6',
+      };
+  }
+};
+
+const formatMoney = (value: number) => `${Math.round(value || 0).toLocaleString('ar-EG')} ج.م`;
+
+const TraineePaymentsScreen = ({navigation}: any) => {
+  const [trainees, setTrainees] = useState<TraineeWithFinancialData[]>([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchText, setSearchText] = useState('');
-  const [filterStatus, setFilterStatus] = useState<string>('ALL');
 
-  // Pagination states
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(20);
-  const [totalItems, setTotalItems] = useState(0);
+  const [pagination, setPagination] = useState<PaginationMeta>({
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 0,
+    hasNext: false,
+    hasPrev: false,
+  });
 
-  // دالة لجلب البيانات
-  const loadPayments = useCallback(async () => {
-    try {
-      console.log('📡 loadPayments called with params:', { searchText, filterStatus });
+  const fetchFinancialData = useCallback(
+    async (
+      page: number,
+      limit: number,
+      search: string,
+      showLoader: boolean = true,
+    ) => {
+      try {
+        if (showLoader) {
+          setLoading(true);
+        }
 
-      const data = await AuthService.getTraineePayments({
-        search: searchText || undefined,
-        status: filterStatus !== 'ALL' ? filterStatus : undefined,
-      });
+        const response = await AuthService.getTraineesWithFinancialData({
+          page,
+          limit,
+          search: search.trim() || undefined,
+        });
 
-      console.log('📦 Received data:', data);
-      console.log('📊 Data type:', typeof data, 'Is array:', Array.isArray(data));
+        const normalized = normalizeFinancialDataResponse(response, page, limit);
 
-      if (Array.isArray(data)) {
-        console.log('✅ Setting payments array with length:', data.length);
-        setPayments(data);
-        setTotalItems(data.length);
-        console.log('✅ setPayments called with array of length:', data.length);
-      } else if (data && typeof data === 'object' && 'data' in data && Array.isArray(data.data)) {
-        console.log('✅ Setting payments from data.data with length:', data.data.length);
-        setPayments(data.data);
-        setTotalItems(data.data.length);
-        console.log('✅ setPayments called with data.data of length:', data.data.length);
-      } else {
-        console.warn('❌ Invalid data format:', data);
-        setPayments([]);
-        setTotalItems(0);
-        console.log('✅ setPayments called with empty array');
+        const normalizedRows = normalized.data.map((row: any) => ({
+          ...row,
+          totalAmount: Number(row.totalAmount) || 0,
+          paidAmount: Number(row.paidAmount) || 0,
+          remainingAmount: Number(row.remainingAmount) || 0,
+          paymentsCount: Number(row.paymentsCount) || 0,
+          paymentStatus: (row.paymentStatus || 'unpaid') as AggregatePaymentStatus,
+        }));
+
+        setTrainees(normalizedRows);
+        setPagination(normalized.pagination);
+      } catch (error) {
+        console.error('Error fetching trainee financial data:', error);
+        Alert.alert('خطا', 'فشل في تحميل بيانات مدفوعات المتدربين');
+        setTrainees([]);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
-
-    } catch (error) {
-      console.error('💥 Error loading payments:', error);
-      Alert.alert('خطأ', 'فشل في تحميل المدفوعات');
-      setPayments([]);
-    }
-  }, [searchText, filterStatus]);
-
-  // التحميل الأولي
-  useEffect(() => {
-    console.log('🚀 Initial load useEffect triggered');
-    loadPayments();
-  }, []);
-
-  // البحث والفلتر مع debounce
-  useEffect(() => {
-    console.log('🔍 Search/Filter useEffect triggered with:', { searchText, filterStatus });
-
-    const timeoutId = setTimeout(() => {
-      console.log('⏰ Timeout executed - calling loadPayments');
-      loadPayments();
-    }, 500);
-
-    return () => {
-      console.log('🧹 Cleanup timeout');
-      clearTimeout(timeoutId);
-    };
-  }, [searchText, filterStatus, loadPayments]);
-
-  // تتبع تغييرات payments state (reduced logging)
-  useEffect(() => {
-    console.log('🔄 Payments state updated - Length:', payments.length);
-  }, [payments]);
-
-  // دالة التحديث
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await loadPayments();
-    setRefreshing(false);
-  }, [loadPayments]);
-
-  const getStatusColor = (status: PaymentStatus) => {
-    switch (status) {
-      case 'PAID':
-        return '#10b981';
-      case 'PENDING':
-        return '#f59e0b';
-      case 'PARTIALLY_PAID':
-        return '#3b82f6';
-      case 'CANCELLED':
-        return '#ef4444';
-      default:
-        return '#6b7280';
-    }
-  };
-
-  const getStatusLabel = (status: PaymentStatus) => {
-    switch (status) {
-      case 'PAID':
-        return 'مدفوع';
-      case 'PENDING':
-        return 'معلق';
-      case 'PARTIALLY_PAID':
-        return 'مدفوع جزئياً';
-      case 'CANCELLED':
-        return 'ملغي';
-      default:
-        return 'غير محدد';
-    }
-  };
-
-  // البيانات مفلترة بالفعل من الـ API
-  const filteredPayments = payments || [];
-
-  // Pagination calculations
-  const totalPages = Math.ceil(filteredPayments.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
-  const currentPageData = filteredPayments.slice(startIndex, endIndex);
-
-  // Pagination functions
-  const goToPage = useCallback((page: number) => {
-    console.log('🔄 Going to page:', page, 'Total pages:', totalPages);
-    if (page >= 1 && page <= totalPages) {
-      setCurrentPage(page);
-    }
-  }, [totalPages]);
-
-  const goToNextPage = useCallback(() => {
-    console.log('➡️ Next page - Current:', currentPage, 'Total:', totalPages);
-    if (currentPage < totalPages) {
-      setCurrentPage(prev => prev + 1);
-    }
-  }, [currentPage, totalPages]);
-
-  const goToPrevPage = useCallback(() => {
-    console.log('⬅️ Previous page - Current:', currentPage);
-    if (currentPage > 1) {
-      setCurrentPage(prev => prev - 1);
-    }
-  }, [currentPage]);
-
-  // Change items per page
-  const changeItemsPerPage = useCallback((newItemsPerPage: number) => {
-    console.log('📊 Changing items per page to:', newItemsPerPage);
-    setItemsPerPage(newItemsPerPage);
-    setCurrentPage(1); // Reset to first page
-  }, []);
-
-  // Reset to first page when search/filter changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchText, filterStatus]);
-
-  const renderPaymentCard = (payment: TraineePaymentResponse) => (
-    <View key={payment.id} style={styles.paymentCard}>
-      <View style={styles.cardHeader}>
-        <View style={styles.traineeInfo}>
-          <Text style={styles.traineeName}>{payment.trainee.nameAr}</Text>
-          <Text style={styles.traineeNationalId}>
-            الرقم القومي: {payment.trainee.nationalId}
-          </Text>
-          <Text style={styles.traineePhone}>
-            الهاتف: {payment.trainee.phone}
-          </Text>
-        </View>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(payment.status) + '20' }]}>
-          <Text style={[styles.statusText, { color: getStatusColor(payment.status) }]}>
-            {getStatusLabel(payment.status)}
-          </Text>
-        </View>
-      </View>
-
-      <View style={styles.paymentDetails}>
-        <View style={styles.amountRow}>
-          <Text style={styles.amountLabel}>المبلغ المطلوب:</Text>
-          <Text style={styles.amountValue}>{payment.amount.toLocaleString()} ج.م</Text>
-        </View>
-
-        <View style={styles.amountRow}>
-          <Text style={styles.amountLabel}>المبلغ المدفوع:</Text>
-          <Text style={[styles.amountValue, { color: getStatusColor(payment.status) }]}>
-            {payment.paidAmount.toLocaleString()} ج.م
-          </Text>
-        </View>
-
-        <View style={styles.amountRow}>
-          <Text style={styles.amountLabel}>المتبقي:</Text>
-          <Text style={[styles.amountValue, { color: payment.amount - payment.paidAmount > 0 ? '#ef4444' : '#10b981' }]}>
-            {(payment.amount - payment.paidAmount).toLocaleString()} ج.م
-          </Text>
-        </View>
-
-        <View style={styles.feeInfoContainer}>
-          <Text style={styles.feeInfoLabel}>تفاصيل الرسوم:</Text>
-          <Text style={styles.feeInfoText}>الاسم: {payment.fee.name}</Text>
-          <Text style={styles.feeInfoText}>النوع: {payment.fee.type}</Text>
-          <Text style={styles.feeInfoText}>العام الدراسي: {payment.fee.academicYear}</Text>
-        </View>
-
-        <View style={styles.safeInfoContainer}>
-          <Text style={styles.safeInfoLabel}>الخزينة:</Text>
-          <Text style={styles.safeInfoText}>{payment.safe.name}</Text>
-          <Text style={styles.safeInfoText}>الرصيد: {payment.safe.balance.toLocaleString()} {payment.safe.currency}</Text>
-        </View>
-
-        {payment.notes && (
-          <View style={styles.notesContainer}>
-            <Text style={styles.notesLabel}>ملاحظات:</Text>
-            <Text style={styles.notesText}>{payment.notes}</Text>
-          </View>
-        )}
-
-        {payment.paidAt && (
-          <View style={styles.dateContainer}>
-            <Text style={styles.dateLabel}>تاريخ الدفع:</Text>
-            <Text style={styles.dateText}>
-              {new Date(payment.paidAt).toLocaleDateString('ar-EG')}
-            </Text>
-          </View>
-        )}
-      </View>
-
-      <View style={styles.cardActions}>
-        <TouchableOpacity style={styles.actionButton}>
-          <Icon name="edit" size={16} color="#1a237e" />
-          <Text style={styles.actionButtonText}>تعديل</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.paymentButton}
-          onPress={() => navigation.navigate('TraineePaymentDetails', {
-            traineeId: payment.trainee.id,
-            traineeName: payment.trainee.nameAr,
-            paymentId: payment.id
-          })}
-        >
-          <Icon name="payment" size={16} color="#059669" />
-          <Text style={styles.paymentButtonText}>دفع</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.deleteButton}>
-          <Icon name="delete" size={16} color="#dc2626" />
-          <Text style={styles.deleteButtonText}>حذف</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+    },
+    [],
   );
 
-  // Render info (reduced logging for performance)
-  console.log('🎨 Render - Payments:', payments.length, 'Filtered:', filteredPayments.length);
-  console.log('🎨 Pagination - Current page:', currentPage, 'Total pages:', totalPages, 'Items per page:', itemsPerPage);
-  console.log('🎨 Current page data length:', currentPageData.length);
+  useEffect(() => {
+    const timerId = setTimeout(() => {
+      fetchFinancialData(1, pagination.limit, searchText);
+    }, 400);
+
+    return () => clearTimeout(timerId);
+  }, [searchText, pagination.limit, fetchFinancialData]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchFinancialData(pagination.page, pagination.limit, searchText, false);
+  }, [fetchFinancialData, pagination.page, pagination.limit, searchText]);
+
+  const handlePageChange = useCallback(
+    (newPage: number) => {
+      if (newPage < 1 || newPage > pagination.totalPages || loading) {
+        return;
+      }
+      fetchFinancialData(newPage, pagination.limit, searchText);
+    },
+    [fetchFinancialData, loading, pagination.limit, pagination.totalPages, searchText],
+  );
+
+  const handleLimitChange = useCallback(
+    (newLimit: number) => {
+      fetchFinancialData(1, newLimit, searchText);
+    },
+    [fetchFinancialData, searchText],
+  );
+
+  const summary = useMemo(() => {
+    const totalDebt = trainees.reduce((sum, row) => sum + row.remainingAmount, 0);
+    const debtors = trainees.filter(row => row.remainingAmount > 0).length;
+
+    return {
+      totalDebt,
+      debtors,
+      totalRows: pagination.total,
+    };
+  }, [trainees, pagination.total]);
+
+  const openTraineePayments = (trainee: TraineeWithFinancialData) => {
+    navigation.navigate('TraineePaymentDetails', {
+      traineeId: trainee.id,
+      traineeName: trainee.nameAr,
+    });
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Icon name="arrow-back" size={24} color="#1a237e" />
+          <TouchableOpacity style={styles.iconButton} onPress={() => navigation.goBack()}>
+            <Icon name="arrow-back" size={22} color="#1a237e" />
           </TouchableOpacity>
+
           <Text style={styles.headerTitle}>مدفوعات المتدربين</Text>
-          <TouchableOpacity style={styles.addButton}>
-            <Icon name="add" size={24} color="#1a237e" />
+
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => fetchFinancialData(pagination.page, pagination.limit, searchText, false)}>
+            <Icon name="refresh" size={22} color="#1a237e" />
           </TouchableOpacity>
         </View>
 
         <View style={styles.searchContainer}>
-          <View style={styles.searchInputContainer}>
-            <Icon name="search" size={20} color="#6b7280" style={styles.searchIcon} />
+          <View style={styles.searchBox}>
+            <Icon name="search" size={20} color="#64748b" style={styles.searchIcon} />
             <TextInput
-              style={styles.searchInput}
-              placeholder="البحث بالاسم أو الرقم القومي..."
               value={searchText}
-              onChangeText={(text) => {
-                console.log('Search text changed to:', text);
-                setSearchText(text);
-              }}
-              placeholderTextColor="#9CA3AF"
+              onChangeText={setSearchText}
+              placeholder="ابحث عن متدرب بالاسم أو الرقم القومي"
+              placeholderTextColor="#94a3b8"
+              style={styles.searchInput}
             />
-          </View>
-        </View>
-
-        <View style={styles.filtersContainer}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            {['ALL', 'PENDING', 'PAID', 'PARTIALLY_PAID', 'CANCELLED'].map((status) => (
-              <TouchableOpacity
-                key={status}
-                style={[
-                  styles.filterButton,
-                  filterStatus === status && styles.activeFilterButton,
-                ]}
-                onPress={() => {
-                  console.log('Filter status changed to:', status);
-                  setFilterStatus(status);
-                }}
-              >
-                <Text
-                  style={[
-                    styles.filterButtonText,
-                    filterStatus === status && styles.activeFilterButtonText,
-                  ]}
-                >
-                  {status === 'ALL' ? 'الكل' : getStatusLabel(status as PaymentStatus)}
-                </Text>
+            {searchText ? (
+              <TouchableOpacity onPress={() => setSearchText('')} style={styles.clearButton}>
+                <Icon name="close" size={18} color="#64748b" />
               </TouchableOpacity>
-            ))}
-          </ScrollView>
+            ) : null}
+          </View>
         </View>
 
         <ScrollView
           style={styles.content}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Stats and Controls */}
-          <View style={styles.statsContainer}>
-            <Text style={styles.statsTitle}>📊 إحصائيات المدفوعات</Text>
-            <View style={styles.statsRow}>
-              <Text style={styles.statsLabel}>إجمالي المدفوعات:</Text>
-              <Text style={styles.statsValue}>{filteredPayments.length.toLocaleString()}</Text>
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          showsVerticalScrollIndicator={false}>
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryTitle}>ملخص المدفوعات</Text>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>إجمالي المتدربين:</Text>
+              <Text style={styles.summaryValue}>{summary.totalRows.toLocaleString('ar-EG')}</Text>
             </View>
-            <View style={styles.statsRow}>
-              <Text style={styles.statsLabel}>الصفحة الحالية:</Text>
-              <Text style={styles.statsValue}>{currentPage} من {totalPages}</Text>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>عدد المدينين:</Text>
+              <Text style={styles.summaryValue}>{summary.debtors.toLocaleString('ar-EG')}</Text>
             </View>
-            <View style={styles.statsRow}>
-              <Text style={styles.statsLabel}>المعروضة:</Text>
-              <Text style={styles.statsValue}>
-                {startIndex + 1} - {Math.min(endIndex, filteredPayments.length)} من {filteredPayments.length}
-              </Text>
-            </View>
-            {searchText && (
-              <View style={styles.statsRow}>
-                <Text style={styles.statsLabel}>البحث:</Text>
-                <Text style={styles.statsValue}>"{searchText}"</Text>
-              </View>
-            )}
-            {filterStatus !== 'ALL' && (
-              <View style={styles.statsRow}>
-                <Text style={styles.statsLabel}>الفلتر:</Text>
-                <Text style={styles.statsValue}>{getStatusLabel(filterStatus as PaymentStatus)}</Text>
-              </View>
-            )}
-
-            {/* Items per page selector */}
-            <View style={styles.itemsPerPageContainer}>
-              <Text style={styles.itemsPerPageLabel}>عدد العناصر في الصفحة:</Text>
-              <View style={styles.itemsPerPageButtons}>
-                {[10, 20, 50, 100].map((count) => (
-                  <TouchableOpacity
-                    key={count}
-                    style={[
-                      styles.itemsPerPageButton,
-                      itemsPerPage === count && styles.itemsPerPageButtonActive
-                    ]}
-                    onPress={() => changeItemsPerPage(count)}
-                  >
-                    <Text style={[
-                      styles.itemsPerPageButtonText,
-                      itemsPerPage === count && styles.itemsPerPageButtonTextActive
-                    ]}>
-                      {count}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>إجمالي المديونيات:</Text>
+              <Text style={[styles.summaryValue, {color: '#b91c1c'}]}>{formatMoney(summary.totalDebt)}</Text>
             </View>
           </View>
 
-          {filteredPayments.length === 0 ? (
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#1a237e" />
+              <Text style={styles.loadingText}>جاري تحميل البيانات...</Text>
+            </View>
+          ) : trainees.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <Icon name="receipt" size={64} color="#d1d5db" />
-              <Text style={styles.emptyTitle}>لا توجد مدفوعات</Text>
+              <Icon name="account-balance-wallet" size={56} color="#cbd5e1" />
+              <Text style={styles.emptyTitle}>لا توجد بيانات</Text>
               <Text style={styles.emptySubtitle}>
-                {searchText || filterStatus !== 'ALL'
-                  ? 'لا توجد مدفوعات تطابق البحث'
-                  : 'لم يتم إضافة أي مدفوعات بعد'}
+                {searchText ? 'لا توجد نتائج مطابقة للبحث' : 'لا توجد بيانات مالية للمتدربين حاليا'}
               </Text>
             </View>
           ) : (
             <>
-              {/* Payment Cards */}
-              {currentPageData.map(renderPaymentCard)}
+              {trainees.map(trainee => {
+                const statusColors = getStatusColors(trainee.paymentStatus);
+                const actionLabel = trainee.remainingAmount > 0 ? 'دفع' : 'عرض';
 
-              {/* Pagination Controls */}
-              {totalPages > 1 && (
-                <View style={styles.paginationContainer}>
-                  <View style={styles.paginationInfo}>
-                    <Text style={styles.paginationText}>
-                      صفحة {currentPage} من {totalPages}
-                    </Text>
-                    <Text style={styles.paginationSubtext}>
-                      ({startIndex + 1}-{Math.min(endIndex, filteredPayments.length)} من {filteredPayments.length})
-                    </Text>
-                  </View>
+                return (
+                  <View key={trainee.id} style={styles.card}>
+                    <View style={styles.cardHeader}>
+                      <View style={styles.avatarCircle}>
+                        <Text style={styles.avatarText}>{trainee.nameAr?.charAt(0) || 'م'}</Text>
+                      </View>
 
-                  <View style={styles.paginationButtons}>
-                    {/* First Page */}
-                    <TouchableOpacity
-                      style={[styles.paginationButton, currentPage === 1 && styles.paginationButtonDisabled]}
-                      onPress={() => {
-                        console.log('🔄 First page button pressed');
-                        goToPage(1);
-                      }}
-                      disabled={currentPage === 1}
-                    >
-                      <Icon name="first-page" size={20} color={currentPage === 1 ? '#9ca3af' : '#1a237e'} />
-                    </TouchableOpacity>
+                      <View style={styles.traineeInfo}>
+                        <Text style={styles.traineeName}>{trainee.nameAr}</Text>
+                        <Text style={styles.traineeMeta}>الرقم القومي: {trainee.nationalId}</Text>
+                        <Text style={styles.traineeMeta}>الهاتف: {trainee.phone || 'غير متوفر'}</Text>
+                        <Text style={styles.traineeMeta}>
+                          البرنامج: {trainee.program?.nameAr || 'غير محدد'}
+                        </Text>
+                      </View>
+                    </View>
 
-                    {/* Previous Page */}
-                    <TouchableOpacity
-                      style={[styles.paginationButton, currentPage === 1 && styles.paginationButtonDisabled]}
-                      onPress={() => {
-                        console.log('⬅️ Previous page button pressed');
-                        goToPrevPage();
-                      }}
-                      disabled={currentPage === 1}
-                    >
-                      <Icon name="chevron-right" size={20} color={currentPage === 1 ? '#9ca3af' : '#1a237e'} />
-                    </TouchableOpacity>
-
-                    {/* Page Numbers */}
-                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                      let pageNum;
-                      if (totalPages <= 5) {
-                        pageNum = i + 1;
-                      } else if (currentPage <= 3) {
-                        pageNum = i + 1;
-                      } else if (currentPage >= totalPages - 2) {
-                        pageNum = totalPages - 4 + i;
-                      } else {
-                        pageNum = currentPage - 2 + i;
-                      }
-
-                      return (
-                        <TouchableOpacity
-                          key={pageNum}
+                    <View style={styles.financialGrid}>
+                      <View style={styles.financialCell}>
+                        <Text style={styles.finLabel}>الإجمالي</Text>
+                        <Text style={styles.finValue}>{formatMoney(trainee.totalAmount)}</Text>
+                      </View>
+                      <View style={styles.financialCell}>
+                        <Text style={styles.finLabel}>المدفوع</Text>
+                        <Text style={[styles.finValue, {color: '#166534'}]}>{formatMoney(trainee.paidAmount)}</Text>
+                      </View>
+                      <View style={styles.financialCell}>
+                        <Text style={styles.finLabel}>المتبقي</Text>
+                        <Text
                           style={[
-                            styles.paginationButton,
-                            styles.paginationNumberButton,
-                            currentPage === pageNum && styles.paginationButtonActive
-                          ]}
-                          onPress={() => {
-                            console.log('🔢 Page number button pressed:', pageNum);
-                            goToPage(pageNum);
-                          }}
-                        >
-                          <Text style={[
-                            styles.paginationButtonText,
-                            currentPage === pageNum && styles.paginationButtonTextActive
+                            styles.finValue,
+                            {color: trainee.remainingAmount > 0 ? '#b91c1c' : '#166534'},
                           ]}>
-                            {pageNum}
-                          </Text>
-                        </TouchableOpacity>
-                      );
-                    })}
+                          {formatMoney(trainee.remainingAmount)}
+                        </Text>
+                      </View>
+                      <View style={styles.financialCell}>
+                        <Text style={styles.finLabel}>عدد الرسوم</Text>
+                        <Text style={styles.finValue}>{trainee.paymentsCount.toLocaleString('ar-EG')}</Text>
+                      </View>
+                    </View>
 
-                    {/* Next Page */}
-                    <TouchableOpacity
-                      style={[styles.paginationButton, currentPage === totalPages && styles.paginationButtonDisabled]}
-                      onPress={() => {
-                        console.log('➡️ Next page button pressed');
-                        goToNextPage();
-                      }}
-                      disabled={currentPage === totalPages}
-                    >
-                      <Icon name="chevron-left" size={20} color={currentPage === totalPages ? '#9ca3af' : '#1a237e'} />
-                    </TouchableOpacity>
+                    <View style={styles.cardFooter}>
+                      <View style={[styles.statusBadge, {backgroundColor: statusColors.background}]}> 
+                        <Text style={[styles.statusText, {color: statusColors.text}]}> 
+                          {getStatusLabel(trainee.paymentStatus)}
+                        </Text>
+                      </View>
 
-                    {/* Last Page */}
-                    <TouchableOpacity
-                      style={[styles.paginationButton, currentPage === totalPages && styles.paginationButtonDisabled]}
-                      onPress={() => {
-                        console.log('🔄 Last page button pressed');
-                        goToPage(totalPages);
-                      }}
-                      disabled={currentPage === totalPages}
-                    >
-                      <Icon name="last-page" size={20} color={currentPage === totalPages ? '#9ca3af' : '#1a237e'} />
-                    </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => openTraineePayments(trainee)}
+                        style={[
+                          styles.actionButton,
+                          {backgroundColor: trainee.remainingAmount > 0 ? '#16a34a' : '#2563eb'},
+                        ]}>
+                        <Icon name="payments" size={16} color="#fff" />
+                        <Text style={styles.actionButtonText}>{actionLabel}</Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
+                );
+              })}
+
+              <View style={styles.paginationCard}>
+                <Text style={styles.paginationTitle}>
+                  صفحة {pagination.page} من {Math.max(1, pagination.totalPages)}
+                </Text>
+
+                <View style={styles.paginationButtonsRow}>
+                  <TouchableOpacity
+                    disabled={!pagination.hasPrev || loading}
+                    onPress={() => handlePageChange(pagination.page - 1)}
+                    style={[
+                      styles.paginationButton,
+                      (!pagination.hasPrev || loading) && styles.paginationButtonDisabled,
+                    ]}>
+                    <Icon name="chevron-right" size={20} color={pagination.hasPrev ? '#1a237e' : '#94a3b8'} />
+                  </TouchableOpacity>
+
+                  <View style={styles.paginationMiddle}>
+                    <Text style={styles.paginationMetaText}>
+                      {(pagination.total > 0
+                        ? `${(pagination.page - 1) * pagination.limit + 1} - ${Math.min(
+                            pagination.page * pagination.limit,
+                            pagination.total,
+                          )}`
+                        : '0') + ` من ${pagination.total.toLocaleString('ar-EG')}`}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    disabled={!pagination.hasNext || loading}
+                    onPress={() => handlePageChange(pagination.page + 1)}
+                    style={[
+                      styles.paginationButton,
+                      (!pagination.hasNext || loading) && styles.paginationButtonDisabled,
+                    ]}>
+                    <Icon name="chevron-left" size={20} color={pagination.hasNext ? '#1a237e' : '#94a3b8'} />
+                  </TouchableOpacity>
                 </View>
-              )}
+
+                <Text style={styles.limitLabel}>عدد العناصر في الصفحة</Text>
+                <View style={styles.limitRow}>
+                  {LIMIT_OPTIONS.map(option => (
+                    <TouchableOpacity
+                      key={option}
+                      onPress={() => handleLimitChange(option)}
+                      style={[
+                        styles.limitButton,
+                        pagination.limit === option && styles.limitButtonActive,
+                      ]}>
+                      <Text
+                        style={[
+                          styles.limitButtonText,
+                          pagination.limit === option && styles.limitButtonTextActive,
+                        ]}>
+                        {option}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
             </>
           )}
         </ScrollView>
@@ -515,477 +444,300 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#f8fafc',
-    paddingTop: 60, // إضافة padding إضافي للجزء العلوي
+    paddingTop: 36,
   },
   container: {
     flex: 1,
     backgroundColor: '#f8fafc',
   },
-
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    paddingTop: 30, // زيادة padding العلوي للهيدر أكثر
     backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    marginBottom: 10, // إضافة margin سفلي للهيدر
+    borderBottomColor: '#e2e8f0',
   },
-  backButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: '#f3f4f6',
+  iconButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f1f5f9',
   },
   headerTitle: {
-    fontSize: 22, // زيادة حجم الخط
-    fontWeight: 'bold',
+    fontSize: 19,
+    fontWeight: '800',
     color: '#1a237e',
-    flex: 1,
-    textAlign: 'center',
-    marginTop: 5, // إضافة margin علوي
-    letterSpacing: 0.5, // تحسين المسافات بين الحروف
-  },
-  addButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: '#f3f4f6',
   },
   searchContainer: {
-    paddingHorizontal: 20,
-    paddingVertical: 20,
-    paddingTop: 25, // زيادة padding العلوي للبحث
     backgroundColor: '#fff',
-    marginBottom: 5, // إضافة margin سفلي
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
   },
-  searchInputContainer: {
+  searchBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f9fafb',
-    borderRadius: 15, // زيادة نصف قطر الحدود
-    paddingHorizontal: 18, // زيادة padding
-    paddingVertical: 5, // إضافة padding عمودي
-    borderWidth: 1.5, // زيادة سمك الحدود
-    borderColor: '#d1d5db', // تحسين لون الحدود
-    elevation: 1, // إضافة ظل خفيف
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 12,
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 10,
   },
   searchIcon: {
-    marginRight: 12,
+    marginRight: 8,
   },
   searchInput: {
     flex: 1,
-    fontSize: 16,
-    color: '#374151',
-    paddingVertical: 12,
+    fontSize: 15,
+    color: '#0f172a',
+    paddingVertical: 10,
   },
-  filtersContainer: {
-    paddingVertical: 20,
-    paddingTop: 25, // زيادة padding العلوي للفلاتر
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-    marginBottom: 10, // إضافة margin سفلي
-  },
-  filterButton: {
-    paddingHorizontal: 22, // زيادة padding
-    paddingVertical: 12, // زيادة padding
-    marginHorizontal: 8, // زيادة المسافة
-    borderRadius: 25, // زيادة نصف قطر الحدود
-    backgroundColor: '#f3f4f6',
-    borderWidth: 1.5, // زيادة سمك الحدود
-    borderColor: '#e5e7eb',
-    elevation: 1, // إضافة ظل خفيف
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-  },
-  activeFilterButton: {
-    backgroundColor: '#1a237e',
-    borderColor: '#1a237e',
-  },
-  filterButtonText: {
-    fontSize: 15, // زيادة حجم الخط
-    fontWeight: '600', // زيادة سماكة الخط
-    color: '#6b7280',
-    letterSpacing: 0.3, // تحسين المسافات بين الحروف
-  },
-  activeFilterButtonText: {
-    color: '#fff',
+  clearButton: {
+    padding: 4,
   },
   content: {
     flex: 1,
-    paddingHorizontal: 20,
-    paddingTop: 25, // زيادة padding العلوي للمحتوى
-    paddingBottom: 20, // إضافة padding سفلي
+    paddingHorizontal: 12,
+    paddingTop: 12,
   },
-  paymentCard: {
+  summaryCard: {
     backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 20, // زيادة المسافة بين البطاقات
-    elevation: 3, // زيادة الظل
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#2563eb',
+    elevation: 2,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    borderWidth: 1,
-    borderColor: '#f1f5f9', // إضافة حدود خفيفة
+    shadowOffset: {width: 0, height: 1},
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+  },
+  summaryTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#1e293b',
+    marginBottom: 10,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  summaryLabel: {
+    fontSize: 13,
+    color: '#475569',
+  },
+  summaryValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 70,
+  },
+  loadingText: {
+    marginTop: 12,
+    color: '#64748b',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 70,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#475569',
+    marginTop: 10,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 10,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 1},
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
   },
   cardHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: 10,
+  },
+  avatarCircle: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2563eb',
+    marginRight: 10,
+  },
+  avatarText: {
+    color: '#fff',
+    fontWeight: '800',
+    fontSize: 20,
   },
   traineeInfo: {
     flex: 1,
   },
   traineeName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1f2937',
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0f172a',
     marginBottom: 4,
   },
-  traineeNationalId: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  traineePhone: {
+  traineeMeta: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: '#64748b',
+    marginBottom: 2,
+  },
+  financialGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginTop: 6,
+    marginBottom: 10,
+    gap: 8,
+  },
+  financialCell: {
+    width: '48%',
+    backgroundColor: '#f8fafc',
+    borderRadius: 10,
+    padding: 8,
+  },
+  finLabel: {
+    fontSize: 11,
+    color: '#64748b',
+    marginBottom: 2,
+  },
+  finValue: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginTop: 2,
   },
   statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
   statusText: {
     fontSize: 12,
-    fontWeight: '600',
-  },
-  paymentDetails: {
-    marginBottom: 16,
-  },
-  amountRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  amountLabel: {
-    fontSize: 14,
-    color: '#6b7280',
-    fontWeight: '500',
-  },
-  amountValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1f2937',
-  },
-  feeInfoContainer: {
-    marginTop: 12,
-    padding: 12,
-    backgroundColor: '#f0f9ff',
-    borderRadius: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: '#3b82f6',
-  },
-  feeInfoLabel: {
-    fontSize: 12,
-    color: '#1e40af',
-    fontWeight: '600',
-    marginBottom: 6,
-  },
-  feeInfoText: {
-    fontSize: 13,
-    color: '#1e40af',
-    marginBottom: 2,
-  },
-  safeInfoContainer: {
-    marginTop: 8,
-    padding: 12,
-    backgroundColor: '#f0fdf4',
-    borderRadius: 8,
-    borderLeftWidth: 3,
-    borderLeftColor: '#10b981',
-  },
-  safeInfoLabel: {
-    fontSize: 12,
-    color: '#059669',
-    fontWeight: '600',
-    marginBottom: 6,
-  },
-  safeInfoText: {
-    fontSize: 13,
-    color: '#059669',
-    marginBottom: 2,
-  },
-  notesContainer: {
-    marginTop: 12,
-    padding: 12,
-    backgroundColor: '#f9fafb',
-    borderRadius: 8,
-  },
-  notesLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  notesText: {
-    fontSize: 14,
-    color: '#374151',
-  },
-  dateContainer: {
-    marginTop: 8,
-  },
-  dateLabel: {
-    fontSize: 12,
-    color: '#6b7280',
-    fontWeight: '600',
-  },
-  dateText: {
-    fontSize: 14,
-    color: '#374151',
-  },
-  cardActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    fontWeight: '700',
   },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
+    gap: 5,
+    borderRadius: 10,
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#f3f4f6',
   },
   actionButtonText: {
-    marginLeft: 6,
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#1a237e',
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+    marginLeft: 4,
   },
-  paymentButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#f0fdf4',
-  },
-  paymentButtonText: {
-    marginLeft: 6,
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#059669',
-  },
-  deleteButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#fef2f2',
-  },
-  deleteButtonText: {
-    marginLeft: 6,
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#dc2626',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 60,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#6b7280',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptySubtitle: {
-    fontSize: 16,
-    color: '#9ca3af',
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  statsContainer: {
+  paginationCard: {
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 20,
+    marginTop: 2,
     elevation: 2,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    borderLeftWidth: 4,
-    borderLeftColor: '#1a237e',
+    shadowOffset: {width: 0, height: 1},
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
   },
-  statsTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1a237e',
-    marginBottom: 12,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  statsLabel: {
-    fontSize: 14,
-    color: '#6b7280',
-    fontWeight: '500',
-  },
-  statsValue: {
-    fontSize: 14,
-    color: '#1f2937',
-    fontWeight: 'bold',
-  },
-  loadMoreContainer: {
-    backgroundColor: '#f8fafc',
-    borderRadius: 12,
-    padding: 20,
-    marginTop: 16,
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#e5e7eb',
-    borderStyle: 'dashed',
-  },
-  loadMoreText: {
-    fontSize: 16,
-    color: '#1a237e',
-    fontWeight: '600',
-    marginBottom: 8,
+  paginationTitle: {
     textAlign: 'center',
-  },
-  loadMoreHint: {
     fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  // Pagination Styles
-  paginationContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
-    marginTop: 20,
+    fontWeight: '800',
+    color: '#1e293b',
     marginBottom: 10,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
-  paginationInfo: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  paginationText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1a237e',
-    marginBottom: 4,
-  },
-  paginationSubtext: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  paginationButtons: {
+  paginationButtonsRow: {
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
   paginationButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: '#f3f4f6',
+    width: 38,
+    height: 38,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  paginationNumberButton: {
-    minWidth: 40,
-  },
-  paginationButtonActive: {
-    backgroundColor: '#1a237e',
-    borderColor: '#1a237e',
+    backgroundColor: '#eef2ff',
   },
   paginationButtonDisabled: {
-    backgroundColor: '#f9fafb',
-    borderColor: '#f3f4f6',
+    backgroundColor: '#f1f5f9',
   },
-  paginationButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  paginationButtonTextActive: {
-    color: '#fff',
-  },
-  // Items per page styles
-  itemsPerPageContainer: {
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-  },
-  itemsPerPageLabel: {
-    fontSize: 14,
-    color: '#6b7280',
-    fontWeight: '600',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  itemsPerPageButtons: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  itemsPerPageButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: '#f3f4f6',
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-    minWidth: 50,
+  paginationMiddle: {
+    flex: 1,
     alignItems: 'center',
   },
-  itemsPerPageButtonActive: {
-    backgroundColor: '#1a237e',
-    borderColor: '#1a237e',
-  },
-  itemsPerPageButtonText: {
-    fontSize: 14,
+  paginationMetaText: {
+    fontSize: 12,
+    color: '#475569',
     fontWeight: '600',
-    color: '#374151',
   },
-  itemsPerPageButtonTextActive: {
+  limitLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  limitRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  limitButton: {
+    minWidth: 42,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f1f5f9',
+  },
+  limitButtonActive: {
+    backgroundColor: '#1a237e',
+  },
+  limitButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  limitButtonTextActive: {
     color: '#fff',
   },
 });

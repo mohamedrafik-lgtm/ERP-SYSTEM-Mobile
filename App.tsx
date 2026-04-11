@@ -125,6 +125,8 @@ const GuardedEditTrainingContent = withPermissionGuard(EditTrainingContentScreen
 const GuardedLectures = withPermissionGuard(LecturesScreen, 'Lectures');
 const GuardedAddLecture = withPermissionGuard(AddLectureScreen, 'AddLecture');
 const GuardedEditLecture = withPermissionGuard(EditLectureScreen, 'EditLecture');
+const GuardedPdfViewer = withPermissionGuard(PdfViewerScreen, 'PdfViewer');
+const GuardedYouTubeViewer = withPermissionGuard(YouTubeViewerScreen, 'YouTubeViewer');
 const GuardedDistributionManagement = withPermissionGuard(DistributionManagementScreen, 'DistributionManagement');
 const GuardedDistributionStudentsManagement = withPermissionGuard(DistributionStudentsManagementScreen, 'DistributionStudentsManagement');
 const GuardedUndistributedTrainees = withPermissionGuard(UndistributedTraineesScreen, 'UndistributedTrainees');
@@ -322,8 +324,8 @@ function App() {
           <Stack.Screen name="Lectures" component={GuardedLectures} />
           <Stack.Screen name="AddLecture" component={GuardedAddLecture} />
           <Stack.Screen name="EditLecture" component={GuardedEditLecture} />
-          <Stack.Screen name="PdfViewer" component={PdfViewerScreen} />
-          <Stack.Screen name="YouTubeViewer" component={YouTubeViewerScreen} />
+          <Stack.Screen name="PdfViewer" component={GuardedPdfViewer} />
+          <Stack.Screen name="YouTubeViewer" component={GuardedYouTubeViewer} />
           <Stack.Screen name="DistributionManagement" component={GuardedDistributionManagement} />
           <Stack.Screen name="DistributionStudentsManagement" component={GuardedDistributionStudentsManagement} />
           <Stack.Screen name="UndistributedTrainees" component={GuardedUndistributedTrainees} />

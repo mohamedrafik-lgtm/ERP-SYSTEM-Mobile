@@ -19,11 +19,20 @@ import {usePermissions} from '../hooks/usePermissions';
 const {width} = Dimensions.get('window');
 const CARD_W = (width - 38) / 2;
 
+interface QuickAction {
+  icon: string;
+  label: string;
+  screen: string;
+  bg: string;
+}
+
 // ====== Main Component ======
 const HomeScreen = ({navigation}: any) => {
-  const {userRoleInfo, isAdmin, isSuperAdmin} = usePermissions();
+  const {hasPermission, hasAnyRole, canAccessScreen} = usePermissions();
   const canAccessFinancial =
-    isSuperAdmin || isAdmin || userRoleInfo?.name === 'accountant';
+    hasPermission('dashboard.financial', 'view') ||
+    hasPermission('dashboard.financial', 'manage') ||
+    hasAnyRole(['super_admin', 'admin', 'manager', 'accountant']);
 
   const [stats, setStats] = useState({
     totalTrainees: 0,
@@ -106,32 +115,18 @@ const HomeScreen = ({navigation}: any) => {
   const totalAttendanceThisMonth =
     stats.attendancePresent + stats.attendanceAbsent + stats.attendanceLate;
 
-  const quickActions = [
+  const quickActions: QuickAction[] = [
     {icon: 'school', label: 'الطلاب', screen: 'StudentsList', bg: '#1a237e'},
     {icon: 'book', label: 'البرامج', screen: 'Programs', bg: '#059669'},
     {icon: 'schedule', label: 'الجداول', screen: 'Schedules', bg: '#0ea5e9'},
+    {icon: 'fingerprint', label: 'الحضور', screen: 'StaffAttendance', bg: '#7c3aed'},
+    {icon: 'account-balance', label: 'الخزائن', screen: 'Treasury', bg: '#dc2626'},
     {
-      icon: 'fingerprint',
-      label: 'الحضور',
-      screen: 'StaffAttendance',
-      bg: '#7c3aed',
+      icon: 'account-balance-wallet',
+      label: 'الرسوم',
+      screen: 'Fees',
+      bg: '#d97706',
     },
-    ...(canAccessFinancial
-      ? [
-          {
-            icon: 'account-balance',
-            label: 'الخزائن',
-            screen: 'Treasury',
-            bg: '#dc2626',
-          },
-          {
-            icon: 'account-balance-wallet',
-            label: 'الرسوم',
-            screen: 'Fees',
-            bg: '#d97706',
-          },
-        ]
-      : []),
     {
       icon: 'groups',
       label: 'التوزيعات',
@@ -139,7 +134,7 @@ const HomeScreen = ({navigation}: any) => {
       bg: '#6366f1',
     },
     {icon: 'lock', label: 'الصلاحيات', screen: 'Permissions', bg: '#475569'},
-  ];
+  ].filter(action => canAccessScreen(action.screen));
 
   return (
     <SafeAreaView style={st.container} edges={['top']}>
