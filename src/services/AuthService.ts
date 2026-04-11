@@ -2998,6 +2998,211 @@ class AuthService {
     }
   }
 
+  // Trainee Management: Send schedule to WhatsApp
+  static async sendTraineeScheduleWhatsApp(traineeId: number): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/trainees/${traineeId}/send-schedule-whatsapp`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error sending trainee schedule via WhatsApp:', error);
+      throw error;
+    }
+  }
+
+  // Trainee Management: Get available tuition fees for trainee
+  static async getAvailableTraineeFees(traineeId: number): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/trainees/${traineeId}/available-fees`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error loading available trainee fees:', error);
+      throw error;
+    }
+  }
+
+  // Trainee Management: Apply selected tuition fees for trainee
+  static async applyTraineeFees(traineeId: number, feeIds: number[]): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/trainees/${traineeId}/apply-fees`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ feeIds }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error applying trainee fees:', error);
+      throw error;
+    }
+  }
+
+  // Trainee Management: Get available additional fees for trainee
+  static async getAvailableAdditionalFees(traineeId: number): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/trainees/${traineeId}/available-additional-fees`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error loading available additional fees:', error);
+      throw error;
+    }
+  }
+
+  // Trainee Management: Apply selected additional fees for trainee
+  static async applyAdditionalFees(traineeId: number, feeIds: number[]): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/trainees/${traineeId}/apply-additional-fees`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ feeIds }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error applying additional fees:', error);
+      throw error;
+    }
+  }
+
+  // Trainee Management: Check and auto-fix missing fees
+  static async checkAndFixTraineeFees(traineeId: number): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/trainees/${traineeId}/check-and-fix-fees`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error checking/fixing trainee fees:', error);
+      throw error;
+    }
+  }
+
+  // Trainee Management: Delete trainee debt (fees/payments)
+  static async deleteTraineeDebt(traineeId: number): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/trainees/${traineeId}/debt`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error deleting trainee debt:', error);
+      throw error;
+    }
+  }
+
   // Trainee Management: Get Trainee Documents
   static async getTraineeDocuments(traineeId: number): Promise<import('../types/student').TraineeDocumentsResponse> {
     try {

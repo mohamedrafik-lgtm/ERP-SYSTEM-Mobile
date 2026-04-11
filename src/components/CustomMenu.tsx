@@ -154,7 +154,7 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
   return (
     <>
       <TouchableOpacity style={styles.menuButton} onPress={showMenu}>
-        <Icon name="menu" size={28} color="#1a237e" />
+        <Icon name="menu" size={24} color="#1e3a8a" />
       </TouchableOpacity>
 
       <Modal
@@ -221,6 +221,7 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
                         key={item.id || item.screenName}
                         style={[
                           styles.menuItem,
+                          item.isLogout && styles.logoutMenuItem,
                           isActive && styles.activeMenuItem,
                         ]}
                         onPress={() => handleMenuPress(item)}
@@ -235,10 +236,10 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
                               name={item.icon}
                               size={22}
                               color={
-                                isActive
-                                  ? '#1a237e'
-                                  : item.isLogout
-                                  ? '#e53e3e'
+                                item.isLogout
+                                  ? '#dc2626'
+                                  : isActive
+                                  ? '#1e3a8a'
                                   : '#fff'
                               }
                               style={styles.menuIcon}
@@ -254,6 +255,13 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
                             {item.title}
                           </Text>
                         </View>
+                        {!item.isLogout && (
+                          <Icon
+                            name="chevron-left"
+                            size={20}
+                            color={isActive ? '#1e3a8a' : 'rgba(255, 255, 255, 0.7)'}
+                          />
+                        )}
                         {isActive && (
                           <View style={styles.activeIndicator} />
                         )}
@@ -277,9 +285,19 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
 
 const styles = StyleSheet.create({
   menuButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: '#f3f4f6',
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
+    elevation: 4,
   },
   modalContainer: {
     flex: 1,
@@ -287,59 +305,59 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(15, 23, 42, 0.46)',
   },
   menuContainer: {
-    width: width * 0.85,
-    backgroundColor: '#1a237e',
+    width: Math.min(width * 0.86, 360),
+    backgroundColor: '#102a82',
     height: '100%',
-    shadowColor: '#000',
+    shadowColor: '#0f172a',
     shadowOffset: { width: 2, height: 0 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
     elevation: 8,
+    borderTopLeftRadius: 22,
+    borderBottomLeftRadius: 22,
+    overflow: 'hidden',
   },
   header: {
-    padding: 20,
-    paddingTop: 50,
+    paddingHorizontal: 20,
+    paddingTop: 48,
+    paddingBottom: 18,
     alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.15)',
+    borderBottomColor: 'rgba(255, 255, 255, 0.16)',
     position: 'relative',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
   },
   logo: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#fff',
-    marginBottom: 12,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#ffffff',
+    marginBottom: 10,
   },
   headerTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 6,
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#ffffff',
+    marginBottom: 4,
     textAlign: 'center',
-    letterSpacing: 0.5,
   },
   headerSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.84)',
     textAlign: 'center',
     fontWeight: '500',
   },
   userSection: {
     marginTop: 12,
-    paddingHorizontal: 8,
+    paddingHorizontal: 10,
     paddingVertical: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
   },
   loadingContainer: {
     flex: 1,
@@ -355,137 +373,121 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     position: 'absolute',
-    top: 40,
-    right: 20,
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    top: 44,
+    left: 14,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   menuItems: {
     flex: 1,
   },
   menuItemsContent: {
-    paddingTop: 10,
+    paddingTop: 12,
+    paddingHorizontal: 12,
     paddingBottom: 20,
   },
   menuSection: {
-    marginBottom: 28,
+    marginBottom: 16,
   },
   sectionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 16,
-    marginLeft: 24,
-    marginRight: 24,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
-    paddingBottom: 8,
+    fontSize: 12,
+    fontWeight: '800',
+    color: 'rgba(255, 255, 255, 0.84)',
+    marginBottom: 8,
+    marginHorizontal: 6,
+    textAlign: 'right',
+    paddingHorizontal: 10,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 18,
-    paddingHorizontal: 24,
-    marginHorizontal: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
     borderRadius: 14,
     marginBottom: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
   activeMenuItem: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    shadowColor: '#fff',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 2,
+    backgroundColor: '#ffffff',
+    borderColor: '#dbeafe',
+    shadowColor: '#1e3a8a',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  logoutMenuItem: {
+    backgroundColor: 'rgba(220, 38, 38, 0.1)',
+    borderColor: 'rgba(248, 113, 113, 0.25)',
   },
   menuItemContent: {
-    flexDirection: 'row',
+    flexDirection: 'row-reverse',
     alignItems: 'center',
     flex: 1,
   },
   iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 16,
+    marginLeft: 12,
   },
   activeIconContainer: {
-    backgroundColor: '#fff',
-    shadowColor: '#1a237e',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: '#eaf1ff',
   },
   logoutIconContainer: {
-    backgroundColor: 'rgba(229, 62, 62, 0.15)',
+    backgroundColor: 'rgba(220, 38, 38, 0.16)',
   },
   menuIcon: {
-    // Remove marginRight as it's now handled by iconContainer
+    textAlign: 'center',
   },
   menuText: {
-    fontSize: 16,
-    color: '#fff',
-    fontWeight: '500',
-    letterSpacing: 0.3,
+    fontSize: 15,
+    color: '#ffffff',
+    fontWeight: '600',
     flex: 1,
+    textAlign: 'right',
   },
   activeMenuText: {
-    fontWeight: '700',
-    color: '#fff',
+    color: '#1e3a8a',
+    fontWeight: '800',
   },
   logoutText: {
-    color: '#e53e3e',
-    fontWeight: '600',
+    color: '#fecaca',
+    fontWeight: '700',
   },
   activeIndicator: {
-    width: 4,
-    height: 32,
-    backgroundColor: '#1a237e',
-    borderRadius: 2,
+    width: 5,
+    height: 26,
+    backgroundColor: '#1e3a8a',
+    borderRadius: 999,
     marginLeft: 8,
   },
-  subMenuItem: {
-    marginLeft: 20,
-    paddingVertical: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderRadius: 8,
-    marginHorizontal: 10,
-    marginBottom: 4,
-  },
-  subMenuIcon: {
-    marginRight: 12,
-  },
-  subMenuText: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    fontWeight: '400',
-  },
-  branchSection: {
-    marginBottom: 16,
-    paddingHorizontal: 20,
-  },
   footer: {
-    padding: 20,
+    paddingTop: 14,
+    paddingBottom: 16,
+    paddingHorizontal: 14,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.15)',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
   },
   footerText: {
     fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: 'rgba(255, 255, 255, 0.78)',
     textAlign: 'center',
-    marginBottom: 6,
+    marginBottom: 4,
     fontWeight: '600',
-    letterSpacing: 0.5,
   },
 });
 
