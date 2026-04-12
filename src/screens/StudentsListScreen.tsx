@@ -606,6 +606,13 @@ const StudentsListScreen = ({navigation}: any) => {
     });
   };
 
+  const handleOpenTraineeArchive = (trainee: ITrainee) => {
+    closeActionsMenu();
+    navigation.navigate('TraineeDocuments', {
+      trainee: {id: trainee.id, nameAr: trainee.nameAr},
+    });
+  };
+
   const handleOpenGrades = (trainee: ITrainee) => {
     closeActionsMenu();
     navigation.navigate('TraineeGradeDetails', {
@@ -1658,6 +1665,9 @@ const StudentsListScreen = ({navigation}: any) => {
             <ScrollView>
               {selectedTrainee && (
                 <>
+                  {renderActionItem('أرشيف المتدرب', 'folder', () =>
+                    handleOpenTraineeArchive(selectedTrainee),
+                  )}
                   {renderActionItem('عرض المستندات', 'description', () => handleOpenDocuments(selectedTrainee))}
                   {renderActionItem('عرض الدرجات', 'bar-chart', () => handleOpenGrades(selectedTrainee))}
                   {renderActionItem('ملاحظات المتدرب', 'sticky-note-2', () =>

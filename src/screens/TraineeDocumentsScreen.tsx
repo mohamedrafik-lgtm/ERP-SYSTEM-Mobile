@@ -1,54 +1,125 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
-  RefreshControl,
   Alert,
   Image,
   Linking,
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AuthService from '../services/AuthService';
-import { 
-  TraineeDocumentsResponse, 
-  DocumentWithStatus, 
-  DocumentType,
-  TraineeDocument 
+import {
+  DocumentWithStatus,
+  TraineeDocument,
+  TraineeDocumentsResponse,
 } from '../types/student';
 
+type TraineeRouteParams = {
+  trainee: {
+    id: number;
+    nameAr: string;
+  };
+};
+
+type PhotoViewerState = {
+  uri: string;
+  title: string;
+} | null;
+
 const TraineeDocumentsScreen: React.FC = () => {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const route = useRoute();
-  const { trainee } = route.params as { trainee: { id: number; nameAr: string } };
+  const { trainee } = (route.params || {}) as TraineeRouteParams;
 
   const [documentsData, setDocumentsData] = useState<TraineeDocumentsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [apiBaseUrl, setApiBaseUrl] = useState('');
+  const [photoViewer, setPhotoViewer] = useState<PhotoViewerState>(null);
 
   useEffect(() => {
     fetchDocuments();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const loadBaseUrl = async () => {
+      try {
+        const baseUrl = await AuthService.getCurrentApiBaseUrl();
+        setApiBaseUrl(baseUrl || '');
+      } catch {
+        setApiBaseUrl('');
+      }
+    };
+
+    loadBaseUrl();
   }, []);
+
+  const resolveDocumentUrl = (filePath?: string | null): string => {
+    if (!filePath) {
+      return '';
+    }
+
+    const normalizedPath = String(filePath).replace(/\\/g, '/').trim();
+    if (!normalizedPath) {
+      return '';
+    }
+
+    if (/^https?:\/\//i.test(normalizedPath)) {
+      return normalizedPath;
+    }
+
+    const base = (apiBaseUrl || '').replace(/\/+$/, '');
+    if (!base) {
+      return normalizedPath;
+    }
+
+    if (normalizedPath.startsWith('/uploads/')) {
+      return `${base}${normalizedPath}`;
+    }
+
+    if (normalizedPath.startsWith('uploads/')) {
+      return `${base}/${normalizedPath}`;
+    }
+
+    if (normalizedPath.startsWith('/')) {
+      return `${base}${normalizedPath}`;
+    }
+
+    return `${base}/uploads/${normalizedPath}`;
+  };
+
+  const isImageDocument = (document: TraineeDocument): boolean => {
+    const mime = (document.mimeType || '').toLowerCase();
+    const fileName = (document.fileName || '').toLowerCase();
+
+    if (mime.startsWith('image/')) {
+      return true;
+    }
+
+    return /\.(jpg|jpeg|png|gif|webp|bmp|heic|heif)$/i.test(fileName);
+  };
+
+  const isPdfDocument = (document: TraineeDocument): boolean => {
+    const mime = (document.mimeType || '').toLowerCase();
+    const fileName = (document.fileName || '').toLowerCase();
+
+    return mime.includes('pdf') || fileName.endsWith('.pdf');
+  };
 
   const fetchDocuments = async () => {
     try {
       setLoading(true);
-      console.log('Fetching documents for trainee:', trainee.id);
-      
       const response = await AuthService.getTraineeDocuments(trainee.id);
-      console.log('Documents response:', response);
-      
       setDocumentsData(response);
     } catch (error: any) {
-      console.error('Error fetching documents:', error);
-      Alert.alert(
-        'خطأ في جلب البيانات',
-        error.message || 'حدث خطأ غير متوقع أثناء جلب وثائق المتدرب'
-      );
+      Alert.alert('خطأ في جلب البيانات', error?.message || 'حدث خطأ غير متوقع أثناء جلب وثائق المتدرب');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -60,62 +131,32 @@ const TraineeDocumentsScreen: React.FC = () => {
     fetchDocuments();
   };
 
-  const getDocumentTypeIcon = (type: DocumentType): string => {
-    switch (type) {
-      case 'NATIONAL_ID':
-        return 'credit-card';
-      case 'PASSPORT':
-        return 'book';
-      case 'BIRTH_CERTIFICATE':
-        return 'child-care';
-      case 'EDUCATION_CERTIFICATE':
-        return 'school';
-      case 'MEDICAL_CERTIFICATE':
-        return 'local-hospital';
-      case 'PHOTO':
-        return 'photo-camera';
-      case 'CONTRACT':
-        return 'description';
-      case 'OTHER':
-        return 'insert-drive-file';
-      default:
-        return 'description';
-    }
-  };
-
-  const getDocumentTypeColor = (type: DocumentType): string => {
-    switch (type) {
-      case 'NATIONAL_ID':
-        return '#3498db';
-      case 'PASSPORT':
-        return '#e74c3c';
-      case 'BIRTH_CERTIFICATE':
-        return '#f39c12';
-      case 'EDUCATION_CERTIFICATE':
-        return '#2ecc71';
-      case 'MEDICAL_CERTIFICATE':
-        return '#e67e22';
-      case 'PHOTO':
-        return '#9b59b6';
-      case 'CONTRACT':
-        return '#34495e';
-      case 'OTHER':
-        return '#95a5a6';
-      default:
-        return '#95a5a6';
-    }
-  };
-
   const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    if (!Number.isFinite(bytes) || bytes <= 0) {
+      return '0 بايت';
+    }
+
+    if (bytes < 1024) {
+      return `${bytes} بايت`;
+    }
+
+    if (bytes < 1024 * 1024) {
+      return `${(bytes / 1024).toFixed(1)} KB`;
+    }
+
+    if (bytes < 1024 * 1024 * 1024) {
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
   };
 
-  const formatDate = (dateString: string): string => {
-    return new Date(dateString).toLocaleDateString('ar-SA', {
+  const formatDate = (dateString?: string | null): string => {
+    if (!dateString) {
+      return 'غير متاح';
+    }
+
+    return new Date(dateString).toLocaleDateString('ar-EG', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -124,156 +165,280 @@ const TraineeDocumentsScreen: React.FC = () => {
     });
   };
 
-  const handleViewDocument = async (document: TraineeDocument) => {
-    try {
-      // Try to open the document URL
-      const canOpen = await Linking.canOpenURL(document.filePath);
-      if (canOpen) {
-        await Linking.openURL(document.filePath);
-      } else {
-        Alert.alert('خطأ', 'لا يمكن فتح هذا الملف');
-      }
-    } catch (error) {
-      console.error('Error opening document:', error);
-      Alert.alert('خطأ', 'حدث خطأ أثناء فتح الملف');
+  const getDocumentTypeMeta = (type: string) => {
+    switch (type) {
+      case 'PERSONAL_PHOTO':
+      case 'PHOTO':
+        return { icon: 'photo-camera', color: '#9333ea' };
+      case 'ID_CARD_FRONT':
+      case 'ID_CARD_BACK':
+      case 'NATIONAL_ID':
+        return { icon: 'badge', color: '#2563eb' };
+      case 'QUALIFICATION_FRONT':
+      case 'QUALIFICATION_BACK':
+      case 'EDUCATION_CERTIFICATE':
+        return { icon: 'school', color: '#059669' };
+      case 'EXPERIENCE_CERT':
+      case 'MINISTRY_CERT':
+      case 'SKILL_CERT':
+      case 'PROFESSION_CARD':
+      case 'PASSPORT':
+      case 'CONTRACT':
+      case 'MEDICAL_CERTIFICATE':
+      case 'BIRTH_CERTIFICATE':
+        return { icon: 'description', color: '#d97706' };
+      default:
+        return { icon: 'insert-drive-file', color: '#64748b' };
     }
   };
 
-  const renderDocumentCard = (doc: DocumentWithStatus) => {
-    const iconColor = getDocumentTypeColor(doc.type);
-    const iconName = getDocumentTypeIcon(doc.type);
+  const openPhotoViewer = (uri: string, title: string) => {
+    if (!uri) {
+      Alert.alert('تنبيه', 'الرابط غير متاح لعرض الصورة');
+      return;
+    }
 
-    return (
-      <View key={doc.type} style={styles.documentCard}>
-        <View style={styles.documentHeader}>
-          <View style={styles.documentIconContainer}>
-            <Icon name={iconName} size={24} color={iconColor} />
-          </View>
-          <View style={styles.documentInfo}>
-            <Text style={styles.documentName}>{doc.nameAr}</Text>
-            <View style={styles.documentStatusContainer}>
-              {doc.required && (
-                <View style={styles.requiredBadge}>
-                  <Text style={styles.requiredText}>مطلوب</Text>
-                </View>
-              )}
-              {doc.isUploaded ? (
-                <View style={[styles.statusBadge, { backgroundColor: doc.isVerified ? '#2ecc71' : '#f39c12' }]}>
-                  <Text style={styles.statusText}>
-                    {doc.isVerified ? 'محقق' : 'مرفوع'}
-                  </Text>
-                </View>
-              ) : (
-                <View style={[styles.statusBadge, { backgroundColor: '#e74c3c' }]}>
-                  <Text style={styles.statusText}>غير مرفوع</Text>
-                </View>
-              )}
-            </View>
-          </View>
-        </View>
-
-        {doc.isUploaded && doc.document && (
-          <View style={styles.documentDetails}>
-            <View style={styles.documentDetailRow}>
-              <Icon name="insert-drive-file" size={16} color="#666" />
-              <Text style={styles.documentDetailText}>{doc.document.fileName}</Text>
-            </View>
-            <View style={styles.documentDetailRow}>
-              <Icon name="storage" size={16} color="#666" />
-              <Text style={styles.documentDetailText}>{formatFileSize(doc.document.fileSize)}</Text>
-            </View>
-            <View style={styles.documentDetailRow}>
-              <Icon name="schedule" size={16} color="#666" />
-              <Text style={styles.documentDetailText}>{formatDate(doc.document.uploadedAt)}</Text>
-            </View>
-            <View style={styles.documentDetailRow}>
-              <Icon name="person" size={16} color="#666" />
-              <Text style={styles.documentDetailText}>رفع بواسطة: {doc.document.uploadedBy.name}</Text>
-            </View>
-            {doc.document.notes && (
-              <View style={styles.documentDetailRow}>
-                <Icon name="note" size={16} color="#666" />
-                <Text style={styles.documentDetailText}>{doc.document.notes}</Text>
-              </View>
-            )}
-            
-            <TouchableOpacity
-              style={styles.viewDocumentButton}
-              onPress={() => handleViewDocument(doc.document!)}
-            >
-              <Icon name="visibility" size={20} color="#3498db" />
-              <Text style={styles.viewDocumentText}>عرض الوثيقة</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-    );
+    setPhotoViewer({ uri, title });
   };
 
-  const renderStatsCard = () => {
-    if (!documentsData) return null;
+  const handleViewDocument = async (doc: DocumentWithStatus) => {
+    if (!doc.document) {
+      return;
+    }
 
-    const { stats } = documentsData;
+    const resolvedUrl = resolveDocumentUrl(doc.document.filePath);
+
+    if (!resolvedUrl) {
+      Alert.alert('خطأ', 'تعذر تحديد رابط الملف');
+      return;
+    }
+
+    try {
+      if (isImageDocument(doc.document)) {
+        openPhotoViewer(resolvedUrl, doc.nameAr || doc.document.fileName || 'صورة الوثيقة');
+        return;
+      }
+
+      if (isPdfDocument(doc.document)) {
+        navigation.navigate('PdfViewer', {
+          url: resolvedUrl,
+          title: doc.nameAr || doc.document.fileName || 'عرض PDF',
+        });
+        return;
+      }
+
+      const canOpen = await Linking.canOpenURL(resolvedUrl);
+      if (!canOpen) {
+        Alert.alert('خطأ', 'لا يمكن فتح هذا الملف على الجهاز');
+        return;
+      }
+
+      await Linking.openURL(resolvedUrl);
+    } catch (error: any) {
+      Alert.alert('خطأ', error?.message || 'حدث خطأ أثناء فتح الملف');
+    }
+  };
+
+  const stats = documentsData?.stats;
+
+  const completionColor = useMemo(() => {
+    if (!stats) {
+      return '#f59e0b';
+    }
+
+    if (stats.completionPercentage >= 100) {
+      return '#16a34a';
+    }
+
+    if (stats.completionPercentage >= 60) {
+      return '#f59e0b';
+    }
+
+    return '#ef4444';
+  }, [stats]);
+
+  const traineePhotoUrl = useMemo(() => {
+    if (!documentsData?.trainee?.photoUrl) {
+      return '';
+    }
+
+    return resolveDocumentUrl(documentsData.trainee.photoUrl);
+  }, [documentsData?.trainee?.photoUrl, apiBaseUrl]);
+
+  const renderStatsCard = () => {
+    if (!stats) {
+      return null;
+    }
 
     return (
       <View style={styles.statsCard}>
-        <Text style={styles.statsTitle}>إحصائيات الوثائق</Text>
-        
-        <View style={styles.statsGrid}>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{stats.totalRequired}</Text>
-            <Text style={styles.statLabel}>مطلوب</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{stats.uploadedRequired}</Text>
-            <Text style={styles.statLabel}>مرفوع</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{stats.verifiedCount}</Text>
-            <Text style={styles.statLabel}>محقق</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={[styles.statNumber, { color: stats.isComplete ? '#2ecc71' : '#e74c3c' }]}>
-              {stats.completionPercentage}%
-            </Text>
-            <Text style={styles.statLabel}>مكتمل</Text>
+        <View style={styles.cardHeadRow}>
+          <Text style={styles.cardTitle}>ملخص الوثائق</Text>
+          <View style={styles.cardHeadBadge}>
+            <Icon name="analytics" size={14} color="#1d4ed8" />
+            <Text style={styles.cardHeadBadgeText}>تحديث مباشر</Text>
           </View>
         </View>
 
-        <View style={styles.progressContainer}>
-          <View style={styles.progressBar}>
-            <View 
+        <View style={styles.statsGrid}>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{stats.totalRequired}</Text>
+            <Text style={styles.statLabel}>مطلوب</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{stats.uploadedRequired}</Text>
+            <Text style={styles.statLabel}>مرفوع</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>{stats.verifiedCount}</Text>
+            <Text style={styles.statLabel}>محقق</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Text style={[styles.statValue, { color: completionColor }]}>{stats.completionPercentage}%</Text>
+            <Text style={styles.statLabel}>الإكمال</Text>
+          </View>
+        </View>
+
+        <View style={styles.progressWrap}>
+          <View style={styles.progressTrack}>
+            <View
               style={[
-                styles.progressFill, 
-                { 
-                  width: `${stats.completionPercentage}%`,
-                  backgroundColor: stats.isComplete ? '#2ecc71' : '#f39c12'
-                }
-              ]} 
+                styles.progressFill,
+                {
+                  width: `${Math.max(0, Math.min(100, stats.completionPercentage))}%`,
+                  backgroundColor: completionColor,
+                },
+              ]}
             />
           </View>
           <Text style={styles.progressText}>
-            {stats.isComplete ? 'جميع الوثائق المطلوبة مرفوعة' : 'يحتاج رفع وثائق إضافية'}
+            {stats.isComplete ? 'جميع الوثائق المطلوبة مكتملة' : 'لا يزال هناك وثائق مطلوبة غير مكتملة'}
           </Text>
         </View>
       </View>
     );
   };
 
+  const renderDocumentCard = (doc: DocumentWithStatus) => {
+    const meta = getDocumentTypeMeta(String(doc.type));
+    const documentUrl = doc.document ? resolveDocumentUrl(doc.document.filePath) : '';
+
+    return (
+      <View key={`${doc.type}-${doc.nameAr}`} style={styles.documentCard}>
+        <View style={styles.documentHeader}>
+          <View style={[styles.documentIconWrap, { backgroundColor: `${meta.color}20` }]}>
+            <Icon name={meta.icon} size={20} color={meta.color} />
+          </View>
+
+          <View style={styles.documentHeaderContent}>
+            <Text style={styles.documentName}>{doc.nameAr}</Text>
+            <View style={styles.documentBadgesRow}>
+              {doc.required ? (
+                <View style={[styles.badge, styles.requiredBadge]}>
+                  <Text style={styles.requiredBadgeText}>مطلوب</Text>
+                </View>
+              ) : (
+                <View style={[styles.badge, styles.optionalBadge]}>
+                  <Text style={styles.optionalBadgeText}>اختياري</Text>
+                </View>
+              )}
+
+              {doc.isUploaded ? (
+                <View style={[styles.badge, doc.isVerified ? styles.verifiedBadge : styles.uploadedBadge]}>
+                  <Text style={doc.isVerified ? styles.verifiedBadgeText : styles.uploadedBadgeText}>
+                    {doc.isVerified ? 'محقق' : 'مرفوع'}
+                  </Text>
+                </View>
+              ) : (
+                <View style={[styles.badge, styles.missingBadge]}>
+                  <Text style={styles.missingBadgeText}>غير مرفوع</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+
+        {doc.isUploaded && doc.document ? (
+          <View style={styles.documentDetailsSection}>
+            {isImageDocument(doc.document) && documentUrl ? (
+              <TouchableOpacity
+                activeOpacity={0.9}
+                style={styles.imagePreviewWrap}
+                onPress={() => openPhotoViewer(documentUrl, doc.nameAr)}
+              >
+                <Image source={{ uri: documentUrl }} style={styles.imagePreview} resizeMode="cover" />
+                <View style={styles.imagePreviewOverlay}>
+                  <Icon name="zoom-in" size={20} color="#ffffff" />
+                </View>
+              </TouchableOpacity>
+            ) : null}
+
+            <View style={styles.documentDetailRow}>
+              <Icon name="insert-drive-file" size={15} color="#64748b" />
+              <Text style={styles.documentDetailText}>{doc.document.fileName}</Text>
+            </View>
+
+            <View style={styles.documentDetailRow}>
+              <Icon name="storage" size={15} color="#64748b" />
+              <Text style={styles.documentDetailText}>{formatFileSize(doc.document.fileSize)}</Text>
+            </View>
+
+            <View style={styles.documentDetailRow}>
+              <Icon name="schedule" size={15} color="#64748b" />
+              <Text style={styles.documentDetailText}>{formatDate(doc.document.uploadedAt)}</Text>
+            </View>
+
+            <View style={styles.documentDetailRow}>
+              <Icon name="person" size={15} color="#64748b" />
+              <Text style={styles.documentDetailText}>رفع بواسطة: {doc.document.uploadedBy?.name || 'غير محدد'}</Text>
+            </View>
+
+            {doc.document.notes ? (
+              <View style={styles.notesContainer}>
+                <Icon name="note" size={15} color="#64748b" />
+                <Text style={styles.notesText}>{doc.document.notes}</Text>
+              </View>
+            ) : null}
+
+            <TouchableOpacity style={styles.viewButton} onPress={() => handleViewDocument(doc)}>
+              <Icon
+                name={isPdfDocument(doc.document) ? 'picture-as-pdf' : isImageDocument(doc.document) ? 'photo' : 'open-in-new'}
+                size={18}
+                color="#ffffff"
+              />
+              <Text style={styles.viewButtonText}>
+                {isPdfDocument(doc.document)
+                  ? 'عرض داخل التطبيق'
+                  : isImageDocument(doc.document)
+                    ? 'عرض الصورة'
+                    : 'فتح الملف'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.missingContainer}>
+            <Icon name="cloud-off" size={18} color="#ef4444" />
+            <Text style={styles.missingText}>هذه الوثيقة غير مرفوعة حتى الآن</Text>
+          </View>
+        )}
+      </View>
+    );
+  };
+
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#3498db" />
-        <Text style={styles.loadingText}>جاري تحميل وثائق المتدرب...</Text>
+      <View style={styles.centeredContainer}>
+        <ActivityIndicator size="large" color="#1d4ed8" />
+        <Text style={styles.centeredText}>جاري تحميل أرشيف المتدرب...</Text>
       </View>
     );
   }
 
   if (!documentsData) {
     return (
-      <View style={styles.errorContainer}>
-        <Icon name="error-outline" size={64} color="#e74c3c" />
-        <Text style={styles.errorText}>لا يمكن تحميل وثائق المتدرب</Text>
+      <View style={styles.centeredContainer}>
+        <Icon name="error-outline" size={62} color="#ef4444" />
+        <Text style={styles.centeredErrorText}>تعذر تحميل بيانات الأرشيف</Text>
         <TouchableOpacity style={styles.retryButton} onPress={fetchDocuments}>
           <Text style={styles.retryButtonText}>إعادة المحاولة</Text>
         </TouchableOpacity>
@@ -283,55 +448,78 @@ const TraineeDocumentsScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Icon name="arrow-back" size={24} color="#fff" />
+        <TouchableOpacity style={styles.headerButton} onPress={() => navigation.goBack()}>
+          <Icon name="arrow-back" size={22} color="#1e3a8a" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>وثائق المتدرب</Text>
-        <TouchableOpacity
-          style={styles.refreshButton}
-          onPress={onRefresh}
-        >
-          <Icon name="refresh" size={24} color="#fff" />
+
+        <View style={styles.headerCenter}>
+          <Text style={styles.headerTitle}>أرشيف المتدرب</Text>
+          <Text style={styles.headerSubtitle}>{trainee?.nameAr || documentsData.trainee?.nameAr || ''}</Text>
+        </View>
+
+        <TouchableOpacity style={styles.headerButton} onPress={onRefresh}>
+          <Icon name="refresh" size={22} color="#1e3a8a" />
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
-        style={styles.content} 
+      <ScrollView
+        style={styles.content}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-        {/* Trainee Info */}
-        <View style={styles.traineeInfoCard}>
-          <View style={styles.traineeInfo}>
-            {documentsData.trainee.photoUrl && (
-              <Image 
-                source={{ uri: documentsData.trainee.photoUrl }} 
-                style={styles.traineePhoto}
-              />
+        <View style={styles.traineeCard}>
+          <TouchableOpacity
+            activeOpacity={traineePhotoUrl ? 0.85 : 1}
+            style={styles.traineePhotoWrap}
+            onPress={() => {
+              if (traineePhotoUrl) {
+                openPhotoViewer(traineePhotoUrl, documentsData.trainee.nameAr || 'الصورة الشخصية');
+              }
+            }}
+            disabled={!traineePhotoUrl}
+          >
+            {traineePhotoUrl ? (
+              <Image source={{ uri: traineePhotoUrl }} style={styles.traineePhoto} resizeMode="cover" />
+            ) : (
+              <View style={styles.traineePhotoFallback}>
+                <Icon name="person" size={30} color="#94a3b8" />
+              </View>
             )}
-            <View style={styles.traineeDetails}>
-              <Text style={styles.traineeName}>{documentsData.trainee.nameAr}</Text>
-              <Text style={styles.traineeId}>رقم المتدرب: {documentsData.trainee.id}</Text>
-            </View>
+          </TouchableOpacity>
+
+          <View style={styles.traineeInfoTextWrap}>
+            <Text style={styles.traineeName}>{documentsData.trainee.nameAr}</Text>
+            <Text style={styles.traineeMeta}>رقم المتدرب: {documentsData.trainee.id}</Text>
+            <Text style={styles.traineeMeta}>آخر تحديث: {formatDate(documentsData.trainee.updatedAt)}</Text>
           </View>
         </View>
 
-        {/* Stats Card */}
         {renderStatsCard()}
 
-        {/* Documents List */}
         <View style={styles.documentsSection}>
-          <Text style={styles.sectionTitle}>قائمة الوثائق</Text>
+          <Text style={styles.sectionTitle}>الوثائق ({documentsData.documents.length})</Text>
           {documentsData.documents.map(renderDocumentCard)}
         </View>
       </ScrollView>
+
+      <Modal visible={Boolean(photoViewer)} transparent animationType="fade" onRequestClose={() => setPhotoViewer(null)}>
+        <View style={styles.photoOverlay}>
+          <TouchableOpacity style={styles.photoBackdrop} onPress={() => setPhotoViewer(null)} />
+
+          <View style={styles.photoCard}>
+            {photoViewer?.uri ? (
+              <Image source={{ uri: photoViewer.uri }} style={styles.photoLarge} resizeMode="contain" />
+            ) : null}
+
+            <Text style={styles.photoTitle}>{photoViewer?.title || 'معاينة الصورة'}</Text>
+
+            <TouchableOpacity style={styles.photoCloseButton} onPress={() => setPhotoViewer(null)}>
+              <Text style={styles.photoCloseButtonText}>إغلاق</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -339,257 +527,420 @@ const TraineeDocumentsScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f8fafc',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#2c3e50',
-    paddingHorizontal: 20,
-    paddingVertical: 15,
-    paddingTop: 50,
+    paddingTop: 48,
+    paddingBottom: 14,
+    paddingHorizontal: 16,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
   },
-  backButton: {
-    padding: 5,
+  headerButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  headerCenter: {
+    flex: 1,
+    marginHorizontal: 10,
   },
   headerTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 19,
+    fontWeight: '800',
+    color: '#0f172a',
+    textAlign: 'right',
   },
-  refreshButton: {
-    padding: 5,
+  headerSubtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#64748b',
+    textAlign: 'right',
   },
   content: {
     flex: 1,
-    padding: 20,
+    paddingHorizontal: 14,
+    paddingTop: 14,
   },
-  loadingContainer: {
+  centeredContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    paddingHorizontal: 20,
+    backgroundColor: '#f8fafc',
   },
-  loadingText: {
+  centeredText: {
     marginTop: 10,
-    fontSize: 16,
-    color: '#666',
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
   },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-    padding: 20,
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#e74c3c',
-    textAlign: 'center',
-    marginVertical: 20,
+  centeredErrorText: {
+    marginTop: 12,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#b91c1c',
   },
   retryButton: {
-    backgroundColor: '#3498db',
-    paddingHorizontal: 20,
+    marginTop: 16,
+    backgroundColor: '#1e3a8a',
+    paddingHorizontal: 18,
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: 10,
   },
   retryButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
   },
-  traineeInfoCard: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 15,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  traineeInfo: {
+  traineeCard: {
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 12,
+  },
+  traineePhotoWrap: {
+    marginRight: 12,
   },
   traineePhoto: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    marginRight: 15,
+    width: 66,
+    height: 66,
+    borderRadius: 33,
+    backgroundColor: '#e2e8f0',
   },
-  traineeDetails: {
+  traineePhotoFallback: {
+    width: 66,
+    height: 66,
+    borderRadius: 33,
+    backgroundColor: '#e2e8f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  traineeInfoTextWrap: {
     flex: 1,
   },
   traineeName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    marginBottom: 5,
+    color: '#0f172a',
+    fontSize: 17,
+    fontWeight: '800',
+    textAlign: 'right',
   },
-  traineeId: {
-    fontSize: 14,
-    color: '#666',
+  traineeMeta: {
+    marginTop: 3,
+    color: '#64748b',
+    fontSize: 12,
+    textAlign: 'right',
   },
   statsCard: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 15,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
   },
-  statsTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    marginBottom: 15,
-    textAlign: 'center',
+  cardHeadRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  cardTitle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  cardHeadBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  cardHeadBadgeText: {
+    marginLeft: 4,
+    color: '#1d4ed8',
+    fontSize: 11,
+    fontWeight: '700',
   },
   statsGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 15,
+    justifyContent: 'space-between',
+    marginBottom: 10,
   },
   statItem: {
+    flex: 1,
     alignItems: 'center',
   },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#3498db',
-    marginBottom: 5,
+  statValue: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1d4ed8',
   },
   statLabel: {
-    fontSize: 12,
-    color: '#666',
+    marginTop: 2,
+    fontSize: 11,
+    color: '#64748b',
+    fontWeight: '600',
   },
-  progressContainer: {
-    marginTop: 10,
+  progressWrap: {
+    marginTop: 2,
   },
-  progressBar: {
-    height: 8,
-    backgroundColor: '#ecf0f1',
-    borderRadius: 4,
+  progressTrack: {
+    height: 7,
+    borderRadius: 999,
+    backgroundColor: '#e2e8f0',
     overflow: 'hidden',
-    marginBottom: 8,
   },
   progressFill: {
     height: '100%',
-    borderRadius: 4,
+    borderRadius: 999,
   },
   progressText: {
+    marginTop: 7,
     fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
+    color: '#475569',
+    textAlign: 'right',
+    fontWeight: '600',
   },
   documentsSection: {
-    marginBottom: 20,
+    paddingBottom: 20,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    marginBottom: 15,
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginBottom: 10,
+    textAlign: 'right',
   },
   documentCard: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 15,
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    padding: 12,
     marginBottom: 10,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
   },
   documentHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 10,
   },
-  documentIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f8f9fa',
-    justifyContent: 'center',
+  documentIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
     alignItems: 'center',
-    marginRight: 15,
+    justifyContent: 'center',
+    marginRight: 10,
   },
-  documentInfo: {
+  documentHeaderContent: {
     flex: 1,
   },
   documentName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    marginBottom: 5,
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#0f172a',
+    textAlign: 'right',
   },
-  documentStatusContainer: {
+  documentBadgesRow: {
+    marginTop: 6,
     flexDirection: 'row',
-    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  badge: {
+    borderRadius: 999,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
   },
   requiredBadge: {
-    backgroundColor: '#e74c3c',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    marginRight: 8,
+    backgroundColor: '#fef3c7',
   },
-  requiredText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold',
+  requiredBadgeText: {
+    color: '#b45309',
+    fontSize: 11,
+    fontWeight: '700',
   },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
+  optionalBadge: {
+    backgroundColor: '#e2e8f0',
   },
-  statusText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold',
+  optionalBadgeText: {
+    color: '#475569',
+    fontSize: 11,
+    fontWeight: '700',
   },
-  documentDetails: {
+  verifiedBadge: {
+    backgroundColor: '#dcfce7',
+  },
+  verifiedBadgeText: {
+    color: '#15803d',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  uploadedBadge: {
+    backgroundColor: '#dbeafe',
+  },
+  uploadedBadgeText: {
+    color: '#1d4ed8',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  missingBadge: {
+    backgroundColor: '#fee2e2',
+  },
+  missingBadgeText: {
+    color: '#b91c1c',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  documentDetailsSection: {
     marginTop: 10,
-    paddingTop: 10,
     borderTopWidth: 1,
-    borderTopColor: '#ecf0f1',
+    borderTopColor: '#f1f5f9',
+    paddingTop: 10,
+  },
+  imagePreviewWrap: {
+    borderRadius: 10,
+    overflow: 'hidden',
+    marginBottom: 10,
+    position: 'relative',
+  },
+  imagePreview: {
+    width: '100%',
+    height: 170,
+    backgroundColor: '#e2e8f0',
+  },
+  imagePreviewOverlay: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   documentDetailRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 5,
+    marginBottom: 6,
   },
   documentDetailText: {
+    marginLeft: 6,
+    color: '#475569',
     fontSize: 12,
-    color: '#666',
-    marginLeft: 8,
+    fontWeight: '600',
     flex: 1,
+    textAlign: 'right',
   },
-  viewDocumentButton: {
+  notesContainer: {
+    marginTop: 4,
+    marginBottom: 8,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  notesText: {
+    marginLeft: 6,
+    color: '#334155',
+    fontSize: 12,
+    lineHeight: 18,
+    flex: 1,
+    textAlign: 'right',
+  },
+  viewButton: {
+    marginTop: 3,
+    backgroundColor: '#1e3a8a',
+    borderRadius: 10,
+    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f8f9fa',
-    paddingVertical: 8,
-    paddingHorizontal: 15,
-    borderRadius: 8,
-    marginTop: 10,
   },
-  viewDocumentText: {
-    color: '#3498db',
+  viewButtonText: {
+    marginLeft: 6,
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  missingContainer: {
+    marginTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    paddingTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  missingText: {
+    marginLeft: 6,
+    color: '#b91c1c',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  photoOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.72)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  photoBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  photoCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#0f172a',
+    borderRadius: 14,
+    padding: 12,
+  },
+  photoLarge: {
+    width: '100%',
+    height: 420,
+    borderRadius: 10,
+    backgroundColor: '#1e293b',
+  },
+  photoTitle: {
+    marginTop: 10,
+    color: '#ffffff',
     fontSize: 14,
-    fontWeight: 'bold',
-    marginLeft: 5,
+    textAlign: 'center',
+    fontWeight: '700',
+  },
+  photoCloseButton: {
+    marginTop: 12,
+    backgroundColor: '#334155',
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+  },
+  photoCloseButtonText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });
 

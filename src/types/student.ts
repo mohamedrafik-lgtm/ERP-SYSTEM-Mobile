@@ -589,7 +589,16 @@ export type DocumentType =
   | 'MEDICAL_CERTIFICATE'
   | 'PHOTO'
   | 'CONTRACT'
-  | 'OTHER';
+  | 'OTHER'
+  | 'PERSONAL_PHOTO'
+  | 'ID_CARD_FRONT'
+  | 'ID_CARD_BACK'
+  | 'QUALIFICATION_FRONT'
+  | 'QUALIFICATION_BACK'
+  | 'EXPERIENCE_CERT'
+  | 'MINISTRY_CERT'
+  | 'PROFESSION_CARD'
+  | 'SKILL_CERT';
 
 export interface TraineeDocument {
   id: string;

@@ -3690,6 +3690,593 @@ class AuthService {
     }
   }
 
+  // ==================== STUDENT ATTENDANCE APIs ====================
+
+  // Get classroom info by classroom id (used in attendance flow)
+  static async getAttendanceClassroomById(
+    classroomId: number,
+  ): Promise<import('../types/studentAttendance').AttendanceClassroomInfo> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/programs/classroom/${classroomId}`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to fetch classroom info: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching attendance classroom info:', error);
+      throw error;
+    }
+  }
+
+  // Get one training content details by id
+  static async getAttendanceContentById(contentId: number): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/training-contents/${contentId}`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to fetch training content: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching attendance content details:', error);
+      throw error;
+    }
+  }
+
+  // Get all scheduled sessions for a slot
+  static async getAttendanceSessionsBySlot(
+    slotId: number,
+  ): Promise<import('../types/studentAttendance').AttendanceSession[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/schedule/slots/${slotId}/sessions`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to fetch slot sessions: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error('[AuthService] Error fetching attendance sessions by slot:', error);
+      throw error;
+    }
+  }
+
+  // Get all sessions for a specific content in one classroom
+  static async getAttendanceSessionsForContent(
+    classroomId: number,
+    contentId: number,
+  ): Promise<import('../types/studentAttendance').AttendanceSession[]> {
+    try {
+      const slots = await this.getClassroomSchedule(classroomId);
+      const contentSlots = (Array.isArray(slots) ? slots : []).filter(
+        (slot: any) => Number(slot?.content?.id || slot?.contentId) === Number(contentId),
+      );
+
+      const slotSessions = await Promise.all(
+        contentSlots.map((slot: any) => this.getAttendanceSessionsBySlot(Number(slot.id))),
+      );
+
+      const merged = slotSessions
+        .flat()
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      return merged;
+    } catch (error) {
+      console.error('[AuthService] Error fetching attendance sessions for content:', error);
+      throw error;
+    }
+  }
+
+  // Get expected trainees for a session attendance screen
+  static async getExpectedAttendanceTrainees(
+    sessionId: number,
+  ): Promise<import('../types/studentAttendance').ExpectedAttendanceTraineesResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/attendance/session/${sessionId}/expected-trainees`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        let errorMessage = `Failed to fetch expected trainees: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData?.message || errorData?.error || errorMessage;
+        } catch {
+          const errorText = await response.text();
+          if (errorText) {
+            errorMessage = errorText;
+          }
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching expected attendance trainees:', error);
+      throw error;
+    }
+  }
+
+  // Bulk record student attendance for a session
+  static async bulkRecordStudentAttendance(
+    payload: import('../types/studentAttendance').AttendanceBulkRecordPayload,
+  ): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/attendance/bulk`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        let errorMessage = `Failed to record attendance: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData?.message || errorData?.error || errorMessage;
+        } catch {
+          const errorText = await response.text();
+          if (errorText) {
+            errorMessage = errorText;
+          }
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error bulk recording student attendance:', error);
+      throw error;
+    }
+  }
+
+  // Generate 6-digit attendance code for one session
+  static async generateAttendanceSessionCode(
+    sessionId: number,
+    expiresInMinutes?: number,
+  ): Promise<import('../types/studentAttendance').AttendanceCodeResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/attendance/session/${sessionId}/generate-code`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(
+          expiresInMinutes ? { expiresInMinutes } : {},
+        ),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        let errorMessage = `Failed to generate attendance code: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData?.message || errorData?.error || errorMessage;
+        } catch {
+          const errorText = await response.text();
+          if (errorText) {
+            errorMessage = errorText;
+          }
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error generating attendance session code:', error);
+      throw error;
+    }
+  }
+
+  // Deactivate active attendance code for one session
+  static async deactivateAttendanceSessionCode(sessionId: number): Promise<{ success: boolean; message?: string }> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/attendance/session/${sessionId}/deactivate-code`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        let errorMessage = `Failed to deactivate attendance code: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData?.message || errorData?.error || errorMessage;
+        } catch {
+          const errorText = await response.text();
+          if (errorText) {
+            errorMessage = errorText;
+          }
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      try {
+        return await response.json();
+      } catch {
+        return { success: true };
+      }
+    } catch (error) {
+      console.error('[AuthService] Error deactivating attendance session code:', error);
+      throw error;
+    }
+  }
+
+  // Trainee Archive: Get documents completion stats
+  static async getTraineeDocumentsCompletionStats(
+    filters?: import('../types/traineeArchive').TraineeDocumentsCompletionStatsFilters,
+  ): Promise<import('../types/traineeArchive').TraineeDocumentsCompletionStatsResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const queryParams = new URLSearchParams();
+
+      if (filters?.programId !== undefined) queryParams.append('programId', String(filters.programId));
+      if (filters?.completionStatus) queryParams.append('completionStatus', filters.completionStatus);
+      if (filters?.dateFrom) queryParams.append('dateFrom', filters.dateFrom);
+      if (filters?.dateTo) queryParams.append('dateTo', filters.dateTo);
+      if (filters?.search) queryParams.append('search', filters.search);
+      if (filters?.page) queryParams.append('page', String(filters.page));
+      if (filters?.limit) queryParams.append('limit', String(filters.limit));
+
+      const url = `${baseUrl}/api/trainees/documents/completion-stats${
+        queryParams.toString() ? `?${queryParams.toString()}` : ''
+      }`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        let errorMessage = `Failed to fetch trainee archive stats: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch {
+          const errorText = await response.text();
+          if (errorText) {
+            errorMessage = errorText;
+          }
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error getting trainee archive completion stats:', error);
+      throw error;
+    }
+  }
+
+  // Trainee Archive: Get detailed documents report
+  static async getTraineeDocumentsDetailedReport(
+    filters?: import('../types/traineeArchive').TraineeDocumentsDetailedReportFilters,
+  ): Promise<import('../types/traineeArchive').TraineeDocumentsDetailedReportResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const queryParams = new URLSearchParams();
+
+      if (filters?.programId !== undefined) queryParams.append('programId', String(filters.programId));
+      if (filters?.completionStatus) queryParams.append('completionStatus', filters.completionStatus);
+      if (filters?.search) queryParams.append('search', filters.search);
+      if (filters?.limit) queryParams.append('limit', String(filters.limit));
+
+      const url = `${baseUrl}/api/trainees/documents/detailed-report${
+        queryParams.toString() ? `?${queryParams.toString()}` : ''
+      }`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        let errorMessage = `Failed to fetch trainee archive detailed report: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch {
+          const errorText = await response.text();
+          if (errorText) {
+            errorMessage = errorText;
+          }
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error getting trainee archive detailed report:', error);
+      throw error;
+    }
+  }
+
+  // Trainee Archive: Download single trainee archive ZIP
+  static async downloadTraineeArchive(
+    traineeId: number,
+    traineeName?: string,
+  ): Promise<{ path: string; fileName: string }> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/trainees/${traineeId}/documents/download-archive`;
+
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const BlobUtilModule = require('react-native-blob-util');
+      const BlobUtil = BlobUtilModule.default || BlobUtilModule;
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const RNModule = require('react-native');
+      const platform = RNModule.Platform?.OS || 'android';
+
+      const normalizeFilePart = (value: string) =>
+        value
+          .replace(/[<>:"/\\|?*]+/g, '_')
+          .replace(/\s+/g, '_')
+          .trim();
+
+      const safeName = normalizeFilePart(traineeName || `trainee_${traineeId}`) || `trainee_${traineeId}`;
+      const fileName = `archive_${safeName}_${traineeId}_${Date.now()}.zip`;
+      const dirs = BlobUtil.fs.dirs;
+      const defaultPath = platform === 'android'
+        ? `${dirs.DownloadDir}/${fileName}`
+        : `${dirs.DocumentDir}/${fileName}`;
+
+      const config = platform === 'android'
+        ? {
+            path: defaultPath,
+            fileCache: true,
+            addAndroidDownloads: {
+              useDownloadManager: true,
+              notification: true,
+              title: fileName,
+              description: 'Trainee archive download',
+              mime: 'application/zip',
+              path: defaultPath,
+            },
+          }
+        : {
+            path: defaultPath,
+            fileCache: true,
+          };
+
+      const response = await BlobUtil.config(config).fetch('GET', url, {
+        'Authorization': `Bearer ${token}`,
+      });
+
+      const savedPath = response.path();
+      if (!savedPath) {
+        throw new Error('Failed to save downloaded archive file.');
+      }
+
+      return {
+        path: savedPath,
+        fileName,
+      };
+    } catch (error) {
+      console.error('[AuthService] Error downloading trainee archive:', error);
+      throw error;
+    }
+  }
+
+  // Trainee Archive: Download bulk archives ZIP
+  static async bulkDownloadTraineeArchives(
+    filters?: import('../types/traineeArchive').TraineeArchivesBulkDownloadFilters,
+  ): Promise<{ path: string; fileName: string }> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const queryParams = new URLSearchParams();
+      if (filters?.programId !== undefined) {
+        queryParams.append('programId', String(filters.programId));
+      }
+      if (filters?.documentTypes?.length) {
+        queryParams.append('documentTypes', filters.documentTypes.join(','));
+      }
+
+      const url = `${baseUrl}/api/trainees/documents/bulk-download-archives${
+        queryParams.toString() ? `?${queryParams.toString()}` : ''
+      }`;
+
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const BlobUtilModule = require('react-native-blob-util');
+      const BlobUtil = BlobUtilModule.default || BlobUtilModule;
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const RNModule = require('react-native');
+      const platform = RNModule.Platform?.OS || 'android';
+
+      const fileName = `bulk_archives_${Date.now()}.zip`;
+      const dirs = BlobUtil.fs.dirs;
+      const defaultPath = platform === 'android'
+        ? `${dirs.DownloadDir}/${fileName}`
+        : `${dirs.DocumentDir}/${fileName}`;
+
+      const config = platform === 'android'
+        ? {
+            path: defaultPath,
+            fileCache: true,
+            addAndroidDownloads: {
+              useDownloadManager: true,
+              notification: true,
+              title: fileName,
+              description: 'Bulk trainee archives download',
+              mime: 'application/zip',
+              path: defaultPath,
+            },
+          }
+        : {
+            path: defaultPath,
+            fileCache: true,
+          };
+
+      const response = await BlobUtil.config(config).fetch('GET', url, {
+        'Authorization': `Bearer ${token}`,
+      });
+
+      const savedPath = response.path();
+      if (!savedPath) {
+        throw new Error('Failed to save downloaded bulk archive file.');
+      }
+
+      return {
+        path: savedPath,
+        fileName,
+      };
+    } catch (error) {
+      console.error('[AuthService] Error downloading bulk trainee archives:', error);
+      throw error;
+    }
+  }
+
   // User Role Management: Assign role to user
   static async assignUserRole(userId: string, roleId: string): Promise<any> {
     try {
@@ -6722,6 +7309,350 @@ class AuthService {
       }
     } catch (error) {
       console.error('[AuthService] Error deleting trainee request:', error);
+      throw error;
+    }
+  }
+
+  // ==================== COMPLAINTS MANAGEMENT APIs ====================
+
+  /**
+   * جلب الشكاوى والاقتراحات (للإدارة)
+   */
+  static async getComplaints(params?: {
+    type?: import('../types/complaints').ComplaintType;
+    status?: import('../types/complaints').ComplaintStatus;
+    page?: number;
+    limit?: number;
+  }): Promise<import('../types/complaints').ComplaintsResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const queryParams = new URLSearchParams();
+
+      if (params?.type) queryParams.append('type', params.type);
+      if (params?.status) queryParams.append('status', params.status);
+      if (params?.page) queryParams.append('page', params.page.toString());
+      if (params?.limit) queryParams.append('limit', params.limit.toString());
+
+      const url = `${baseUrl}/api/complaints${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        throw new Error(errorText || `Failed to fetch complaints: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching complaints:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * جلب إحصائيات الشكاوى
+   */
+  static async getComplaintsStats(): Promise<import('../types/complaints').ComplaintsStatsResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/complaints/stats`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        throw new Error(errorText || `Failed to fetch complaints stats: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching complaints stats:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * مراجعة شكوى/اقتراح
+   */
+  static async reviewComplaint(
+    complaintId: string,
+    reviewData: import('../types/complaints').ReviewComplaintPayload,
+  ): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/complaints/${complaintId}/review`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(reviewData),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        throw new Error(errorText || `Failed to review complaint: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error reviewing complaint:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * حذف شكوى/اقتراح
+   */
+  static async deleteComplaint(complaintId: string): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/complaints/${complaintId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        throw new Error(errorText || `Failed to delete complaint: ${response.status}`);
+      }
+
+      try {
+        return await response.json();
+      } catch {
+        return { success: true };
+      }
+    } catch (error) {
+      console.error('[AuthService] Error deleting complaint:', error);
+      throw error;
+    }
+  }
+
+  // ==================== GRADE APPEALS MANAGEMENT APIs ====================
+
+  /**
+   * جلب تظلمات الدرجات (للإدارة)
+   */
+  static async getGradeAppeals(params?: {
+    status?: import('../types/gradeAppeals').GradeAppealStatus;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<import('../types/gradeAppeals').GradeAppealsResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const queryParams = new URLSearchParams();
+
+      if (params?.status) queryParams.append('status', params.status);
+      if (params?.search) queryParams.append('search', params.search);
+      if (params?.page) queryParams.append('page', params.page.toString());
+      if (params?.limit) queryParams.append('limit', params.limit.toString());
+
+      const url = `${baseUrl}/api/grade-appeals${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        throw new Error(errorText || `Failed to fetch grade appeals: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching grade appeals:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * جلب إحصائيات تظلمات الدرجات
+   */
+  static async getGradeAppealsStats(): Promise<import('../types/gradeAppeals').GradeAppealsStatsResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/grade-appeals/stats`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        throw new Error(errorText || `Failed to fetch grade appeals stats: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching grade appeals stats:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * مراجعة تظلم درجات
+   */
+  static async reviewGradeAppeal(
+    appealId: string,
+    reviewData: import('../types/gradeAppeals').ReviewGradeAppealPayload,
+  ): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/grade-appeals/${appealId}/review`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(reviewData),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        throw new Error(errorText || `Failed to review grade appeal: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error reviewing grade appeal:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * حذف تظلم درجات
+   */
+  static async deleteGradeAppeal(appealId: string): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/grade-appeals/${appealId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        throw new Error(errorText || `Failed to delete grade appeal: ${response.status}`);
+      }
+
+      try {
+        return await response.json();
+      } catch {
+        return { success: true };
+      }
+    } catch (error) {
+      console.error('[AuthService] Error deleting grade appeal:', error);
       throw error;
     }
   }

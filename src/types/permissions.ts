@@ -23,7 +23,10 @@ export type PermissionAction =
   | 'manage'
   | 'export'
   | 'export_data'
-  | 'transfer';
+  | 'transfer'
+  | 'record'
+  | 'record_past'
+  | 'stats';
 
 export interface PermissionCheck {
   resource: string;
@@ -158,6 +161,16 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     priority: 2.3,
     showInMenu: false,
   },
+  TraineesArchive: {
+    screenName: 'TraineesArchive',
+    title: 'أرشيف المتدربين',
+    icon: 'folder',
+    requiredPermission: { resource: 'dashboard.trainees.archive', action: 'view' },
+    category: 'academic',
+    priority: 2.35,
+    showInMenu: true,
+    description: 'متابعة أرشيف وثائق المتدربين ونسب الإكمال',
+  },
   UsersList: {
     screenName: 'UsersList',
     title: 'المستخدمون',
@@ -266,6 +279,69 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     priority: 4.5,
     showInMenu: true,
     description: 'إدارة المحاضرات',
+  },
+  AttendancePrograms: {
+    screenName: 'AttendancePrograms',
+    title: 'رصد الحضور والغياب',
+    icon: 'fact-check',
+    requiredPermission: { resource: 'dashboard.attendance', action: 'view' },
+    additionalPermissions: {
+      record: { resource: 'dashboard.attendance', action: 'record' },
+      recordPast: { resource: 'dashboard.attendance', action: 'record_past' },
+      stats: { resource: 'dashboard.attendance', action: 'stats' },
+    },
+    category: 'academic',
+    priority: 4.55,
+    showInMenu: true,
+    description: 'رصد حضور وغياب المتدربين حسب البرنامج والفصل والمادة',
+  },
+  AttendanceClassrooms: {
+    screenName: 'AttendanceClassrooms',
+    title: 'فصول الحضور',
+    icon: 'meeting-room',
+    requiredPermission: { resource: 'dashboard.attendance', action: 'view' },
+    category: 'academic',
+    priority: 4.56,
+    showInMenu: false,
+  },
+  AttendanceContents: {
+    screenName: 'AttendanceContents',
+    title: 'مواد الحضور',
+    icon: 'menu-book',
+    requiredPermission: { resource: 'dashboard.attendance', action: 'view' },
+    category: 'academic',
+    priority: 4.57,
+    showInMenu: false,
+  },
+  AttendanceSessions: {
+    screenName: 'AttendanceSessions',
+    title: 'محاضرات الحضور',
+    icon: 'event-note',
+    requiredPermission: { resource: 'dashboard.attendance', action: 'view' },
+    category: 'academic',
+    priority: 4.58,
+    showInMenu: false,
+  },
+  AttendanceSessionRecorder: {
+    screenName: 'AttendanceSessionRecorder',
+    title: 'تسجيل الحضور',
+    icon: 'playlist-add-check',
+    requiredPermission: { resource: 'dashboard.attendance', action: 'record' },
+    additionalPermissions: {
+      recordPast: { resource: 'dashboard.attendance', action: 'record_past' },
+    },
+    category: 'academic',
+    priority: 4.59,
+    showInMenu: false,
+  },
+  AttendanceStats: {
+    screenName: 'AttendanceStats',
+    title: 'تقارير الحضور',
+    icon: 'bar-chart',
+    requiredPermission: { resource: 'dashboard.attendance', action: 'stats' },
+    category: 'academic',
+    priority: 4.6,
+    showInMenu: false,
   },
   AddLecture: {
     screenName: 'AddLecture',
@@ -872,13 +948,33 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     showInMenu: true,
     description: 'طلبات المتدربين العامة',
   },
+  ComplaintsRequests: {
+    screenName: 'ComplaintsRequests',
+    title: 'الشكاوى والاقتراحات',
+    icon: 'feedback',
+    requiredPermission: { resource: 'dashboard.complaints', action: 'view' },
+    category: 'student_requests',
+    priority: 9.3,
+    showInMenu: true,
+    description: 'إدارة الشكاوى والاقتراحات المقدمة من المتدربين',
+  },
+  GradeAppealsRequests: {
+    screenName: 'GradeAppealsRequests',
+    title: 'تظلمات الدرجات',
+    icon: 'gavel',
+    requiredPermission: { resource: 'dashboard.grade-appeals', action: 'view' },
+    category: 'student_requests',
+    priority: 9.4,
+    showInMenu: true,
+    description: 'إدارة تظلمات الدرجات الخاصة بالمتدربين',
+  },
   RequestsSettings: {
     screenName: 'RequestsSettings',
     title: 'إعدادات الطلبات',
     icon: 'settings',
     requiredPermission: { resource: 'dashboard.deferral-requests.settings', action: 'view' },
     category: 'student_requests',
-    priority: 9.3,
+    priority: 9.5,
     showInMenu: true,
     description: 'إعدادات وإدارة أنواع الطلبات',
   },
@@ -1052,8 +1148,10 @@ export const MENU_SECTIONS: MenuSection[] = [
     icon: 'school',
     requiredPermissions: [
       { resource: 'dashboard.trainees', action: 'view' },
+      { resource: 'dashboard.trainees.archive', action: 'view' },
       { resource: 'dashboard.programs', action: 'view' },
       { resource: 'dashboard.users', action: 'view' },
+      { resource: 'dashboard.attendance', action: 'view' },
     ],
     requireAll: false,
     items: Object.values(SCREEN_PERMISSIONS).filter(s => s.category === 'academic' && s.showInMenu),

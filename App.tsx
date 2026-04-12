@@ -35,6 +35,8 @@ import PaymentScheduleDetailsScreen from './src/screens/PaymentScheduleDetailsSc
 import AddPaymentScheduleScreen from './src/screens/AddPaymentScheduleScreen';
 import PaymentDeferralRequestsScreen from './src/screens/PaymentDeferralRequestsScreen';
 import FreeRequestsScreen from './src/screens/FreeRequestsScreen';
+import ComplaintsRequestsScreen from './src/screens/ComplaintsRequestsScreen';
+import GradeAppealsRequestsScreen from './src/screens/GradeAppealsRequestsScreen';
 import RequestsSettingsScreen from './src/screens/RequestsSettingsScreen';
 import PermissionsScreen from './src/screens/PermissionsScreen';
 import RoleDetailsScreen from './src/screens/RoleDetailsScreen';
@@ -54,6 +56,7 @@ import MarketingStatsScreen from './src/screens/MarketingStatsScreen';
 import WhatsAppManagementScreen from './src/screens/WhatsAppManagementScreen';
 import EditTraineeScreen from './src/screens/EditTraineeScreen';
 import TraineeDocumentsScreen from './src/screens/TraineeDocumentsScreen';
+import TraineesArchiveScreen from './src/screens/TraineesArchiveScreen';
 import LecturesScreen from './src/screens/LecturesScreen';
 import AddLectureScreen from './src/screens/AddLectureScreen';
 import EditLectureScreen from './src/screens/EditLectureScreen';
@@ -102,6 +105,12 @@ import StaffLeaveRequestsScreen from './src/screens/StaffLeaveRequestsScreen';
 import StaffAttendanceSettingsScreen from './src/screens/StaffAttendanceSettingsScreen';
 import StaffAttendanceEmployeesScreen from './src/screens/StaffAttendanceEmployeesScreen';
 import StaffAttendanceEmployeeDetailScreen from './src/screens/StaffAttendanceEmployeeDetailScreen';
+import AttendanceProgramsScreen from './src/screens/AttendanceProgramsScreen';
+import AttendanceClassroomsScreen from './src/screens/AttendanceClassroomsScreen';
+import AttendanceContentsScreen from './src/screens/AttendanceContentsScreen';
+import AttendanceSessionsScreen from './src/screens/AttendanceSessionsScreen';
+import AttendanceSessionRecorderScreen from './src/screens/AttendanceSessionRecorderScreen';
+import AttendanceStatsScreen from './src/screens/AttendanceStatsScreen';
 import AuthService from './src/services/AuthService';
 import BranchService from './src/services/BranchService';
 import { enableScreens } from 'react-native-screens';
@@ -116,6 +125,7 @@ const GuardedTraineeTransfer = withPermissionGuard(TraineeTransferScreen, 'Train
 const GuardedAddStudent = withPermissionGuard(AddStudentScreen, 'AddStudent');
 const GuardedEditTrainee = withPermissionGuard(EditTraineeScreen, 'EditTrainee');
 const GuardedTraineeDocuments = withPermissionGuard(TraineeDocumentsScreen, 'TraineeDocuments');
+const GuardedTraineesArchive = withPermissionGuard(TraineesArchiveScreen, 'TraineesArchive');
 const GuardedUsersList = withPermissionGuard(UsersListScreen, 'UsersList');
 const GuardedAddUser = withPermissionGuard(AddUserScreen, 'AddUser');
 const GuardedEditUser = withPermissionGuard(EditUserScreen, 'EditUser');
@@ -184,6 +194,8 @@ const GuardedPaymentScheduleDetails = withPermissionGuard(PaymentScheduleDetails
 const GuardedAddPaymentSchedule = withPermissionGuard(AddPaymentScheduleScreen, 'AddPaymentSchedule');
 const GuardedPaymentDeferralRequests = withPermissionGuard(PaymentDeferralRequestsScreen, 'PaymentDeferralRequests');
 const GuardedFreeRequests = withPermissionGuard(FreeRequestsScreen, 'FreeRequests');
+const GuardedComplaintsRequests = withPermissionGuard(ComplaintsRequestsScreen, 'ComplaintsRequests');
+const GuardedGradeAppealsRequests = withPermissionGuard(GradeAppealsRequestsScreen, 'GradeAppealsRequests');
 const GuardedRequestsSettings = withPermissionGuard(RequestsSettingsScreen, 'RequestsSettings');
 const GuardedPermissions = withPermissionGuard(PermissionsScreen, 'Permissions');
 const GuardedRoleDetails = withPermissionGuard(RoleDetailsScreen, 'RoleDetails');
@@ -200,6 +212,12 @@ const GuardedStaffLeaveRequests = withPermissionGuard(StaffLeaveRequestsScreen, 
 const GuardedStaffAttendanceSettings = withPermissionGuard(StaffAttendanceSettingsScreen, 'StaffAttendanceSettings');
 const GuardedStaffAttendanceEmployees = withPermissionGuard(StaffAttendanceEmployeesScreen, 'StaffAttendanceEmployees');
 const GuardedStaffAttendanceEmployeeDetail = withPermissionGuard(StaffAttendanceEmployeeDetailScreen, 'StaffAttendanceEmployeeDetail');
+const GuardedAttendancePrograms = withPermissionGuard(AttendanceProgramsScreen, 'AttendancePrograms');
+const GuardedAttendanceClassrooms = withPermissionGuard(AttendanceClassroomsScreen, 'AttendanceClassrooms');
+const GuardedAttendanceContents = withPermissionGuard(AttendanceContentsScreen, 'AttendanceContents');
+const GuardedAttendanceSessions = withPermissionGuard(AttendanceSessionsScreen, 'AttendanceSessions');
+const GuardedAttendanceSessionRecorder = withPermissionGuard(AttendanceSessionRecorderScreen, 'AttendanceSessionRecorder');
+const GuardedAttendanceStats = withPermissionGuard(AttendanceStatsScreen, 'AttendanceStats');
 
 const Stack = createNativeStackNavigator();
 
@@ -302,6 +320,8 @@ function App() {
           <Stack.Screen name="AddPaymentSchedule" component={GuardedAddPaymentSchedule} />
           <Stack.Screen name="PaymentDeferralRequests" component={GuardedPaymentDeferralRequests} />
           <Stack.Screen name="FreeRequests" component={GuardedFreeRequests} />
+          <Stack.Screen name="ComplaintsRequests" component={GuardedComplaintsRequests} />
+          <Stack.Screen name="GradeAppealsRequests" component={GuardedGradeAppealsRequests} />
           <Stack.Screen name="RequestsSettings" component={GuardedRequestsSettings} />
           <Stack.Screen name="Permissions" component={GuardedPermissions} />
           <Stack.Screen name="RoleDetails" component={GuardedRoleDetails} />
@@ -320,6 +340,7 @@ function App() {
           <Stack.Screen name="MarketingStats" component={GuardedMarketingStats} />
           <Stack.Screen name="WhatsAppManagement" component={GuardedWhatsAppManagement} />
           <Stack.Screen name="EditTrainee" component={GuardedEditTrainee} />
+          <Stack.Screen name="TraineesArchive" component={GuardedTraineesArchive} />
           <Stack.Screen name="TraineeDocuments" component={GuardedTraineeDocuments} />
           <Stack.Screen name="Lectures" component={GuardedLectures} />
           <Stack.Screen name="AddLecture" component={GuardedAddLecture} />
@@ -362,6 +383,12 @@ function App() {
           <Stack.Screen name="DeliveryTracking" component={GuardedDeliveryTracking} />
           <Stack.Screen name="DeliveryTrackingMaterial" component={GuardedDeliveryTrackingMaterial} />
           <Stack.Screen name="AddStudyMaterial" component={GuardedAddStudyMaterial} />
+          <Stack.Screen name="AttendancePrograms" component={GuardedAttendancePrograms} />
+          <Stack.Screen name="AttendanceClassrooms" component={GuardedAttendanceClassrooms} />
+          <Stack.Screen name="AttendanceContents" component={GuardedAttendanceContents} />
+          <Stack.Screen name="AttendanceSessions" component={GuardedAttendanceSessions} />
+          <Stack.Screen name="AttendanceSessionRecorder" component={GuardedAttendanceSessionRecorder} />
+          <Stack.Screen name="AttendanceStats" component={GuardedAttendanceStats} />
           <Stack.Screen name="StaffAttendance" component={GuardedStaffAttendance} />
           <Stack.Screen name="StaffAttendanceLogs" component={GuardedStaffAttendanceLogs} />
           <Stack.Screen name="StaffLeaveRequests" component={GuardedStaffLeaveRequests} />
