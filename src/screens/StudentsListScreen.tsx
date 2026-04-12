@@ -27,6 +27,51 @@ type ProgramOption = {
   nameEn?: string;
 };
 
+type TraineeNote = {
+  id: string;
+  content: string;
+  createdAt?: string;
+  createdBy?: {
+    nameAr?: string;
+    username?: string;
+  };
+};
+
+type FeeWithSchedule = {
+  id: number;
+  name: string;
+  paymentDueDate?: string;
+  gracePeriodDays?: number;
+};
+
+type TraineePaymentException = {
+  id: string;
+  reason: string;
+  notes?: string;
+  customPaymentEndDate?: string;
+  customGracePeriodDays?: number;
+  createdAt?: string;
+  fee?: {
+    id: number;
+    name?: string;
+  };
+  createdBy?: {
+    nameAr?: string;
+    username?: string;
+  };
+};
+
+type DisciplinaryAction = {
+  id: string;
+  actionType: string;
+  status: string;
+  reason: string;
+  notes?: string;
+  startDate?: string;
+  endDate?: string;
+  createdAt?: string;
+};
+
 type SortBy = 'name' | 'id';
 type SortOrder = 'asc' | 'desc';
 
@@ -45,6 +90,14 @@ const PROGRAM_TYPE_OPTIONS = [
   {value: 'ANNUAL', label: 'سنوي'},
 ];
 
+const DISCIPLINARY_ACTION_OPTIONS = [
+  {value: 'WARNING', label: 'إنذار'},
+  {value: 'GUARDIAN_SUMMON', label: 'استدعاء ولي الأمر'},
+  {value: 'REPORT_FILING', label: 'تحرير محضر'},
+  {value: 'TEMPORARY_SUSPENSION', label: 'إيقاف مؤقت'},
+  {value: 'PERMANENT_EXPULSION', label: 'فصل نهائي'},
+];
+
 const StudentsListScreen = ({navigation}: any) => {
   const {hasPermission, hasAnyRole, hasScreenAction} = usePermissions();
 
@@ -53,6 +106,14 @@ const StudentsListScreen = ({navigation}: any) => {
   const canDelete = hasScreenAction('StudentsList', 'delete');
   const canTransfer = hasScreenAction('StudentsList', 'transfer');
   const canViewPhone = hasPermission('dashboard.trainees', 'view_phone');
+  const canManagePaymentExceptions = hasPermission(
+    'dashboard.trainees.payment-exceptions',
+    'manage',
+  );
+  const canManageDisciplinaryActions = hasPermission(
+    'dashboard.trainees.disciplinary-actions',
+    'manage',
+  );
   const canManageTraineeFinances =
     hasPermission('dashboard.financial', 'manage') ||
     hasPermission('dashboard.financial', 'view') ||
@@ -95,6 +156,38 @@ const StudentsListScreen = ({navigation}: any) => {
     name: string;
     nationalId: string;
   } | null>(null);
+
+  const [showStatisticsModal, setShowStatisticsModal] = useState(false);
+
+  const [showNotesModal, setShowNotesModal] = useState(false);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [notes, setNotes] = useState<TraineeNote[]>([]);
+  const [newNoteContent, setNewNoteContent] = useState('');
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingNoteContent, setEditingNoteContent] = useState('');
+
+  const [showPaymentExceptionModal, setShowPaymentExceptionModal] = useState(false);
+  const [exceptionFees, setExceptionFees] = useState<FeeWithSchedule[]>([]);
+  const [exceptionFeeId, setExceptionFeeId] = useState('ALL');
+  const [exceptionEndDate, setExceptionEndDate] = useState('');
+  const [exceptionGraceDays, setExceptionGraceDays] = useState('0');
+  const [exceptionReason, setExceptionReason] = useState('');
+  const [exceptionNotes, setExceptionNotes] = useState('');
+
+  const [showExceptionsListModal, setShowExceptionsListModal] = useState(false);
+  const [exceptionsLoading, setExceptionsLoading] = useState(false);
+  const [paymentExceptions, setPaymentExceptions] = useState<TraineePaymentException[]>([]);
+
+  const [showDisciplinaryModal, setShowDisciplinaryModal] = useState(false);
+  const [disciplinaryActionType, setDisciplinaryActionType] = useState('WARNING');
+  const [disciplinaryReason, setDisciplinaryReason] = useState('');
+  const [disciplinaryNotes, setDisciplinaryNotes] = useState('');
+  const [disciplinaryStartDate, setDisciplinaryStartDate] = useState('');
+  const [disciplinaryEndDate, setDisciplinaryEndDate] = useState('');
+
+  const [showDisciplinaryListModal, setShowDisciplinaryListModal] = useState(false);
+  const [disciplinaryLoading, setDisciplinaryLoading] = useState(false);
+  const [disciplinaryActions, setDisciplinaryActions] = useState<DisciplinaryAction[]>([]);
 
   const getProgramTypeLabel = (programType?: string) => {
     if (programType === 'SUMMER') {
@@ -145,6 +238,72 @@ const StudentsListScreen = ({navigation}: any) => {
       default:
         return 'غير محدد';
     }
+  };
+
+  const getDisciplinaryActionLabel = (actionType?: string) => {
+    switch (actionType) {
+      case 'WARNING':
+        return 'إنذار';
+      case 'GUARDIAN_SUMMON':
+        return 'استدعاء ولي الأمر';
+      case 'REPORT_FILING':
+        return 'تحرير محضر';
+      case 'TEMPORARY_SUSPENSION':
+        return 'إيقاف مؤقت';
+      case 'PERMANENT_EXPULSION':
+        return 'فصل نهائي';
+      default:
+        return actionType || 'غير محدد';
+    }
+  };
+
+  const getDisciplinaryStatusLabel = (status?: string) => {
+    switch (status) {
+      case 'ACTIVE':
+        return 'نشط';
+      case 'COMPLETED':
+        return 'مكتمل';
+      case 'CANCELLED':
+        return 'ملغي';
+      default:
+        return status || 'غير محدد';
+    }
+  };
+
+  const formatDateAr = (value?: string) => {
+    if (!value) {
+      return 'غير متوفر';
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+
+    return date.toLocaleDateString('ar-EG', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+  };
+
+  const formatDateTimeAr = (value?: string) => {
+    if (!value) {
+      return 'غير متوفر';
+    }
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+
+    return date.toLocaleString('ar-EG', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
   const fetchPrograms = async () => {
@@ -347,14 +506,43 @@ const StudentsListScreen = ({navigation}: any) => {
   const totalCurrent = filteredTrainees.filter(t => t.traineeStatus === 'CURRENT').length;
   const totalGraduates = filteredTrainees.filter(t => t.traineeStatus === 'GRADUATE').length;
 
+  const programStats = useMemo(() => {
+    const map = new Map<string, number>();
+    filteredTrainees.forEach(trainee => {
+      const label = trainee.program?.nameAr || 'غير محدد';
+      map.set(label, (map.get(label) || 0) + 1);
+    });
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+  }, [filteredTrainees]);
+
+  const governorateStats = useMemo(() => {
+    const map = new Map<string, number>();
+    filteredTrainees.forEach(trainee => {
+      const label = trainee.governorate?.trim() || 'غير محدد';
+      map.set(label, (map.get(label) || 0) + 1);
+    });
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+  }, [filteredTrainees]);
+
+  const cityStats = useMemo(() => {
+    const map = new Map<string, number>();
+    filteredTrainees.forEach(trainee => {
+      const label = trainee.city?.trim() || 'غير محدد';
+      map.set(label, (map.get(label) || 0) + 1);
+    });
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+  }, [filteredTrainees]);
+
   const openActionsMenu = (trainee: ITrainee) => {
     setSelectedTrainee(trainee);
     setShowActionsModal(true);
   };
 
-  const closeActionsMenu = () => {
+  const closeActionsMenu = (keepSelectedTrainee = false) => {
     setShowActionsModal(false);
-    setSelectedTrainee(null);
+    if (!keepSelectedTrainee) {
+      setSelectedTrainee(null);
+    }
   };
 
   const openPhotoViewer = (trainee: ITrainee) => {
@@ -429,6 +617,390 @@ const StudentsListScreen = ({navigation}: any) => {
   const handleTransferGroups = () => {
     closeActionsMenu();
     navigation.navigate('TraineeTransfer');
+  };
+
+  const closeNotesModal = () => {
+    setShowNotesModal(false);
+    setNotes([]);
+    setNewNoteContent('');
+    setEditingNoteId(null);
+    setEditingNoteContent('');
+    setSelectedTrainee(null);
+  };
+
+  const loadTraineeNotes = async (traineeId: number) => {
+    try {
+      setNotesLoading(true);
+      const response = await AuthService.getTraineeNotes(traineeId);
+      setNotes(Array.isArray(response) ? response : []);
+    } catch (error: any) {
+      Alert.alert('خطأ', error?.message || 'تعذر تحميل ملاحظات المتدرب');
+      setNotes([]);
+    } finally {
+      setNotesLoading(false);
+    }
+  };
+
+  const handleOpenNotesModal = async (trainee: ITrainee) => {
+    closeActionsMenu(true);
+    setSelectedTrainee(trainee);
+    setShowNotesModal(true);
+    await loadTraineeNotes(trainee.id);
+  };
+
+  const handleAddTraineeNote = async () => {
+    if (!selectedTrainee) {
+      return;
+    }
+
+    const content = newNoteContent.trim();
+    if (!content) {
+      Alert.alert('تنبيه', 'يرجى إدخال محتوى الملاحظة');
+      return;
+    }
+
+    try {
+      setProcessingAction(true);
+      await AuthService.createTraineeNote(selectedTrainee.id, {content});
+      setNewNoteContent('');
+      await loadTraineeNotes(selectedTrainee.id);
+    } catch (error: any) {
+      Alert.alert('خطأ', error?.message || 'تعذر إضافة الملاحظة');
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const handleStartEditTraineeNote = (note: TraineeNote) => {
+    setEditingNoteId(note.id);
+    setEditingNoteContent(note.content || '');
+  };
+
+  const handleCancelEditTraineeNote = () => {
+    setEditingNoteId(null);
+    setEditingNoteContent('');
+  };
+
+  const handleUpdateTraineeNote = async () => {
+    if (!selectedTrainee || !editingNoteId) {
+      return;
+    }
+
+    const content = editingNoteContent.trim();
+    if (!content) {
+      Alert.alert('تنبيه', 'يرجى إدخال محتوى الملاحظة');
+      return;
+    }
+
+    try {
+      setProcessingAction(true);
+      await AuthService.updateTraineeNote(editingNoteId, {content});
+      setEditingNoteId(null);
+      setEditingNoteContent('');
+      await loadTraineeNotes(selectedTrainee.id);
+    } catch (error: any) {
+      Alert.alert('خطأ', error?.message || 'تعذر تحديث الملاحظة');
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const handleDeleteTraineeNote = (noteId: string) => {
+    if (!selectedTrainee) {
+      return;
+    }
+
+    Alert.alert('حذف الملاحظة', 'هل تريد حذف هذه الملاحظة؟', [
+      {text: 'إلغاء', style: 'cancel'},
+      {
+        text: 'حذف',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            setProcessingAction(true);
+            await AuthService.deleteTraineeNote(noteId);
+            await loadTraineeNotes(selectedTrainee.id);
+          } catch (error: any) {
+            Alert.alert('خطأ', error?.message || 'تعذر حذف الملاحظة');
+          } finally {
+            setProcessingAction(false);
+          }
+        },
+      },
+    ]);
+  };
+
+  const resetPaymentExceptionForm = () => {
+    setExceptionFeeId('ALL');
+    setExceptionEndDate('');
+    setExceptionGraceDays('0');
+    setExceptionReason('');
+    setExceptionNotes('');
+  };
+
+  const closePaymentExceptionModal = () => {
+    setShowPaymentExceptionModal(false);
+    setExceptionFees([]);
+    resetPaymentExceptionForm();
+    setSelectedTrainee(null);
+  };
+
+  const handleOpenPaymentExceptionModal = async (trainee: ITrainee) => {
+    closeActionsMenu(true);
+    setSelectedTrainee(trainee);
+    setShowPaymentExceptionModal(true);
+
+    try {
+      setProcessingAction(true);
+      const response = await AuthService.getFeesWithSchedules(trainee.id);
+      const fees = (Array.isArray(response) ? response : []).map((fee: any) => ({
+        id: Number(fee.id),
+        name: fee.name || fee.feeName || `رسوم ${fee.id}`,
+        paymentDueDate: fee.paymentDueDate,
+        gracePeriodDays: fee.gracePeriodDays,
+      }));
+      setExceptionFees(fees);
+    } catch (error: any) {
+      Alert.alert('خطأ', error?.message || 'تعذر تحميل الرسوم المتاحة');
+      setExceptionFees([]);
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const handleCreatePaymentException = async () => {
+    if (!selectedTrainee) {
+      return;
+    }
+
+    const reason = exceptionReason.trim();
+    if (!reason) {
+      Alert.alert('تنبيه', 'سبب الاستثناء مطلوب');
+      return;
+    }
+
+    const payload: {
+      feeId?: number;
+      customPaymentEndDate?: string;
+      customGracePeriodDays?: number;
+      reason: string;
+      notes?: string;
+    } = {
+      reason,
+    };
+
+    if (exceptionFeeId !== 'ALL') {
+      payload.feeId = Number(exceptionFeeId);
+    }
+
+    if (exceptionEndDate.trim()) {
+      payload.customPaymentEndDate = exceptionEndDate.trim();
+    }
+
+    const graceDays = Number(exceptionGraceDays);
+    if (!Number.isNaN(graceDays) && graceDays >= 0) {
+      payload.customGracePeriodDays = graceDays;
+    }
+
+    if (exceptionNotes.trim()) {
+      payload.notes = exceptionNotes.trim();
+    }
+
+    try {
+      setProcessingAction(true);
+      const response = await AuthService.createPaymentException(selectedTrainee.id, payload);
+      Alert.alert('تم', response?.message || 'تم إنشاء استثناء السداد بنجاح');
+      closePaymentExceptionModal();
+    } catch (error: any) {
+      Alert.alert('خطأ', error?.message || 'تعذر إنشاء استثناء السداد');
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const loadPaymentExceptions = async (traineeId: number) => {
+    try {
+      setExceptionsLoading(true);
+      const response = await AuthService.getTraineePaymentExceptions(traineeId);
+      setPaymentExceptions(Array.isArray(response) ? response : []);
+    } catch (error: any) {
+      Alert.alert('خطأ', error?.message || 'تعذر تحميل الاستثناءات');
+      setPaymentExceptions([]);
+    } finally {
+      setExceptionsLoading(false);
+    }
+  };
+
+  const closePaymentExceptionsListModal = () => {
+    setShowExceptionsListModal(false);
+    setPaymentExceptions([]);
+    setSelectedTrainee(null);
+  };
+
+  const handleOpenPaymentExceptionsListModal = async (trainee: ITrainee) => {
+    closeActionsMenu(true);
+    setSelectedTrainee(trainee);
+    setShowExceptionsListModal(true);
+    await loadPaymentExceptions(trainee.id);
+  };
+
+  const handleDeletePaymentException = (exceptionId: string) => {
+    if (!selectedTrainee) {
+      return;
+    }
+
+    Alert.alert('حذف الاستثناء', 'هل أنت متأكد من حذف الاستثناء؟', [
+      {text: 'إلغاء', style: 'cancel'},
+      {
+        text: 'حذف',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            setProcessingAction(true);
+            await AuthService.deletePaymentException(selectedTrainee.id, exceptionId);
+            await loadPaymentExceptions(selectedTrainee.id);
+          } catch (error: any) {
+            Alert.alert('خطأ', error?.message || 'تعذر حذف الاستثناء');
+          } finally {
+            setProcessingAction(false);
+          }
+        },
+      },
+    ]);
+  };
+
+  const resetDisciplinaryForm = () => {
+    setDisciplinaryActionType('WARNING');
+    setDisciplinaryReason('');
+    setDisciplinaryNotes('');
+    setDisciplinaryStartDate('');
+    setDisciplinaryEndDate('');
+  };
+
+  const closeDisciplinaryModal = () => {
+    setShowDisciplinaryModal(false);
+    resetDisciplinaryForm();
+    setSelectedTrainee(null);
+  };
+
+  const handleOpenDisciplinaryModal = (trainee: ITrainee) => {
+    closeActionsMenu(true);
+    setSelectedTrainee(trainee);
+    resetDisciplinaryForm();
+    setShowDisciplinaryModal(true);
+  };
+
+  const handleCreateDisciplinaryAction = async () => {
+    if (!selectedTrainee) {
+      return;
+    }
+
+    const reason = disciplinaryReason.trim();
+    if (!reason || reason.length < 10) {
+      Alert.alert('تنبيه', 'يرجى إدخال سبب واضح لا يقل عن 10 أحرف');
+      return;
+    }
+
+    if (disciplinaryActionType === 'TEMPORARY_SUSPENSION') {
+      if (!disciplinaryStartDate.trim() || !disciplinaryEndDate.trim()) {
+        Alert.alert('تنبيه', 'يجب إدخال تاريخ البداية والنهاية للإيقاف المؤقت');
+        return;
+      }
+    }
+
+    try {
+      setProcessingAction(true);
+      const response = await AuthService.createDisciplinaryAction({
+        traineeId: selectedTrainee.id,
+        actionType: disciplinaryActionType as
+          | 'WARNING'
+          | 'GUARDIAN_SUMMON'
+          | 'REPORT_FILING'
+          | 'TEMPORARY_SUSPENSION'
+          | 'PERMANENT_EXPULSION',
+        reason,
+        startDate: disciplinaryStartDate.trim() || undefined,
+        endDate: disciplinaryEndDate.trim() || undefined,
+        notes: disciplinaryNotes.trim() || undefined,
+      });
+
+      Alert.alert('تم', response?.message || 'تم تسجيل الإجراء العقابي بنجاح');
+      closeDisciplinaryModal();
+    } catch (error: any) {
+      Alert.alert('خطأ', error?.message || 'تعذر تسجيل الإجراء العقابي');
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const loadDisciplinaryActions = async (traineeId: number) => {
+    try {
+      setDisciplinaryLoading(true);
+      const response = await AuthService.getDisciplinaryActions({traineeId});
+      setDisciplinaryActions(Array.isArray(response) ? response : []);
+    } catch (error: any) {
+      Alert.alert('خطأ', error?.message || 'تعذر تحميل الإجراءات العقابية');
+      setDisciplinaryActions([]);
+    } finally {
+      setDisciplinaryLoading(false);
+    }
+  };
+
+  const closeDisciplinaryListModal = () => {
+    setShowDisciplinaryListModal(false);
+    setDisciplinaryActions([]);
+    setSelectedTrainee(null);
+  };
+
+  const handleOpenDisciplinaryListModal = async (trainee: ITrainee) => {
+    closeActionsMenu(true);
+    setSelectedTrainee(trainee);
+    setShowDisciplinaryListModal(true);
+    await loadDisciplinaryActions(trainee.id);
+  };
+
+  const handleUpdateDisciplinaryStatus = async (
+    actionId: string,
+    status: 'ACTIVE' | 'COMPLETED' | 'CANCELLED',
+  ) => {
+    if (!selectedTrainee) {
+      return;
+    }
+
+    try {
+      setProcessingAction(true);
+      await AuthService.updateDisciplinaryAction(actionId, {status});
+      await loadDisciplinaryActions(selectedTrainee.id);
+    } catch (error: any) {
+      Alert.alert('خطأ', error?.message || 'تعذر تحديث حالة الإجراء');
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const handleDeleteDisciplinaryAction = (actionId: string) => {
+    if (!selectedTrainee) {
+      return;
+    }
+
+    Alert.alert('حذف الإجراء', 'هل أنت متأكد من حذف الإجراء العقابي؟', [
+      {text: 'إلغاء', style: 'cancel'},
+      {
+        text: 'حذف',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            setProcessingAction(true);
+            await AuthService.deleteDisciplinaryAction(actionId);
+            await loadDisciplinaryActions(selectedTrainee.id);
+          } catch (error: any) {
+            Alert.alert('خطأ', error?.message || 'تعذر حذف الإجراء');
+          } finally {
+            setProcessingAction(false);
+          }
+        },
+      },
+    ]);
   };
 
   const handleSendScheduleWhatsapp = async (trainee: ITrainee) => {
@@ -826,6 +1398,13 @@ const StudentsListScreen = ({navigation}: any) => {
             <Icon name="refresh" size={18} color="#1e3a8a" />
             <Text style={styles.toolbarSecondaryButtonText}>تحديث</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.toolbarSecondaryButton}
+            onPress={() => setShowStatisticsModal(true)}>
+            <Icon name="analytics" size={18} color="#1e3a8a" />
+            <Text style={styles.toolbarSecondaryButtonText}>إحصائيات</Text>
+          </TouchableOpacity>
         </View>
 
         <ArabicSearchInput
@@ -1081,6 +1660,9 @@ const StudentsListScreen = ({navigation}: any) => {
                 <>
                   {renderActionItem('عرض المستندات', 'description', () => handleOpenDocuments(selectedTrainee))}
                   {renderActionItem('عرض الدرجات', 'bar-chart', () => handleOpenGrades(selectedTrainee))}
+                  {renderActionItem('ملاحظات المتدرب', 'sticky-note-2', () =>
+                    handleOpenNotesModal(selectedTrainee),
+                  )}
 
                   {canEdit &&
                     renderActionItem('تعديل المتدرب', 'edit', () => handleEdit(selectedTrainee))}
@@ -1115,6 +1697,26 @@ const StudentsListScreen = ({navigation}: any) => {
                       handleDeleteDebt(selectedTrainee),
                     )}
 
+                  {canManagePaymentExceptions &&
+                    renderActionItem('إنشاء استثناء سداد', 'event-busy', () =>
+                      handleOpenPaymentExceptionModal(selectedTrainee),
+                    )}
+
+                  {canManagePaymentExceptions &&
+                    renderActionItem('عرض استثناءات السداد', 'event-note', () =>
+                      handleOpenPaymentExceptionsListModal(selectedTrainee),
+                    )}
+
+                  {canManageDisciplinaryActions &&
+                    renderActionItem('تسجيل إجراء عقابي', 'gavel', () =>
+                      handleOpenDisciplinaryModal(selectedTrainee),
+                    )}
+
+                  {canManageDisciplinaryActions &&
+                    renderActionItem('عرض الإجراءات العقابية', 'rule', () =>
+                      handleOpenDisciplinaryListModal(selectedTrainee),
+                    )}
+
                   {canDelete &&
                     renderActionItem(
                       'حذف المتدرب',
@@ -1128,6 +1730,496 @@ const StudentsListScreen = ({navigation}: any) => {
 
             <TouchableOpacity style={styles.actionsCloseButton} onPress={closeActionsMenu}>
               <Text style={styles.actionsCloseButtonText}>إغلاق</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showNotesModal} transparent animationType="slide" onRequestClose={closeNotesModal}>
+        <View style={styles.modalOverlayBottom}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={closeNotesModal} />
+          <View style={styles.detailSheet}>
+            <View style={styles.actionsHandle} />
+            <Text style={styles.actionsTitle}>ملاحظات المتدرب</Text>
+            <Text style={styles.actionsSubtitle}>{selectedTrainee?.nameAr || ''}</Text>
+
+            <TextInput
+              style={styles.modalMultilineInput}
+              placeholder="أضف ملاحظة جديدة..."
+              placeholderTextColor="#94a3b8"
+              value={newNoteContent}
+              onChangeText={setNewNoteContent}
+              multiline
+              textAlign="right"
+              textAlignVertical="top"
+            />
+
+            <TouchableOpacity style={styles.modalPrimaryButton} onPress={handleAddTraineeNote}>
+              <Icon name="add-comment" size={18} color="#ffffff" />
+              <Text style={styles.modalPrimaryButtonText}>إضافة ملاحظة</Text>
+            </TouchableOpacity>
+
+            {notesLoading ? (
+              <View style={styles.modalLoadingWrap}>
+                <ActivityIndicator size="small" color="#1d4ed8" />
+              </View>
+            ) : (
+              <ScrollView style={styles.modalList}>
+                {notes.length === 0 ? (
+                  <Text style={styles.modalEmptyText}>لا توجد ملاحظات حالياً</Text>
+                ) : (
+                  notes.map(note => (
+                    <View key={note.id} style={styles.modalListCard}>
+                      {editingNoteId === note.id ? (
+                        <TextInput
+                          style={styles.modalMultilineInput}
+                          placeholder="تعديل الملاحظة"
+                          placeholderTextColor="#94a3b8"
+                          value={editingNoteContent}
+                          onChangeText={setEditingNoteContent}
+                          multiline
+                          textAlign="right"
+                          textAlignVertical="top"
+                        />
+                      ) : (
+                        <Text style={styles.modalListCardTitle}>{note.content}</Text>
+                      )}
+                      <Text style={styles.modalListCardMeta}>
+                        {formatDateTimeAr(note.createdAt)}
+                      </Text>
+                      <Text style={styles.modalListCardMeta}>
+                        بواسطة: {note.createdBy?.nameAr || note.createdBy?.username || 'غير محدد'}
+                      </Text>
+
+                      {editingNoteId === note.id ? (
+                        <View style={styles.modalCardActionsRow}>
+                          <TouchableOpacity
+                            style={styles.modalCardActionButton}
+                            onPress={handleUpdateTraineeNote}>
+                            <Text style={styles.modalCardActionText}>حفظ التعديل</Text>
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.modalCardActionButton}
+                            onPress={handleCancelEditTraineeNote}>
+                            <Text style={styles.modalCardActionText}>إلغاء</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          style={styles.modalCardActionButton}
+                          onPress={() => handleStartEditTraineeNote(note)}>
+                          <Text style={styles.modalCardActionText}>تعديل</Text>
+                        </TouchableOpacity>
+                      )}
+
+                      <TouchableOpacity
+                        style={styles.modalCardDeleteButton}
+                        onPress={() => handleDeleteTraineeNote(note.id)}>
+                        <Icon name="delete" size={16} color="#dc2626" />
+                        <Text style={styles.modalCardDeleteText}>حذف</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
+              </ScrollView>
+            )}
+
+            <TouchableOpacity style={styles.actionsCloseButton} onPress={closeNotesModal}>
+              <Text style={styles.actionsCloseButtonText}>إغلاق</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showPaymentExceptionModal}
+        transparent
+        animationType="slide"
+        onRequestClose={closePaymentExceptionModal}>
+        <View style={styles.modalOverlayBottom}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={closePaymentExceptionModal} />
+          <View style={styles.detailSheet}>
+            <View style={styles.actionsHandle} />
+            <Text style={styles.actionsTitle}>إنشاء استثناء سداد</Text>
+            <Text style={styles.actionsSubtitle}>{selectedTrainee?.nameAr || ''}</Text>
+
+            <Text style={styles.filterLabel}>اختر الرسوم</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.modalHorizontalChips}>
+              <TouchableOpacity
+                style={[
+                  styles.chipButton,
+                  exceptionFeeId === 'ALL' && styles.chipButtonActive,
+                ]}
+                onPress={() => setExceptionFeeId('ALL')}>
+                <Text
+                  style={[
+                    styles.chipButtonText,
+                    exceptionFeeId === 'ALL' && styles.chipButtonTextActive,
+                  ]}>
+                  كل الرسوم
+                </Text>
+              </TouchableOpacity>
+
+              {exceptionFees.map(fee => {
+                const selected = exceptionFeeId === String(fee.id);
+                return (
+                  <TouchableOpacity
+                    key={fee.id}
+                    style={[styles.chipButton, selected && styles.chipButtonActive]}
+                    onPress={() => setExceptionFeeId(String(fee.id))}>
+                    <Text style={[styles.chipButtonText, selected && styles.chipButtonTextActive]}>
+                      {fee.name}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <TextInput
+              style={styles.modalInput}
+              placeholder="تاريخ السداد الجديد (YYYY-MM-DD)"
+              placeholderTextColor="#94a3b8"
+              value={exceptionEndDate}
+              onChangeText={setExceptionEndDate}
+              textAlign="right"
+            />
+
+            <TextInput
+              style={styles.modalInput}
+              placeholder="فترة السماح بالأيام"
+              placeholderTextColor="#94a3b8"
+              value={exceptionGraceDays}
+              onChangeText={setExceptionGraceDays}
+              keyboardType="numeric"
+              textAlign="right"
+            />
+
+            <TextInput
+              style={styles.modalMultilineInput}
+              placeholder="سبب الاستثناء"
+              placeholderTextColor="#94a3b8"
+              value={exceptionReason}
+              onChangeText={setExceptionReason}
+              multiline
+              textAlign="right"
+              textAlignVertical="top"
+            />
+
+            <TextInput
+              style={styles.modalMultilineInput}
+              placeholder="ملاحظات إضافية (اختياري)"
+              placeholderTextColor="#94a3b8"
+              value={exceptionNotes}
+              onChangeText={setExceptionNotes}
+              multiline
+              textAlign="right"
+              textAlignVertical="top"
+            />
+
+            <TouchableOpacity style={styles.modalPrimaryButton} onPress={handleCreatePaymentException}>
+              <Icon name="save" size={18} color="#ffffff" />
+              <Text style={styles.modalPrimaryButtonText}>حفظ الاستثناء</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.actionsCloseButton} onPress={closePaymentExceptionModal}>
+              <Text style={styles.actionsCloseButtonText}>إغلاق</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showExceptionsListModal}
+        transparent
+        animationType="slide"
+        onRequestClose={closePaymentExceptionsListModal}>
+        <View style={styles.modalOverlayBottom}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={closePaymentExceptionsListModal} />
+          <View style={styles.detailSheet}>
+            <View style={styles.actionsHandle} />
+            <Text style={styles.actionsTitle}>استثناءات السداد</Text>
+            <Text style={styles.actionsSubtitle}>{selectedTrainee?.nameAr || ''}</Text>
+
+            {exceptionsLoading ? (
+              <View style={styles.modalLoadingWrap}>
+                <ActivityIndicator size="small" color="#1d4ed8" />
+              </View>
+            ) : (
+              <ScrollView style={styles.modalList}>
+                {paymentExceptions.length === 0 ? (
+                  <Text style={styles.modalEmptyText}>لا توجد استثناءات حالياً</Text>
+                ) : (
+                  paymentExceptions.map(exception => (
+                    <View key={exception.id} style={styles.modalListCard}>
+                      <Text style={styles.modalListCardTitle}>{exception.reason}</Text>
+                      <Text style={styles.modalListCardMeta}>
+                        الرسوم: {exception.fee?.name || 'كل الرسوم'}
+                      </Text>
+                      <Text style={styles.modalListCardMeta}>
+                        آخر موعد سداد: {formatDateAr(exception.customPaymentEndDate)}
+                      </Text>
+                      <Text style={styles.modalListCardMeta}>
+                        فترة السماح: {exception.customGracePeriodDays ?? 0} يوم
+                      </Text>
+                      <Text style={styles.modalListCardMeta}>
+                        تاريخ الإنشاء: {formatDateTimeAr(exception.createdAt)}
+                      </Text>
+                      {!!exception.notes && (
+                        <Text style={styles.modalListCardBody}>{exception.notes}</Text>
+                      )}
+
+                      <TouchableOpacity
+                        style={styles.modalCardDeleteButton}
+                        onPress={() => handleDeletePaymentException(exception.id)}>
+                        <Icon name="delete" size={16} color="#dc2626" />
+                        <Text style={styles.modalCardDeleteText}>حذف</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
+              </ScrollView>
+            )}
+
+            <TouchableOpacity style={styles.actionsCloseButton} onPress={closePaymentExceptionsListModal}>
+              <Text style={styles.actionsCloseButtonText}>إغلاق</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showDisciplinaryModal}
+        transparent
+        animationType="slide"
+        onRequestClose={closeDisciplinaryModal}>
+        <View style={styles.modalOverlayBottom}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={closeDisciplinaryModal} />
+          <View style={styles.detailSheet}>
+            <View style={styles.actionsHandle} />
+            <Text style={styles.actionsTitle}>تسجيل إجراء عقابي</Text>
+            <Text style={styles.actionsSubtitle}>{selectedTrainee?.nameAr || ''}</Text>
+
+            <Text style={styles.filterLabel}>نوع الإجراء</Text>
+            <View style={styles.chipsRow}>
+              {DISCIPLINARY_ACTION_OPTIONS.map(option => {
+                const selected = disciplinaryActionType === option.value;
+                return (
+                  <TouchableOpacity
+                    key={option.value}
+                    style={[styles.chipButton, selected && styles.chipButtonActive]}
+                    onPress={() => setDisciplinaryActionType(option.value)}>
+                    <Text style={[styles.chipButtonText, selected && styles.chipButtonTextActive]}>
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {disciplinaryActionType === 'TEMPORARY_SUSPENSION' && (
+              <>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="تاريخ البداية (YYYY-MM-DD)"
+                  placeholderTextColor="#94a3b8"
+                  value={disciplinaryStartDate}
+                  onChangeText={setDisciplinaryStartDate}
+                  textAlign="right"
+                />
+
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="تاريخ النهاية (YYYY-MM-DD)"
+                  placeholderTextColor="#94a3b8"
+                  value={disciplinaryEndDate}
+                  onChangeText={setDisciplinaryEndDate}
+                  textAlign="right"
+                />
+              </>
+            )}
+
+            <TextInput
+              style={styles.modalMultilineInput}
+              placeholder="سبب الإجراء"
+              placeholderTextColor="#94a3b8"
+              value={disciplinaryReason}
+              onChangeText={setDisciplinaryReason}
+              multiline
+              textAlign="right"
+              textAlignVertical="top"
+            />
+
+            <TextInput
+              style={styles.modalMultilineInput}
+              placeholder="ملاحظات إضافية (اختياري)"
+              placeholderTextColor="#94a3b8"
+              value={disciplinaryNotes}
+              onChangeText={setDisciplinaryNotes}
+              multiline
+              textAlign="right"
+              textAlignVertical="top"
+            />
+
+            <TouchableOpacity style={styles.modalPrimaryButton} onPress={handleCreateDisciplinaryAction}>
+              <Icon name="save" size={18} color="#ffffff" />
+              <Text style={styles.modalPrimaryButtonText}>حفظ الإجراء</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.actionsCloseButton} onPress={closeDisciplinaryModal}>
+              <Text style={styles.actionsCloseButtonText}>إغلاق</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showDisciplinaryListModal}
+        transparent
+        animationType="slide"
+        onRequestClose={closeDisciplinaryListModal}>
+        <View style={styles.modalOverlayBottom}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={closeDisciplinaryListModal} />
+          <View style={styles.detailSheet}>
+            <View style={styles.actionsHandle} />
+            <Text style={styles.actionsTitle}>الإجراءات العقابية</Text>
+            <Text style={styles.actionsSubtitle}>{selectedTrainee?.nameAr || ''}</Text>
+
+            {disciplinaryLoading ? (
+              <View style={styles.modalLoadingWrap}>
+                <ActivityIndicator size="small" color="#1d4ed8" />
+              </View>
+            ) : (
+              <ScrollView style={styles.modalList}>
+                {disciplinaryActions.length === 0 ? (
+                  <Text style={styles.modalEmptyText}>لا توجد إجراءات عقابية</Text>
+                ) : (
+                  disciplinaryActions.map(action => (
+                    <View key={action.id} style={styles.modalListCard}>
+                      <Text style={styles.modalListCardTitle}>
+                        {getDisciplinaryActionLabel(action.actionType)}
+                      </Text>
+                      <Text style={styles.modalListCardMeta}>
+                        الحالة: {getDisciplinaryStatusLabel(action.status)}
+                      </Text>
+                      <Text style={styles.modalListCardBody}>{action.reason}</Text>
+
+                      {!!action.startDate && (
+                        <Text style={styles.modalListCardMeta}>
+                          من: {formatDateAr(action.startDate)}
+                        </Text>
+                      )}
+                      {!!action.endDate && (
+                        <Text style={styles.modalListCardMeta}>
+                          إلى: {formatDateAr(action.endDate)}
+                        </Text>
+                      )}
+                      {!!action.notes && (
+                        <Text style={styles.modalListCardMeta}>{action.notes}</Text>
+                      )}
+
+                      <Text style={styles.modalListCardMeta}>
+                        تاريخ الإنشاء: {formatDateTimeAr(action.createdAt)}
+                      </Text>
+
+                      <View style={styles.modalCardActionsRow}>
+                        {action.status === 'ACTIVE' && (
+                          <TouchableOpacity
+                            style={styles.modalCardActionButton}
+                            onPress={() => handleUpdateDisciplinaryStatus(action.id, 'COMPLETED')}>
+                            <Text style={styles.modalCardActionText}>إنهاء</Text>
+                          </TouchableOpacity>
+                        )}
+
+                        {action.status === 'ACTIVE' && (
+                          <TouchableOpacity
+                            style={styles.modalCardActionButton}
+                            onPress={() => handleUpdateDisciplinaryStatus(action.id, 'CANCELLED')}>
+                            <Text style={styles.modalCardActionText}>إلغاء</Text>
+                          </TouchableOpacity>
+                        )}
+
+                        <TouchableOpacity
+                          style={styles.modalCardDeleteButton}
+                          onPress={() => handleDeleteDisciplinaryAction(action.id)}>
+                          <Icon name="delete" size={16} color="#dc2626" />
+                          <Text style={styles.modalCardDeleteText}>حذف</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </ScrollView>
+            )}
+
+            <TouchableOpacity style={styles.actionsCloseButton} onPress={closeDisciplinaryListModal}>
+              <Text style={styles.actionsCloseButtonText}>إغلاق</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showStatisticsModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowStatisticsModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.statisticsCard}>
+            <Text style={styles.pickerModalTitle}>إحصائيات المتدربين</Text>
+
+            <ScrollView style={styles.statisticsBody}>
+              <View style={styles.statisticsSection}>
+                <Text style={styles.statisticsSectionTitle}>ملخص عام</Text>
+                <Text style={styles.statisticsItem}>إجمالي: {filteredTrainees.length}</Text>
+                <Text style={styles.statisticsItem}>حالي: {totalCurrent}</Text>
+                <Text style={styles.statisticsItem}>خريج: {totalGraduates}</Text>
+              </View>
+
+              <View style={styles.statisticsSection}>
+                <Text style={styles.statisticsSectionTitle}>حسب البرنامج</Text>
+                {programStats.length === 0 ? (
+                  <Text style={styles.modalEmptyText}>لا توجد بيانات</Text>
+                ) : (
+                  programStats.map(([label, count]) => (
+                    <Text key={`program-${label}`} style={styles.statisticsItem}>
+                      {label}: {count}
+                    </Text>
+                  ))
+                )}
+              </View>
+
+              <View style={styles.statisticsSection}>
+                <Text style={styles.statisticsSectionTitle}>حسب المحافظة</Text>
+                {governorateStats.length === 0 ? (
+                  <Text style={styles.modalEmptyText}>لا توجد بيانات</Text>
+                ) : (
+                  governorateStats.map(([label, count]) => (
+                    <Text key={`gov-${label}`} style={styles.statisticsItem}>
+                      {label}: {count}
+                    </Text>
+                  ))
+                )}
+              </View>
+
+              <View style={styles.statisticsSection}>
+                <Text style={styles.statisticsSectionTitle}>حسب المدينة</Text>
+                {cityStats.length === 0 ? (
+                  <Text style={styles.modalEmptyText}>لا توجد بيانات</Text>
+                ) : (
+                  cityStats.map(([label, count]) => (
+                    <Text key={`city-${label}`} style={styles.statisticsItem}>
+                      {label}: {count}
+                    </Text>
+                  ))
+                )}
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.pickerCloseButton}
+              onPress={() => setShowStatisticsModal(false)}>
+              <Text style={styles.pickerCloseButtonText}>إغلاق</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1793,6 +2885,14 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
     maxHeight: '82%',
   },
+  detailSheet: {
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 18,
+    borderTopRightRadius: 18,
+    paddingHorizontal: 14,
+    paddingBottom: 20,
+    maxHeight: '90%',
+  },
   actionsHandle: {
     width: 40,
     height: 4,
@@ -1838,6 +2938,128 @@ const styles = StyleSheet.create({
   actionItemTextDanger: {
     color: '#b91c1c',
   },
+  modalInput: {
+    height: 42,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 10,
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 12,
+    color: '#0f172a',
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  modalMultilineInput: {
+    minHeight: 80,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 10,
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: '#0f172a',
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  modalPrimaryButton: {
+    marginBottom: 10,
+    borderRadius: 10,
+    backgroundColor: '#1e3a8a',
+    paddingVertical: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  modalPrimaryButtonText: {
+    color: '#ffffff',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  modalLoadingWrap: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  modalList: {
+    maxHeight: 320,
+    marginBottom: 8,
+  },
+  modalEmptyText: {
+    color: '#64748b',
+    fontSize: 13,
+    textAlign: 'center',
+    paddingVertical: 18,
+  },
+  modalListCard: {
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 8,
+    backgroundColor: '#ffffff',
+  },
+  modalListCardTitle: {
+    color: '#0f172a',
+    fontSize: 14,
+    fontWeight: '700',
+    textAlign: 'right',
+  },
+  modalListCardMeta: {
+    marginTop: 4,
+    color: '#64748b',
+    fontSize: 12,
+    textAlign: 'right',
+  },
+  modalListCardBody: {
+    marginTop: 6,
+    color: '#334155',
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'right',
+  },
+  modalCardDeleteButton: {
+    marginTop: 10,
+    alignSelf: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#fff1f2',
+  },
+  modalCardDeleteText: {
+    color: '#dc2626',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  modalHorizontalChips: {
+    paddingBottom: 8,
+    gap: 8,
+    alignItems: 'center',
+  },
+  modalCardActionsRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  modalCardActionButton: {
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#eff6ff',
+  },
+  modalCardActionText: {
+    color: '#1e40af',
+    fontSize: 12,
+    fontWeight: '700',
+  },
   actionsCloseButton: {
     marginTop: 6,
     borderRadius: 10,
@@ -1850,6 +3072,37 @@ const styles = StyleSheet.create({
   actionsCloseButtonText: {
     color: '#334155',
     fontWeight: '700',
+  },
+  statisticsCard: {
+    width: '100%',
+    maxHeight: '85%',
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    padding: 12,
+  },
+  statisticsBody: {
+    maxHeight: 460,
+  },
+  statisticsSection: {
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    backgroundColor: '#f8fafc',
+    padding: 10,
+    marginBottom: 8,
+  },
+  statisticsSectionTitle: {
+    color: '#0f172a',
+    fontSize: 13,
+    fontWeight: '800',
+    textAlign: 'right',
+    marginBottom: 4,
+  },
+  statisticsItem: {
+    color: '#334155',
+    fontSize: 12,
+    textAlign: 'right',
+    marginBottom: 3,
   },
   photoOverlay: {
     flex: 1,

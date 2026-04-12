@@ -3203,6 +3203,440 @@ class AuthService {
     }
   }
 
+  // Trainee Management: Get trainee edit history
+  static async getTraineeEditHistory(traineeId: number): Promise<any[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/trainees/${traineeId}/edit-history`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error('[AuthService] Error loading trainee edit history:', error);
+      throw error;
+    }
+  }
+
+  // Trainee Management: Notes
+  static async getTraineeNotes(traineeId: number): Promise<any[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/trainees/${traineeId}/notes`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error('[AuthService] Error loading trainee notes:', error);
+      throw error;
+    }
+  }
+
+  static async createTraineeNote(
+    traineeId: number,
+    payload: {content: string},
+  ): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/trainees/${traineeId}/notes`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error creating trainee note:', error);
+      throw error;
+    }
+  }
+
+  static async updateTraineeNote(
+    noteId: string,
+    payload: {content: string},
+  ): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/trainees/notes/${noteId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error updating trainee note:', error);
+      throw error;
+    }
+  }
+
+  static async deleteTraineeNote(noteId: string): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/trainees/notes/${noteId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error deleting trainee note:', error);
+      throw error;
+    }
+  }
+
+  // Trainee Management: Payment exceptions
+  static async getFeesWithSchedules(traineeId: number): Promise<any[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/trainees/${traineeId}/fees-with-schedules`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error('[AuthService] Error loading fees with schedules:', error);
+      throw error;
+    }
+  }
+
+  static async createPaymentException(
+    traineeId: number,
+    payload: {
+      feeId?: number;
+      customPaymentEndDate?: string;
+      customGracePeriodDays?: number;
+      reason: string;
+      notes?: string;
+    },
+  ): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/trainees/${traineeId}/payment-exception`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error creating payment exception:', error);
+      throw error;
+    }
+  }
+
+  static async getTraineePaymentExceptions(traineeId: number): Promise<any[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/trainees/${traineeId}/payment-exceptions`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error('[AuthService] Error loading payment exceptions:', error);
+      throw error;
+    }
+  }
+
+  static async deletePaymentException(
+    traineeId: number,
+    exceptionId: string,
+  ): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(
+        `${baseUrl}/api/trainees/${traineeId}/payment-exceptions/${exceptionId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error deleting payment exception:', error);
+      throw error;
+    }
+  }
+
+  // Trainee Management: Disciplinary actions
+  static async getDisciplinaryActions(params?: {
+    traineeId?: number;
+    actionType?: string;
+    status?: string;
+    fromDate?: string;
+    toDate?: string;
+  }): Promise<any[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const query = new URLSearchParams();
+      if (params?.traineeId) query.append('traineeId', String(params.traineeId));
+      if (params?.actionType) query.append('actionType', params.actionType);
+      if (params?.status) query.append('status', params.status);
+      if (params?.fromDate) query.append('fromDate', params.fromDate);
+      if (params?.toDate) query.append('toDate', params.toDate);
+
+      const queryString = query.toString();
+      const response = await fetch(
+        `${baseUrl}/api/disciplinary-actions${queryString ? `?${queryString}` : ''}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      console.error('[AuthService] Error loading disciplinary actions:', error);
+      throw error;
+    }
+  }
+
+  static async createDisciplinaryAction(payload: {
+    traineeId: number;
+    actionType:
+      | 'WARNING'
+      | 'GUARDIAN_SUMMON'
+      | 'REPORT_FILING'
+      | 'TEMPORARY_SUSPENSION'
+      | 'PERMANENT_EXPULSION';
+    reason: string;
+    startDate?: string;
+    endDate?: string;
+    notes?: string;
+    guardianNotified?: boolean;
+    guardianNotificationDate?: string;
+  }): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/disciplinary-actions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error creating disciplinary action:', error);
+      throw error;
+    }
+  }
+
+  static async updateDisciplinaryAction(
+    actionId: string,
+    payload: {
+      status?: 'ACTIVE' | 'COMPLETED' | 'CANCELLED';
+      notes?: string;
+      guardianNotified?: boolean;
+      guardianNotificationDate?: string;
+      cancellationReason?: string;
+    },
+  ): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/disciplinary-actions/${actionId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error updating disciplinary action:', error);
+      throw error;
+    }
+  }
+
+  static async deleteDisciplinaryAction(actionId: string): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/disciplinary-actions/${actionId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('[AuthService] Error deleting disciplinary action:', error);
+      throw error;
+    }
+  }
+
   // Trainee Management: Get Trainee Documents
   static async getTraineeDocuments(traineeId: number): Promise<import('../types/student').TraineeDocumentsResponse> {
     try {
