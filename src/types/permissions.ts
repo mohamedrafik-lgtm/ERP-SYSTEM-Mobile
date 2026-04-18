@@ -20,6 +20,9 @@ export type PermissionAction =
   | 'create'
   | 'edit'
   | 'delete'
+  | 'activate'
+  | 'reset-password'
+  | 'print'
   | 'manage'
   | 'export'
   | 'export_data'
@@ -152,7 +155,7 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     screenName: 'TraineeDocuments',
     title: 'مستندات المتدرب',
     icon: 'description',
-    requiredPermission: { resource: 'dashboard.trainee-documents', action: 'view' },
+    requiredPermission: { resource: 'dashboard.trainees.archive', action: 'view' },
     additionalPermissions: {
       edit: { resource: 'dashboard.trainee-documents', action: 'edit' },
       delete: { resource: 'dashboard.trainee-documents', action: 'delete' },
@@ -219,6 +222,19 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     showInMenu: true,
     description: 'إدارة البرامج التدريبية',
   },
+  Classrooms: {
+    screenName: 'Classrooms',
+    title: 'الفصول الدراسية',
+    icon: 'meeting-room',
+    requiredPermission: { resource: 'dashboard.classrooms', action: 'view' },
+    additionalPermissions: {
+      edit: { resource: 'dashboard.classrooms', action: 'edit' },
+    },
+    category: 'academic',
+    priority: 3.05,
+    showInMenu: true,
+    description: 'إدارة الفصول الدراسية لجميع البرامج التدريبية',
+  },
   AddProgram: {
     screenName: 'AddProgram',
     title: 'إضافة برنامج',
@@ -277,7 +293,7 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     requiredPermission: { resource: 'dashboard.training-contents', action: 'view' },
     category: 'academic',
     priority: 4.5,
-    showInMenu: true,
+    showInMenu: false,
     description: 'إدارة المحاضرات',
   },
   AttendancePrograms: {
@@ -384,6 +400,12 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     title: 'التوزيعات',
     icon: 'swap-horiz',
     requiredPermission: { resource: 'dashboard.trainees.distribution', action: 'view' },
+    additionalPermissions: {
+      create: { resource: 'dashboard.trainees.distribution', action: 'create' },
+      edit: { resource: 'dashboard.trainees.distribution', action: 'edit' },
+      delete: { resource: 'dashboard.trainees.distribution', action: 'delete' },
+      print: { resource: 'dashboard.trainees.distribution', action: 'print' },
+    },
     category: 'academic',
     priority: 4.8,
     showInMenu: true,
@@ -394,6 +416,10 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     title: 'إدارة التوزيع',
     icon: 'groups',
     requiredPermission: { resource: 'dashboard.trainees.distribution', action: 'view' },
+    additionalPermissions: {
+      edit: { resource: 'dashboard.trainees.distribution', action: 'edit' },
+      transfer: { resource: 'dashboard.trainees.distribution', action: 'transfer' },
+    },
     category: 'academic',
     priority: 4.805,
     showInMenu: false,
@@ -403,7 +429,7 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     screenName: 'AddDistribution',
     title: 'إضافة توزيع',
     icon: 'add',
-    requiredPermission: { resource: 'dashboard.trainees.distribution', action: 'view' },
+    requiredPermission: { resource: 'dashboard.trainees.distribution', action: 'create' },
     category: 'academic',
     priority: 4.81,
     showInMenu: false,
@@ -413,6 +439,10 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     title: 'تفاصيل التوزيع',
     icon: 'info',
     requiredPermission: { resource: 'dashboard.trainees.distribution', action: 'view' },
+    additionalPermissions: {
+      edit: { resource: 'dashboard.trainees.distribution', action: 'edit' },
+      print: { resource: 'dashboard.trainees.distribution', action: 'print' },
+    },
     category: 'academic',
     priority: 4.82,
     showInMenu: false,
@@ -422,6 +452,11 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     title: 'توزيعات البرنامج',
     icon: 'account-tree',
     requiredPermission: { resource: 'dashboard.trainees.distribution', action: 'view' },
+    additionalPermissions: {
+      create: { resource: 'dashboard.trainees.distribution', action: 'create' },
+      print: { resource: 'dashboard.trainees.distribution', action: 'print' },
+      delete: { resource: 'dashboard.trainees.distribution', action: 'delete' },
+    },
     category: 'academic',
     priority: 4.83,
     showInMenu: false,
@@ -698,13 +733,13 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
   },
   GradeReports: {
     screenName: 'GradeReports',
-    title: 'تقارير الدرجات',
-    icon: 'assessment',
+    title: 'رصد الأوائل',
+    icon: 'emoji-events',
     requiredPermission: { resource: 'dashboard.grades', action: 'view' },
     category: 'grades',
     priority: 3,
     showInMenu: true,
-    description: 'تقارير وإحصائيات الدرجات',
+    description: 'عرض الأوائل حسب الفصول والبرامج',
   },
   GradeSettings: {
     screenName: 'GradeSettings',
@@ -713,7 +748,7 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     requiredPermission: { resource: 'dashboard.settings', action: 'edit' },
     category: 'grades',
     priority: 4,
-    showInMenu: true,
+    showInMenu: false,
     description: 'إعدادات نظام التقييم والدرجات',
   },
 
@@ -758,13 +793,13 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
   },
   MarketingTrainees: {
     screenName: 'MarketingTrainees',
-    title: 'المتدربين مع تفاصيل التسويق',
+    title: 'التقديمات',
     icon: 'people',
     requiredPermission: { resource: 'marketing.applications', action: 'view' },
     category: 'marketing',
     priority: 5.7,
     showInMenu: true,
-    description: 'عرض المتدربين مع بيانات التسويق',
+    description: 'إدارة التقديمات والتواصل الأول والثاني مع المتدربين',
   },
   EmployeeTrainees: {
     screenName: 'EmployeeTrainees',
@@ -806,11 +841,52 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     requiredPermission: { resource: 'dashboard.financial', action: 'view' },
     additionalPermissions: {
       manage: { resource: 'dashboard.financial', action: 'manage' },
+      reports: { resource: 'dashboard.financial.reports', action: 'view' },
+      balances: { resource: 'finances.safes.balances', action: 'view' },
     },
     category: 'financial',
     priority: 7,
     showInMenu: true,
     description: 'إدارة الخزائن المالية',
+  },
+  FinancialEntries: {
+    screenName: 'FinancialEntries',
+    title: 'القيود المالية',
+    icon: 'swap-horiz',
+    requiredPermission: { resource: 'dashboard.financial', action: 'manage' },
+    additionalPermissions: {
+      reports: { resource: 'finances.entries.reports', action: 'view' },
+      balances: { resource: 'finances.safes.balances', action: 'view' },
+    },
+    category: 'financial',
+    priority: 7.2,
+    showInMenu: true,
+    description: 'إدارة القيود المالية والتحويلات بين الخزائن',
+  },
+  FinancialEntriesReport: {
+    screenName: 'FinancialEntriesReport',
+    title: 'تقارير القيود المالية',
+    icon: 'description',
+    requiredPermission: { resource: 'finances.entries.reports', action: 'view' },
+    additionalPermissions: {
+      balances: { resource: 'finances.safes.balances', action: 'view' },
+    },
+    category: 'financial',
+    priority: 7.25,
+    showInMenu: false,
+    description: 'عرض وطباعة تقارير القيود المالية',
+  },
+  TreasurySafeReport: {
+    screenName: 'TreasurySafeReport',
+    title: 'تقرير الخزينة',
+    icon: 'description',
+    requiredPermission: { resource: 'dashboard.financial.reports', action: 'view' },
+    additionalPermissions: {
+      balances: { resource: 'finances.safes.balances', action: 'view' },
+    },
+    category: 'financial',
+    priority: 7.3,
+    showInMenu: false,
   },
   AddTreasuryScreen: {
     screenName: 'AddTreasuryScreen',
@@ -835,6 +911,10 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     title: 'الرسوم المالية',
     icon: 'account-balance-wallet',
     requiredPermission: { resource: 'dashboard.financial', action: 'view' },
+    additionalPermissions: {
+      manage: { resource: 'dashboard.financial', action: 'manage' },
+      reports: { resource: 'dashboard.financial.reports', action: 'view' },
+    },
     category: 'financial',
     priority: 7.5,
     showInMenu: true,
@@ -847,6 +927,15 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     requiredPermission: { resource: 'dashboard.financial', action: 'manage' },
     category: 'financial',
     priority: 7.6,
+    showInMenu: false,
+  },
+  TraineeFeeReport: {
+    screenName: 'TraineeFeeReport',
+    title: 'تقرير الرسوم',
+    icon: 'bar-chart',
+    requiredPermission: { resource: 'dashboard.financial.reports', action: 'view' },
+    category: 'financial',
+    priority: 7.61,
     showInMenu: false,
   },
   TraineePayments: {
@@ -921,7 +1010,7 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     screenName: 'AddPaymentSchedule',
     title: 'إضافة موعد سداد',
     icon: 'event-available',
-    requiredPermission: { resource: 'dashboard.financial.payment-schedules', action: 'view' },
+    requiredPermission: { resource: 'dashboard.financial.payment-schedules', action: 'manage' },
     category: 'financial',
     priority: 8.62,
     showInMenu: false,
@@ -1009,6 +1098,33 @@ export const SCREEN_PERMISSIONS: Record<string, ScreenPermissionConfig> = {
     requiredPermission: { resource: 'dashboard.permissions', action: 'manage' },
     category: 'system',
     priority: 9.1,
+    showInMenu: false,
+  },
+  UserRoleAssignment: {
+    screenName: 'UserRoleAssignment',
+    title: 'تعيين أدوار المستخدم',
+    icon: 'admin-panel-settings',
+    requiredPermission: { resource: 'dashboard.permissions', action: 'manage' },
+    category: 'system',
+    priority: 9.11,
+    showInMenu: false,
+  },
+  UserDirectPermissions: {
+    screenName: 'UserDirectPermissions',
+    title: 'الصلاحيات المباشرة',
+    icon: 'vpn-key',
+    requiredPermission: { resource: 'dashboard.permissions', action: 'manage' },
+    category: 'system',
+    priority: 9.12,
+    showInMenu: false,
+  },
+  UserProgramAccess: {
+    screenName: 'UserProgramAccess',
+    title: 'وصول البرامج',
+    icon: 'school',
+    requiredPermission: { resource: 'dashboard.permissions', action: 'manage' },
+    category: 'system',
+    priority: 9.13,
     showInMenu: false,
   },
 

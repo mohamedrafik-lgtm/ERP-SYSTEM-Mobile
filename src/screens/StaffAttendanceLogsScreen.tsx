@@ -7,10 +7,12 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import CustomMenu from '../components/CustomMenu';
 import AuthService from '../services/AuthService';
 import {
+  StaffAttendanceStatus,
   StaffAttendanceStatusArabic, StaffAttendanceStatusColor,
   type StaffAttendanceLog, type TodayEmployee, type UserLogsResponse,
 } from '../types/staffAttendance';
 import {usePermissions} from '../hooks/usePermissions';
+import DateTimePickerField from '../components/DateTimePickerField';
 
 const MONTHS = [
   'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
@@ -70,6 +72,18 @@ const StaffAttendanceLogsScreen = ({navigation}: any) => {
   const [myLogs, setMyLogs] = useState<StaffAttendanceLog[]>([]);
   const [myStats, setMyStats] = useState<any>(null);
   const [loadingMyLogs, setLoadingMyLogs] = useState(false);
+
+  // Manual record modal (admin)
+  const [showManualModal, setShowManualModal] = useState(false);
+  const [savingManual, setSavingManual] = useState(false);
+  const [manualForm, setManualForm] = useState({
+    userId: '',
+    date: new Date().toISOString().split('T')[0],
+    status: StaffAttendanceStatus.PRESENT,
+    checkInTime: '',
+    checkOutTime: '',
+    notes: '',
+  });
 
   const getDateRange = useCallback(() => {
     const start = new Date(selectedYear, selectedMonth, 1);
@@ -211,6 +225,54 @@ const StaffAttendanceLogsScreen = ({navigation}: any) => {
     const m = mins % 60;
     if (h > 0) return `${h}س ${m}د`;
     return `${m}د`;
+  };
+
+  const openManualRecordModal = () => {
+    const defaultUserId = selectedEmployee || employees[0]?.user?.id || '';
+    setManualForm({
+      userId: defaultUserId,
+      date: new Date().toISOString().split('T')[0],
+      status: StaffAttendanceStatus.PRESENT,
+      checkInTime: '',
+      checkOutTime: '',
+      notes: '',
+    });
+    setShowManualModal(true);
+  };
+
+  const buildIsoDateTime = (date: string, time: string): string | undefined => {
+    const clean = String(time || '').trim();
+    if (!clean) {
+      return undefined;
+    }
+
+    const withSeconds = clean.length === 5 ? `${clean}:00` : clean;
+    return `${date}T${withSeconds}`;
+  };
+
+  const handleCreateManualRecord = async () => {
+    if (!manualForm.userId || !manualForm.date) {
+      return;
+    }
+
+    setSavingManual(true);
+    try {
+      await AuthService.createManualAttendanceRecord({
+        userId: manualForm.userId,
+        date: manualForm.date,
+        status: manualForm.status,
+        checkInTime: buildIsoDateTime(manualForm.date, manualForm.checkInTime),
+        checkOutTime: buildIsoDateTime(manualForm.date, manualForm.checkOutTime),
+        notes: manualForm.notes || undefined,
+      });
+
+      setShowManualModal(false);
+      await onRefresh();
+    } catch {
+      // Errors are shown by backend toast/alert handlers.
+    } finally {
+      setSavingManual(false);
+    }
   };
 
   const STATUS_FILTERS = [
@@ -434,6 +496,15 @@ const StaffAttendanceLogsScreen = ({navigation}: any) => {
         style={styles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}>
+
+        {isAdminUser && (
+          <View style={styles.manualActionWrap}>
+            <TouchableOpacity style={styles.manualActionBtn} onPress={openManualRecordModal}>
+              <Icon name="edit-note" size={18} color="#1a237e" />
+              <Text style={styles.manualActionText}>إضافة سجل يدوي</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* ========== ADMIN VIEW: Employee Grid ========== */}
         {isAdminUser && !selectedEmployee && (
@@ -663,6 +734,113 @@ const StaffAttendanceLogsScreen = ({navigation}: any) => {
         </TouchableOpacity>
       </Modal>
 
+      {/* ========== MANUAL RECORD MODAL ========== */}
+      <Modal visible={showManualModal} animationType="slide" transparent onRequestClose={() => setShowManualModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.manualBox}>
+            <View style={styles.detailHeader}>
+              <Text style={styles.detailTitle}>إضافة سجل يدوي</Text>
+              <TouchableOpacity onPress={() => setShowManualModal(false)}>
+                <Icon name="close" size={24} color="#374151" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.inputLabel}>الموظف</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.userChipsRow}>
+                {employees.map(emp => {
+                  const active = manualForm.userId === emp.user.id;
+                  return (
+                    <TouchableOpacity
+                      key={emp.user.id}
+                      style={[styles.userChip, active && styles.userChipActive]}
+                      onPress={() => setManualForm(prev => ({...prev, userId: emp.user.id}))}>
+                      <Text style={[styles.userChipText, active && styles.userChipTextActive]}>
+                        {emp.user.name}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              <DateTimePickerField
+                label="التاريخ"
+                value={manualForm.date}
+                onChange={value => setManualForm(prev => ({...prev, date: value}))}
+                placeholder="اختر التاريخ"
+                mode="date"
+              />
+
+              <Text style={styles.inputLabel}>الحالة</Text>
+              <View style={styles.statusChipsRow}>
+                {[
+                  StaffAttendanceStatus.PRESENT,
+                  StaffAttendanceStatus.ABSENT_UNEXCUSED,
+                  StaffAttendanceStatus.ABSENT_EXCUSED,
+                  StaffAttendanceStatus.LEAVE,
+                ].map(status => {
+                  const active = manualForm.status === status;
+                  const statusColor = StaffAttendanceStatusColor[status] || '#6b7280';
+                  return (
+                    <TouchableOpacity
+                      key={status}
+                      style={[
+                        styles.statusChip,
+                        active && {borderColor: statusColor, backgroundColor: `${statusColor}20`},
+                      ]}
+                      onPress={() => setManualForm(prev => ({...prev, status}))}>
+                      <Text style={[styles.statusChipText, active && {color: statusColor}]}>
+                        {StaffAttendanceStatusArabic[status] || status}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <DateTimePickerField
+                label="وقت الحضور (اختياري)"
+                value={manualForm.checkInTime}
+                onChange={value => setManualForm(prev => ({...prev, checkInTime: value}))}
+                placeholder="اختر وقت الحضور"
+                mode="time"
+              />
+
+              <DateTimePickerField
+                label="وقت الانصراف (اختياري)"
+                value={manualForm.checkOutTime}
+                onChange={value => setManualForm(prev => ({...prev, checkOutTime: value}))}
+                placeholder="اختر وقت الانصراف"
+                mode="time"
+              />
+
+              <Text style={styles.inputLabel}>ملاحظات (اختياري)</Text>
+              <TextInput
+                style={[styles.manualInput, styles.notesInput]}
+                value={manualForm.notes}
+                onChangeText={value => setManualForm(prev => ({...prev, notes: value}))}
+                placeholder="سبب السجل اليدوي..."
+                placeholderTextColor="#9ca3af"
+                multiline
+              />
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.saveManualBtn, (!manualForm.userId || savingManual) && {opacity: 0.6}]}
+              disabled={!manualForm.userId || savingManual}
+              onPress={handleCreateManualRecord}>
+              {savingManual ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <>
+                  <Icon name="save" size={16} color="#ffffff" />
+                  <Text style={styles.saveManualBtnText}>حفظ السجل</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* ========== LOG DETAIL MODAL ========== */}
       <Modal visible={!!detailLog} animationType="slide" transparent onRequestClose={() => setDetailLog(null)}>
         <View style={styles.modalOverlay}>
@@ -812,6 +990,28 @@ const styles = StyleSheet.create({
 
   // Content
   content: {flex: 1},
+
+  // Manual action
+  manualActionWrap: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  manualActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#c7d2fe',
+    backgroundColor: '#eef2ff',
+    paddingVertical: 10,
+  },
+  manualActionText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#1a237e',
+  },
 
   // Status Filter
   filterRow: {marginTop: 8, marginBottom: 4},
@@ -963,6 +1163,98 @@ const styles = StyleSheet.create({
   },
   monthItemActive: {backgroundColor: '#1a237e', borderColor: '#1a237e'},
   monthItemText: {fontSize: 13, fontWeight: '700', color: '#374151'},
+
+  // Manual modal
+  manualBox: {
+    width: '100%',
+    maxHeight: '86%',
+    backgroundColor: '#ffffff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    position: 'absolute',
+    bottom: 0,
+    padding: 18,
+  },
+  inputLabel: {
+    marginTop: 10,
+    marginBottom: 6,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+    textAlign: 'right',
+  },
+  userChipsRow: {
+    gap: 8,
+    paddingVertical: 2,
+  },
+  userChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  userChipActive: {
+    borderColor: '#1a237e',
+    backgroundColor: '#eef2ff',
+  },
+  userChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  userChipTextActive: {
+    color: '#1a237e',
+  },
+  manualInput: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 10,
+    backgroundColor: '#ffffff',
+    color: '#111827',
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+    fontSize: 13,
+    textAlign: 'right',
+  },
+  notesInput: {
+    minHeight: 74,
+    textAlignVertical: 'top',
+  },
+  statusChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  statusChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  statusChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  saveManualBtn: {
+    marginTop: 14,
+    borderRadius: 12,
+    backgroundColor: '#1a237e',
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+  },
+  saveManualBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
 
   // Detail Modal
   detailBox: {

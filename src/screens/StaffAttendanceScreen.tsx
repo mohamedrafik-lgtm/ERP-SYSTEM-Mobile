@@ -13,7 +13,8 @@ import {
 } from '../types/staffAttendance';
 import {usePermissions} from '../hooks/usePermissions';
 
-const StaffAttendanceScreen = ({navigation}: any) => {
+const StaffAttendanceScreen = ({navigation, route}: any) => {
+  const currentRouteName = route?.name || 'StaffAttendance';
   const {hasPermission} = usePermissions();
   const isAdminUser = hasPermission('staff-attendance', 'view') && hasPermission('staff-attendance.enrollments', 'view');
 
@@ -162,6 +163,60 @@ const StaffAttendanceScreen = ({navigation}: any) => {
   };
 
   const handleCheckOut = async (force = false) => {
+    if (!force) {
+      const warnings: string[] = [];
+
+      if (myStatus?.isWeeklyOff) {
+        warnings.push(
+          `اليوم هو يوم ${myStatus.weeklyOffDay || 'عطلة'} (يوم إجازة أسبوعية)`,
+        );
+      }
+
+      if (myStatus?.todayHoliday) {
+        warnings.push(`اليوم عطلة رسمية: ${myStatus.todayHoliday.name}`);
+      }
+
+      const now = new Date();
+      const effectiveEndTime =
+        myStatus?.customSchedule?.customWorkEndTime ||
+        myStatus?.settings?.workEndTime;
+
+      if (effectiveEndTime) {
+        const [hours, minutes] = String(effectiveEndTime).split(':').map(Number);
+        if (Number.isFinite(hours) && Number.isFinite(minutes)) {
+          const workEnd = new Date();
+          workEnd.setHours(hours, minutes, 0, 0);
+          if (now.getTime() < workEnd.getTime()) {
+            warnings.push(
+              `الانصراف قبل نهاية الدوام (${effectiveEndTime}) قد يسجل كـ انصراف مبكر`,
+            );
+          }
+        }
+      }
+
+      const requiredMinutes = Math.round(
+        Number(
+          myStatus?.customSchedule?.customWorkHoursPerDay ||
+          myStatus?.settings?.workHoursPerDay ||
+          0,
+        ) * 60,
+      );
+      const workedMinutes = Number(myStatus?.todayLog?.workedMinutes || 0);
+
+      if (requiredMinutes > 0 && workedMinutes > 0 && workedMinutes < requiredMinutes) {
+        warnings.push(
+          `مدة العمل الحالية (${workedMinutes} دقيقة) أقل من المطلوب (${requiredMinutes} دقيقة)`,
+        );
+      }
+
+      if (warnings.length > 0) {
+        setConfirmWarnings(warnings);
+        setConfirmType('checkout');
+        setShowConfirmModal(true);
+        return;
+      }
+    }
+
     setCheckingOut(true);
     try {
       const needsLocation =
@@ -180,7 +235,17 @@ const StaffAttendanceScreen = ({navigation}: any) => {
       });
       loadData();
     } catch (e: any) {
-      Alert.alert('خطأ', e.message || 'فشل في تسجيل الانصراف');
+      if (
+        e.message?.includes('خارج') ||
+        e.message?.includes('outside') ||
+        e.message?.includes('zone')
+      ) {
+        setConfirmWarnings([e.message]);
+        setConfirmType('checkout');
+        setShowConfirmModal(true);
+      } else {
+        Alert.alert('خطأ', e.message || 'فشل في تسجيل الانصراف');
+      }
     } finally {
       setCheckingOut(false);
     }
@@ -215,7 +280,7 @@ const StaffAttendanceScreen = ({navigation}: any) => {
         <View style={s.header}>
           <CustomMenu
             navigation={navigation}
-            activeRouteName="StaffAttendance"
+            activeRouteName={currentRouteName}
           />
           <Text style={s.headerTitle}>الحضور والانصراف</Text>
           <View style={{width: 44}} />
@@ -242,7 +307,7 @@ const StaffAttendanceScreen = ({navigation}: any) => {
       <View style={s.header}>
         <CustomMenu
           navigation={navigation}
-          activeRouteName="StaffAttendance"
+          activeRouteName={currentRouteName}
         />
         <Text style={s.headerTitle}>الحضور والانصراف</Text>
         <View style={{width: 44}} />
@@ -679,8 +744,8 @@ const StaffAttendanceScreen = ({navigation}: any) => {
               {confirmWarnings.length > 1
                 ? 'تنبيهات متعددة'
                 : confirmType === 'checkin'
-                  ? 'تسجيل حضور في يوم إجازة'
-                  : 'تأكيد'}
+                  ? 'تسجيل حضور مع تنبيه'
+                  : 'تسجيل انصراف مع تنبيه'}
             </Text>
             {confirmWarnings.map((w, i) => (
               <Text key={i} style={s.modalMsg}>

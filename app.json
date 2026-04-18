@@ -1,8 +1,8 @@
 {
   "name": "erpSystem",
-  "displayName": "طيبة للتدريب",
+  "displayName": "TIBA ERP",
   "expo": {
-    "name": "طيبة للتدريب",
+    "name": "TIBA ERP",
     "slug": "taybah-training",
     "version": "1.0.0",
     "orientation": "portrait",

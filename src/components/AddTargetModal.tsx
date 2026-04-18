@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   ScrollView,
   TextInput,
   Alert,
+  FlatList,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import SelectBox from './SelectBox';
@@ -16,7 +17,7 @@ import { CreateMarketingTargetRequest, MONTHS, YEARS } from '../types/marketing'
 interface AddTargetModalProps {
   visible: boolean;
   onClose: () => void;
-  onSubmit: (targetData: CreateMarketingTargetRequest) => void;
+  onSubmit: (targetsData: CreateMarketingTargetRequest[]) => Promise<void>;
   marketingEmployees: any[];
   selectedMonth: number;
   selectedYear: number;
@@ -31,7 +32,7 @@ const AddTargetModal: React.FC<AddTargetModalProps> = ({
   selectedYear,
 }) => {
   const [formData, setFormData] = useState({
-    employeeId: 0,
+    employeeIds: [] as number[],
     month: selectedMonth,
     year: selectedYear,
     targetAmount: '',
@@ -39,10 +40,22 @@ const AddTargetModal: React.FC<AddTargetModalProps> = ({
   });
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      month: selectedMonth,
+      year: selectedYear,
+    }));
+  }, [visible, selectedMonth, selectedYear]);
+
   const handleSubmit = async () => {
     // التحقق من البيانات المطلوبة
-    if (!formData.employeeId) {
-      Alert.alert('خطأ', 'يرجى اختيار موظف التسويق');
+    if (!formData.employeeIds.length) {
+      Alert.alert('خطأ', 'يرجى اختيار موظف تسويق واحد على الأقل');
       return;
     }
 
@@ -69,16 +82,16 @@ const AddTargetModal: React.FC<AddTargetModalProps> = ({
 
     setLoading(true);
     try {
-      const targetData: CreateMarketingTargetRequest = {
-        employeeId: formData.employeeId,
+      const targetsData: CreateMarketingTargetRequest[] = formData.employeeIds.map((employeeId) => ({
+        employeeId,
         month: formData.month,
         year: formData.year,
-        targetAmount: targetAmount,
+        targetAmount,
         notes: formData.notes.trim() || undefined,
-        setById: undefined, // سيتم تعيينه من Backend بناءً على المستخدم المسجل دخوله
-      };
+        setById: undefined,
+      }));
 
-      await onSubmit(targetData);
+      await onSubmit(targetsData);
       resetForm();
     } catch (error) {
       console.error('Error submitting target:', error);
@@ -89,7 +102,7 @@ const AddTargetModal: React.FC<AddTargetModalProps> = ({
 
   const resetForm = () => {
     setFormData({
-      employeeId: 0,
+      employeeIds: [],
       month: selectedMonth,
       year: selectedYear,
       targetAmount: '',
@@ -102,10 +115,25 @@ const AddTargetModal: React.FC<AddTargetModalProps> = ({
     onClose();
   };
 
-  const employeeOptions = marketingEmployees?.map(employee => ({
-    value: employee.id,
-    label: employee.name,
-  })) || [];
+  const toggleEmployee = (employeeId: number) => {
+    setFormData((prev) => {
+      const exists = prev.employeeIds.includes(employeeId);
+      return {
+        ...prev,
+        employeeIds: exists
+          ? prev.employeeIds.filter((id) => id !== employeeId)
+          : [...prev.employeeIds, employeeId],
+      };
+    });
+  };
+
+  const toggleSelectAll = () => {
+    const employeeIds = (marketingEmployees || []).map((employee) => employee.id);
+    setFormData((prev) => ({
+      ...prev,
+      employeeIds: prev.employeeIds.length === employeeIds.length ? [] : employeeIds,
+    }));
+  };
 
   const monthOptions = MONTHS?.map(month => ({
     value: month.value,
@@ -140,13 +168,43 @@ const AddTargetModal: React.FC<AddTargetModalProps> = ({
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
             {/* Employee Selection */}
             <View style={styles.inputGroup}>
-              <SelectBox
-                label="موظف التسويق *"
-                items={employeeOptions}
-                selectedValue={formData.employeeId}
-                onValueChange={(value) => setFormData({ ...formData, employeeId: value })}
-                placeholder="اختر موظف التسويق"
-              />
+              <Text style={styles.inputLabel}>موظفو التسويق *</Text>
+              <TouchableOpacity style={styles.selectAllBox} onPress={toggleSelectAll}>
+                <Icon
+                  name={formData.employeeIds.length === (marketingEmployees || []).length && (marketingEmployees || []).length > 0 ? 'check-box' : 'check-box-outline-blank'}
+                  size={20}
+                  color="#1a237e"
+                />
+                <Text style={styles.selectAllText}>تحديد الكل ({(marketingEmployees || []).length})</Text>
+              </TouchableOpacity>
+
+              <View style={styles.employeesListContainer}>
+                <FlatList
+                  data={marketingEmployees || []}
+                  keyExtractor={(item) => String(item.id)}
+                  scrollEnabled={false}
+                  renderItem={({ item }) => {
+                    const isSelected = formData.employeeIds.includes(item.id);
+                    return (
+                      <TouchableOpacity style={styles.employeeRow} onPress={() => toggleEmployee(item.id)}>
+                        <Icon
+                          name={isSelected ? 'check-box' : 'check-box-outline-blank'}
+                          size={20}
+                          color={isSelected ? '#1a237e' : '#9ca3af'}
+                        />
+                        <Text style={styles.employeeName}>{item.name}</Text>
+                      </TouchableOpacity>
+                    );
+                  }}
+                  ListEmptyComponent={
+                    <Text style={styles.emptyEmployeesText}>لا يوجد موظفون نشطون حالياً</Text>
+                  }
+                />
+              </View>
+
+              {formData.employeeIds.length > 0 && (
+                <Text style={styles.selectedCountText}>تم اختيار {formData.employeeIds.length} موظف</Text>
+              )}
             </View>
 
             {/* Month and Year */}
@@ -156,7 +214,7 @@ const AddTargetModal: React.FC<AddTargetModalProps> = ({
                   label="الشهر *"
                   items={monthOptions}
                   selectedValue={formData.month}
-                  onValueChange={(value) => setFormData({ ...formData, month: value })}
+                  onValueChange={(value) => setFormData({ ...formData, month: value as number })}
                   placeholder="اختر الشهر"
                 />
               </View>
@@ -165,7 +223,7 @@ const AddTargetModal: React.FC<AddTargetModalProps> = ({
                   label="السنة *"
                   items={yearOptions}
                   selectedValue={formData.year}
-                  onValueChange={(value) => setFormData({ ...formData, year: value })}
+                  onValueChange={(value) => setFormData({ ...formData, year: value as number })}
                   placeholder="اختر السنة"
                 />
               </View>
@@ -277,6 +335,56 @@ const styles = StyleSheet.create({
   },
   inputGroup: {
     marginBottom: 20,
+  },
+  employeesListContainer: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+  },
+  employeeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f3f4f6',
+  },
+  employeeName: {
+    marginLeft: 10,
+    fontSize: 14,
+    color: '#1f2937',
+    flex: 1,
+    textAlign: 'right',
+  },
+  selectAllBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#eef2ff',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 10,
+  },
+  selectAllText: {
+    marginLeft: 10,
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1a237e',
+  },
+  selectedCountText: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#1a237e',
+    textAlign: 'right',
+    fontWeight: '600',
+  },
+  emptyEmployeesText: {
+    paddingVertical: 14,
+    textAlign: 'center',
+    color: '#6b7280',
+    fontSize: 13,
   },
   inputLabel: {
     fontSize: 16,

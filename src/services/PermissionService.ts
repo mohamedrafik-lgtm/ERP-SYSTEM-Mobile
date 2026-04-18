@@ -21,6 +21,8 @@ const PERMISSIONS_CACHE_TTL = 5 * 60 * 1000; // 5 دقائق
 interface CachedPermissions {
   data: UserPermissions;
   timestamp: number;
+  userId: string;
+  baseUrl: string;
 }
 
 /**
@@ -32,6 +34,8 @@ const ACTION_HIERARCHY: Record<PermissionAction, number> = {
   view: 1,
   create: 2,
   edit: 3,
+  activate: 3,
+  'reset-password': 3,
   delete: 4,
   export: 5,
   export_data: 5,
@@ -47,10 +51,19 @@ class PermissionService {
    */
   static async fetchUserPermissions(): Promise<UserPermissions | null> {
     try {
+      const user = await AuthService.getUser();
+      if (!user?.id) return null;
+      const userId = String(user.id);
+      const baseUrl = await getCurrentApiBaseUrl();
+
       // التحقق من الكاش أولاً
       if (this.cachedPermissions) {
         const age = Date.now() - this.cachedPermissions.timestamp;
-        if (age < PERMISSIONS_CACHE_TTL) {
+        if (
+          age < PERMISSIONS_CACHE_TTL &&
+          this.cachedPermissions.userId === userId &&
+          this.cachedPermissions.baseUrl === baseUrl
+        ) {
           return this.cachedPermissions.data;
         }
       }
@@ -58,22 +71,27 @@ class PermissionService {
       // التحقق من الكاش المخزن
       const stored = await AsyncStorage.getItem(PERMISSIONS_CACHE_KEY);
       if (stored) {
-        const parsed: CachedPermissions = JSON.parse(stored);
+        const parsed = JSON.parse(stored) as Partial<CachedPermissions>;
         const age = Date.now() - parsed.timestamp;
-        if (age < PERMISSIONS_CACHE_TTL) {
-          this.cachedPermissions = parsed;
-          return parsed.data;
+        if (
+          !!parsed.data &&
+          typeof parsed.timestamp === 'number' &&
+          parsed.userId === userId &&
+          parsed.baseUrl === baseUrl &&
+          age < PERMISSIONS_CACHE_TTL
+        ) {
+          this.cachedPermissions = parsed as CachedPermissions;
+          return parsed.data as UserPermissions;
         }
+
+        // أي كاش قديم/مختلف المستخدم أو الفرع يتم إبطاله فوراً
+        await AsyncStorage.removeItem(PERMISSIONS_CACHE_KEY);
       }
 
       // جلب من الـ API
-      const user = await AuthService.getUser();
-      if (!user?.id) return null;
-
       const token = await AuthService.getToken();
       if (!token) return null;
 
-      const baseUrl = await getCurrentApiBaseUrl();
       const response = await fetch(
         `${baseUrl}/api/permissions/users/${user.id}/permissions`,
         {
@@ -105,6 +123,8 @@ class PermissionService {
       const cache: CachedPermissions = {
         data: permissions,
         timestamp: Date.now(),
+        userId,
+        baseUrl,
       };
       this.cachedPermissions = cache;
       await AsyncStorage.setItem(PERMISSIONS_CACHE_KEY, JSON.stringify(cache));
@@ -346,6 +366,11 @@ class PermissionService {
     userPerms: UserPermissions | null,
     config: ScreenPermissionConfig,
   ): boolean {
+    // Home dashboard is public for any authenticated user, matching web behavior.
+    if (config.screenName === 'Home') {
+      return true;
+    }
+
     const { resource, action } = config.requiredPermission;
     return this.hasPermissionWithWebFallback(userPerms, resource, action);
   }

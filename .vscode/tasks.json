@@ -19,6 +19,15 @@
 				"assembleDebug"
 			],
 			"isBackground": false
+		},
+		{
+			"label": "android-assemble-debug",
+			"type": "shell",
+			"command": "android\\gradlew.bat",
+			"args": [
+				"assembleDebug"
+			],
+			"isBackground": false
 		}
 	]
 }

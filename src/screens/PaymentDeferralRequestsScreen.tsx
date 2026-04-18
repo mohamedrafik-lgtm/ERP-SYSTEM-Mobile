@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -22,24 +22,43 @@ interface PaymentDeferralRequestsScreenProps {
 }
 
 const PaymentDeferralRequestsScreen = ({ navigation }: PaymentDeferralRequestsScreenProps) => {
+  const REQUESTS_PAGE_SIZE = 20;
+
   const [requests, setRequests] = useState<DeferralRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<DeferralRequestStatus | 'ALL'>('ALL');
-  const [_currentPage] = useState(1);
-  const [_totalPages, setTotalPages] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRequests, setTotalRequests] = useState(0);
   const [selectedRequest, setSelectedRequest] = useState<DeferralRequest | null>(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewAction, setReviewAction] = useState<'APPROVED' | 'REJECTED' | null>(null);
   const [adminResponse, setAdminResponse] = useState('');
 
   useEffect(() => {
-    fetchRequests();
+    void fetchRequests(1, false);
   }, [selectedStatus]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fetchRequests = async () => {
+  const mergeUniqueRequests = (oldRequests: DeferralRequest[], newRequests: DeferralRequest[]) => {
+    const requestsMap = new Map<string, DeferralRequest>();
+
+    oldRequests.forEach(request => requestsMap.set(request.id, request));
+    newRequests.forEach(request => requestsMap.set(request.id, request));
+
+    return Array.from(requestsMap.values());
+  };
+
+  const fetchRequests = async (page = 1, append = false) => {
     try {
-      setLoading(true);
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
+
       console.log('🔍 Fetching deferral requests with params:', { status: selectedStatus });
       
       const params: any = {};
@@ -48,22 +67,32 @@ const PaymentDeferralRequestsScreen = ({ navigation }: PaymentDeferralRequestsSc
         params.status = selectedStatus;
       }
 
+      params.page = page;
+      params.limit = REQUESTS_PAGE_SIZE;
+
       console.log('🔍 Calling AuthService.getDeferralRequests with:', params);
       const data = await AuthService.getDeferralRequests(params);
       console.log('🔍 Received data:', data);
       console.log('🔍 Data structure:', typeof data, Array.isArray(data));
       
-      if (Array.isArray(data)) {
-        setRequests(data);
-        setTotalPages(1);
-      } else if (data.data && Array.isArray(data.data)) {
-        setRequests(data.data);
-        setTotalPages(data.pagination?.totalPages || 1);
+      const normalizedRequests = Array.isArray(data)
+        ? data
+        : Array.isArray((data as any)?.data)
+          ? (data as any).data
+          : [];
+
+      if (append) {
+        setRequests(prev => mergeUniqueRequests(prev, normalizedRequests));
       } else {
-        console.error('❌ Unexpected data structure:', data);
-        setRequests([]);
-        setTotalPages(1);
+        setRequests(normalizedRequests);
       }
+
+      const apiTotalPages = Math.max(1, (data as any)?.pagination?.totalPages || 1);
+      const apiTotalRequests = (data as any)?.pagination?.total || normalizedRequests.length;
+
+      setCurrentPage(page);
+      setTotalPages(apiTotalPages);
+      setTotalRequests(apiTotalRequests);
     } catch (error) {
       console.error('❌ Error fetching deferral requests:', error);
       const errorMessage = error instanceof Error ? error.message : 'فشل في تحميل طلبات التأجيل';
@@ -71,15 +100,34 @@ const PaymentDeferralRequestsScreen = ({ navigation }: PaymentDeferralRequestsSc
       if (!errorMessage.includes('401')) {
         Alert.alert('خطأ', errorMessage);
       }
+
+      if (!append) {
+        setRequests([]);
+        setCurrentPage(1);
+        setTotalPages(1);
+        setTotalRequests(0);
+      }
     } finally {
-      setLoading(false);
+      if (append) {
+        setLoadingMore(false);
+      } else {
+        setLoading(false);
+      }
       setRefreshing(false);
     }
   };
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchRequests();
+    await fetchRequests(1, false);
+  };
+
+  const handleLoadMore = async () => {
+    if (loading || loadingMore || currentPage >= totalPages) {
+      return;
+    }
+
+    await fetchRequests(currentPage + 1, true);
   };
 
   const handleReview = (request: DeferralRequest, action: 'APPROVED' | 'REJECTED') => {
@@ -111,7 +159,7 @@ const PaymentDeferralRequestsScreen = ({ navigation }: PaymentDeferralRequestsSc
       setSelectedRequest(null);
       setReviewAction(null);
       setAdminResponse('');
-      await fetchRequests();
+      await fetchRequests(1, false);
     } catch (error) {
       console.error('Error reviewing request:', error);
       Alert.alert('خطأ', 'فشل في معالجة الطلب. حاول مرة أخرى.');
@@ -143,7 +191,7 @@ const PaymentDeferralRequestsScreen = ({ navigation }: PaymentDeferralRequestsSc
                 position: 'top',
                 visibilityTime: 3000,
               });
-              await fetchRequests();
+              await fetchRequests(1, false);
             } catch (error) {
               console.error('Error deleting request:', error);
               Toast.show({
@@ -194,6 +242,34 @@ const PaymentDeferralRequestsScreen = ({ navigation }: PaymentDeferralRequestsSc
       day: 'numeric',
     });
   };
+
+  const filteredRequests = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    if (!query) {
+      return requests;
+    }
+
+    return requests.filter(request => {
+      const traineeName = request.trainee?.nameAr?.toLowerCase() || '';
+      const nationalId = request.trainee?.nationalId?.toLowerCase() || '';
+      const phone = request.trainee?.phone?.toLowerCase() || '';
+      const program = request.trainee?.program?.nameAr?.toLowerCase() || '';
+      const feeName = request.fee?.name?.toLowerCase() || '';
+      const reason = request.reason?.toLowerCase() || '';
+      const adminReply = request.adminResponse?.toLowerCase() || '';
+
+      return (
+        traineeName.includes(query) ||
+        nationalId.includes(query) ||
+        phone.includes(query) ||
+        program.includes(query) ||
+        feeName.includes(query) ||
+        reason.includes(query) ||
+        adminReply.includes(query)
+      );
+    });
+  }, [requests, searchQuery]);
 
   const renderRequestCard = (request: DeferralRequest) => (
     <View key={request.id} style={styles.requestCard}>
@@ -325,6 +401,30 @@ const PaymentDeferralRequestsScreen = ({ navigation }: PaymentDeferralRequestsSc
         </ScrollView>
       </View>
 
+      <View style={styles.searchSection}>
+        <View style={styles.searchInputWrap}>
+          <Icon name="search" size={18} color="#94a3b8" />
+          <TextInput
+            style={styles.searchInput}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholder="بحث بالاسم، الرقم القومي، الهاتف، الرسم..."
+            placeholderTextColor="#94a3b8"
+            textAlign="right"
+          />
+          {!!searchQuery && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Icon name="close" size={16} color="#64748b" />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <Text style={styles.resultsInfoText}>
+          المعروض: {filteredRequests.length} من {requests.length} طلب محمل
+          {totalRequests > 0 ? ` (الإجمالي: ${totalRequests})` : ''}
+        </Text>
+      </View>
+
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
@@ -342,14 +442,58 @@ const PaymentDeferralRequestsScreen = ({ navigation }: PaymentDeferralRequestsSc
             <ActivityIndicator size="large" color="#1a237e" />
             <Text style={styles.loadingText}>جاري تحميل الطلبات...</Text>
           </View>
-        ) : requests.length === 0 ? (
+        ) : filteredRequests.length === 0 ? (
           <View style={styles.emptyState}>
             <Icon name="inbox" size={64} color="#d1d5db" />
-            <Text style={styles.emptyTitle}>لا توجد طلبات</Text>
-            <Text style={styles.emptySubtitle}>لم يتم العثور على طلبات تأجيل سداد</Text>
+            <Text style={styles.emptyTitle}>{searchQuery ? 'لا توجد نتائج للبحث' : 'لا توجد طلبات'}</Text>
+            <Text style={styles.emptySubtitle}>
+              {searchQuery
+                ? 'لا توجد نتائج مطابقة. يمكنك تحميل المزيد من الطلبات القديمة.'
+                : 'لم يتم العثور على طلبات تأجيل سداد'}
+            </Text>
+
+            {currentPage < totalPages && (
+              <TouchableOpacity
+                style={[styles.loadMoreButton, loadingMore && styles.loadMoreButtonDisabled]}
+                onPress={handleLoadMore}
+                disabled={loadingMore}
+              >
+                {loadingMore ? (
+                  <ActivityIndicator size="small" color="#1a237e" />
+                ) : (
+                  <Icon name="expand-more" size={20} color="#1a237e" />
+                )}
+                <Text style={styles.loadMoreButtonText}>
+                  {loadingMore ? 'جاري التحميل...' : 'تحميل المزيد لتوسيع البحث'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
-          requests.map(renderRequestCard)
+          <>
+            {filteredRequests.map(renderRequestCard)}
+
+            {currentPage < totalPages && (
+              <TouchableOpacity
+                style={[styles.loadMoreButton, loadingMore && styles.loadMoreButtonDisabled]}
+                onPress={handleLoadMore}
+                disabled={loadingMore}
+              >
+                {loadingMore ? (
+                  <ActivityIndicator size="small" color="#1a237e" />
+                ) : (
+                  <Icon name="expand-more" size={20} color="#1a237e" />
+                )}
+                <Text style={styles.loadMoreButtonText}>
+                  {loadingMore ? 'جاري التحميل...' : 'تحميل المزيد من الطلبات القديمة'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {currentPage >= totalPages && requests.length > 0 && (
+              <Text style={styles.endOfListText}>تم عرض كل الطلبات المتاحة</Text>
+            )}
+          </>
         )}
       </ScrollView>
 
@@ -466,6 +610,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
+  },
+  searchSection: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  searchInputWrap: {
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 10,
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 9,
+    fontSize: 14,
+    color: '#0f172a',
+  },
+  resultsInfoText: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#64748b',
+    textAlign: 'right',
   },
   filterButton: {
     paddingHorizontal: 16,
@@ -669,6 +841,34 @@ const styles = StyleSheet.create({
     color: '#9ca3af',
     textAlign: 'center',
     lineHeight: 22,
+  },
+  loadMoreButton: {
+    marginTop: 14,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#e0e7ff',
+    borderWidth: 1,
+    borderColor: '#1a237e33',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+  },
+  loadMoreButtonDisabled: {
+    opacity: 0.7,
+  },
+  loadMoreButtonText: {
+    marginLeft: 6,
+    color: '#1a237e',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  endOfListText: {
+    textAlign: 'center',
+    color: '#64748b',
+    fontSize: 12,
+    marginBottom: 14,
+    marginTop: 2,
   },
   modalOverlay: {
     flex: 1,

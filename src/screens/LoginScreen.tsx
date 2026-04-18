@@ -98,9 +98,15 @@ const TestLogin = ({ navigation }: any) => {
             rolesCount: userData.roles.length,
             primaryRole: userData.primaryRole.displayName
           });
+
+          const expiresInMs =
+            Number((loginData as any).expiresIn) ||
+            Number((loginData as any).expires_in) ||
+            Number((loginData as any).expires) ||
+            undefined;
           
           // حفظ البيانات
-          await AuthService.saveAuthData(loginData.access_token, userData);
+          await AuthService.saveAuthData(loginData.access_token, userData, expiresInMs);
           
           Toast.show({
             type: 'success',
@@ -201,6 +207,8 @@ const TestLogin = ({ navigation }: any) => {
           >
             <Text style={styles.secondaryButtonText}>اختيار/تغيير الفرع</Text>
           </TouchableOpacity>
+
+          <Text style={styles.footerText}>جميع الحقوق محفوظة طيبة للبرمجيات 2026</Text>
         </View>
         <Toast />
       </ScrollView>
@@ -321,5 +329,12 @@ const styles = StyleSheet.create({
     color: "#1a237e",
     fontSize: 16,
     fontWeight: "600",
+  },
+  footerText: {
+    position: 'absolute',
+    bottom: 18,
+    fontSize: 12,
+    color: '#6b7280',
+    textAlign: 'center',
   },
 });

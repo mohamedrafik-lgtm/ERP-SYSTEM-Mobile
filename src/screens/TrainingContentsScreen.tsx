@@ -359,7 +359,7 @@ const TrainingContentsScreen = ({ navigation }: any) => {
                       <Icon name="assessment" size={16} color="#6b7280" />
                       <Text style={styles.detailText}>إجمالي الدرجات: {getTotalMarks(content)} | الفصول: {content.chaptersCount}</Text>
                     </View>
-                    {content._count?.questions && (
+                    {(content._count?.questions ?? 0) > 0 && (
                       <View style={styles.detailRow}>
                         <Icon name="quiz" size={16} color="#6b7280" />
                         <Text style={styles.detailText}>عدد الأسئلة: {content._count.questions}</Text>

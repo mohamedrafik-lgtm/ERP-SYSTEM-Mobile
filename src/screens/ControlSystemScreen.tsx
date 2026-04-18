@@ -14,33 +14,11 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import Toast from 'react-native-toast-message';
 import CustomMenu from '../components/CustomMenu';
 import AuthService from '../services/AuthService';
+import { usePermissions } from '../hooks/usePermissions';
 
 interface ControlSystemScreenProps {
   navigation: any;
 }
-
-type PaperExam = {
-  id: number;
-  title: string;
-  examDate: string;
-  totalMarks: number;
-  gradeType: string;
-  status: string;
-  trainingContent?: {
-    name?: string;
-    code?: string;
-    program?: {
-      nameAr?: string;
-      name?: string;
-    };
-    classroom?: {
-      name?: string;
-    };
-  };
-  _count?: {
-    answerSheets?: number;
-  };
-};
 
 type AnswerSheet = {
   id: number;
@@ -55,9 +33,27 @@ type AnswerSheet = {
   };
 };
 
-type ExamReportState = {
-  gradedCount: number;
-  answerSheets: AnswerSheet[];
+type PaperExam = {
+  id: number;
+  title: string;
+  examDate: string;
+  totalMarks: number;
+  gradeType: string;
+  status: string;
+  trainingContent?: {
+    name?: string;
+    code?: string;
+    classroom?: {
+      name?: string;
+      program?: {
+        name?: string;
+      };
+    };
+  };
+  _count?: {
+    answerSheets?: number;
+  };
+  answerSheets?: AnswerSheet[];
 };
 
 const gradeTypeMap: Record<string, string> = {
@@ -76,105 +72,122 @@ const statusMap: Record<string, { label: string; bg: string; text: string }> = {
 };
 
 const ControlSystemScreen: React.FC<ControlSystemScreenProps> = ({ navigation }) => {
-  const REPORT_TIMEOUT_MS = 12000;
+  const REQUEST_TIMEOUT_MS = 12000;
+  const { hasPermission, isLoading: permissionsLoading } = usePermissions();
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [reportsLoading, setReportsLoading] = useState(false);
+  const [detailsLoading, setDetailsLoading] = useState(false);
   const [exams, setExams] = useState<PaperExam[]>([]);
-  const [reportsByExam, setReportsByExam] = useState<Record<number, ExamReportState>>({});
-  const [loadedReportIds, setLoadedReportIds] = useState<Record<number, boolean>>({});
   const [filterText, setFilterText] = useState('');
   const [selectedExam, setSelectedExam] = useState<PaperExam | null>(null);
   const [showGradesModal, setShowGradesModal] = useState(false);
   const [uploadingExamId, setUploadingExamId] = useState<number | null>(null);
   const [downloadingExamId, setDownloadingExamId] = useState<number | null>(null);
 
-  const loadExams = useCallback(async () => {
-    try {
-      const list = await AuthService.getAllPaperExams();
-      const normalized: PaperExam[] = Array.isArray(list) ? list : [];
-      setExams(normalized);
-      return normalized;
-    } catch (error) {
-      console.error('Error loading control exams:', error);
+  const canViewControl = hasPermission('dashboard.control', 'view');
+
+  useEffect(() => {
+    if (!permissionsLoading && !canViewControl) {
       Toast.show({
         type: 'error',
-        text1: 'فشل تحميل اختبارات الكونترول',
+        text1: 'ليس لديك صلاحية الوصول لنظام الكونترول',
         position: 'bottom',
       });
-      setExams([]);
-      return [];
     }
-  }, []);
+  }, [canViewControl, permissionsLoading]);
 
-  const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
+  const withTimeout = useCallback(async <T,>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
     return Promise.race([
       promise,
       new Promise<T>((_, reject) => {
         setTimeout(() => reject(new Error('Request timeout')), timeoutMs);
       }),
     ]);
-  };
+  }, []);
 
-  const loadExamReports = useCallback(async (examList: PaperExam[]) => {
-    if (examList.length === 0) {
-      setReportsByExam({});
-      setLoadedReportIds({});
-      return;
-    }
+  const fetchExamDetails = useCallback(async (exam: PaperExam): Promise<PaperExam> => {
+    try {
+      const details = await withTimeout(AuthService.getPaperExamById(exam.id), REQUEST_TIMEOUT_MS);
+      if (!details?.id) return exam;
 
-    setReportsLoading(true);
-    setReportsByExam({});
-    setLoadedReportIds({});
-
-    await Promise.all(
-      examList.map(async (exam) => {
+      if (!Array.isArray(details.answerSheets)) {
         try {
-          const report = await withTimeout(AuthService.getPaperExamReport(exam.id), REPORT_TIMEOUT_MS);
-          const answerSheets = Array.isArray(report?.answerSheets) ? report.answerSheets : [];
-          const gradedCount = typeof report?.stats?.total === 'number' ? report.stats.total : answerSheets.length;
-
-          setReportsByExam((prev) => ({
-            ...prev,
-            [exam.id]: {
-              gradedCount,
-              answerSheets,
-            },
-          }));
-        } catch (error) {
-          console.warn(`Error loading report for exam ${exam.id}:`, error);
-          setReportsByExam((prev) => ({
-            ...prev,
-            [exam.id]: {
-              gradedCount: 0,
-              answerSheets: [],
-            },
-          }));
-        } finally {
-          setLoadedReportIds((prev) => ({
-            ...prev,
-            [exam.id]: true,
-          }));
+          const report = await withTimeout(AuthService.getPaperExamReport(exam.id), REQUEST_TIMEOUT_MS);
+          return {
+            ...details,
+            answerSheets: Array.isArray(report?.answerSheets) ? report.answerSheets : [],
+          };
+        } catch {
+          return {
+            ...details,
+            answerSheets: [],
+          };
         }
-      })
-    );
+      }
 
-    setReportsLoading(false);
-  }, [REPORT_TIMEOUT_MS]);
+      return details;
+    } catch {
+      return exam;
+    }
+  }, [REQUEST_TIMEOUT_MS, withTimeout]);
+
+  const loadExams = useCallback(async () => {
+    try {
+      const list = await withTimeout(AuthService.getAllPaperExams(), REQUEST_TIMEOUT_MS);
+      const normalized: PaperExam[] = Array.isArray(list) ? list : [];
+
+      // Render quickly using base list, then hydrate full details in background.
+      setExams(normalized);
+
+      if (normalized.length === 0) {
+        return;
+      }
+
+      setDetailsLoading(true);
+      void (async () => {
+        const detailsResults = await Promise.allSettled(normalized.map((exam) => fetchExamDetails(exam)));
+
+        const byId: Record<number, PaperExam> = {};
+        detailsResults.forEach((result, index) => {
+          if (result.status === 'fulfilled') {
+            byId[result.value.id] = result.value;
+          } else {
+            byId[normalized[index].id] = normalized[index];
+          }
+        });
+
+        setExams((prev) => prev.map((exam) => byId[exam.id] || exam));
+        setDetailsLoading(false);
+      })();
+    } catch (error) {
+      console.error('Error loading control exams:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'فشل تحميل اختبارات الكونترول',
+        text2: 'تحقق من الاتصال وحاول مرة أخرى',
+        position: 'bottom',
+      });
+      setExams([]);
+      setDetailsLoading(false);
+    }
+  }, [REQUEST_TIMEOUT_MS, fetchExamDetails, withTimeout]);
 
   const loadData = useCallback(async () => {
-    setLoading(true);
-    const loadedExams = await loadExams();
-    setLoading(false);
-    setRefreshing(false);
-
-    // لا نجعل واجهة الشاشة تنتظر تقارير كل اختبار حتى لا تعلق في اللودنج.
-    loadExamReports(loadedExams);
-  }, [loadExams, loadExamReports]);
+    try {
+      setLoading(true);
+      await loadExams();
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [loadExams]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (!permissionsLoading && canViewControl) {
+      loadData();
+    }
+  }, [permissionsLoading, canViewControl, loadData]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -198,7 +211,7 @@ const ControlSystemScreen: React.FC<ControlSystemScreenProps> = ({ navigation })
     const completedExams = filteredExams.filter((e) => e.status === 'COMPLETED').length;
     const totalSheets = filteredExams.reduce((sum, e) => sum + (e._count?.answerSheets || 0), 0);
     const gradedSheets = filteredExams.reduce(
-      (sum, e) => sum + (reportsByExam[e.id]?.gradedCount || 0),
+      (sum, e) => sum + ((e.answerSheets || []).filter((s) => s.status === 'GRADED').length || 0),
       0
     );
 
@@ -208,7 +221,7 @@ const ControlSystemScreen: React.FC<ControlSystemScreenProps> = ({ navigation })
       totalSheets,
       gradedSheets,
     };
-  }, [filteredExams, reportsByExam]);
+  }, [filteredExams]);
 
   const getGradeTypeLabel = (gradeType?: string) => {
     if (!gradeType) return 'غير محدد';
@@ -220,6 +233,21 @@ const ControlSystemScreen: React.FC<ControlSystemScreenProps> = ({ navigation })
     return statusMap[status] || { label: status, bg: '#f3f4f6', text: '#374151' };
   };
 
+  const getSheetStatus = (status?: string) => {
+    if (status === 'GRADED') return { label: 'مُصحح', color: '#15803d' };
+    if (status === 'SUBMITTED') return { label: 'تم التسليم', color: '#d97706' };
+    if (status === 'VERIFIED') return { label: 'مُراجع', color: '#2563eb' };
+    return { label: 'لم يُسلم', color: '#64748b' };
+  };
+
+  const getPercentageColors = (percentage?: number) => {
+    if (percentage == null) return { bg: '#e2e8f0', text: '#64748b' };
+    if (percentage >= 90) return { bg: '#dcfce7', text: '#15803d' };
+    if (percentage >= 75) return { bg: '#dbeafe', text: '#1d4ed8' };
+    if (percentage >= 50) return { bg: '#fef3c7', text: '#a16207' };
+    return { bg: '#fee2e2', text: '#b91c1c' };
+  };
+
   const openGradesModal = (exam: PaperExam) => {
     setSelectedExam(exam);
     setShowGradesModal(true);
@@ -228,7 +256,6 @@ const ControlSystemScreen: React.FC<ControlSystemScreenProps> = ({ navigation })
   const handleUploadExcel = async (examId: number) => {
     let pickerLib: any;
     try {
-      // Resolve at runtime to avoid static type resolution issues when typings are missing.
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       pickerLib = require('@react-native-documents/picker');
       const picker = pickerLib.default || pickerLib;
@@ -272,7 +299,8 @@ const ControlSystemScreen: React.FC<ControlSystemScreenProps> = ({ navigation })
       await loadData();
     } catch (error: any) {
       const picker = pickerLib?.default || pickerLib;
-      const isCancel = !!picker?.isErrorWithCode?.(error) && error?.code === picker?.errorCodes?.OPERATION_CANCELED;
+      const isCancel =
+        !!picker?.isErrorWithCode?.(error) && error?.code === picker?.errorCodes?.OPERATION_CANCELED;
       if (isCancel) {
         return;
       }
@@ -312,12 +340,17 @@ const ControlSystemScreen: React.FC<ControlSystemScreenProps> = ({ navigation })
     }
   };
 
-  const selectedSheets = useMemo(() => {
-    const sheets = selectedExam ? reportsByExam[selectedExam.id]?.answerSheets || [] : [];
-    return [...sheets].sort((a, b) => (b.score || 0) - (a.score || 0));
-  }, [selectedExam, reportsByExam]);
+  const activeSelectedExam = useMemo(() => {
+    if (!selectedExam) return null;
+    return exams.find((exam) => exam.id === selectedExam.id) || selectedExam;
+  }, [exams, selectedExam]);
 
-  if (loading) {
+  const selectedSheets = useMemo(() => {
+    const sheets = activeSelectedExam?.answerSheets || [];
+    return [...sheets].sort((a, b) => (b.score || 0) - (a.score || 0));
+  }, [activeSelectedExam]);
+
+  if (permissionsLoading || loading) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
@@ -335,6 +368,28 @@ const ControlSystemScreen: React.FC<ControlSystemScreenProps> = ({ navigation })
     );
   }
 
+  if (!canViewControl) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <CustomMenu navigation={navigation} activeRouteName="ControlSystem" />
+          <View style={styles.headerContent}>
+            <Text style={styles.title}>نظام الكونترول</Text>
+            <Text style={styles.subtitle}>لا تملك صلاحية الوصول</Text>
+          </View>
+        </View>
+        <View style={styles.centerContainer}>
+          <Icon name="block" size={44} color="#ef4444" />
+          <Text style={styles.noAccessTitle}>غير متاح</Text>
+          <Text style={styles.noAccessText}>ليس لديك صلاحية الوصول لنظام الكونترول.</Text>
+          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.navigate('Home')}>
+            <Text style={styles.backBtnText}>العودة للرئيسية</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -342,7 +397,7 @@ const ControlSystemScreen: React.FC<ControlSystemScreenProps> = ({ navigation })
         <View style={styles.headerContent}>
           <Text style={styles.title}>نظام الكونترول</Text>
           <Text style={styles.subtitle}>
-            {reportsLoading ? 'إدارة درجات المتدربين (تحديث التقارير...)' : 'إدارة درجات المتدربين في الاختبارات الورقية'}
+            {detailsLoading ? 'إدارة درجات المتدربين (جاري استكمال التفاصيل...)' : 'إدارة درجات المتدربين في الاختبارات الورقية'}
           </Text>
         </View>
       </View>
@@ -350,12 +405,7 @@ const ControlSystemScreen: React.FC<ControlSystemScreenProps> = ({ navigation })
       <ScrollView
         style={styles.content}
         refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={['#1a237e']}
-            tintColor="#1a237e"
-          />
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#1a237e']} tintColor="#1a237e" />
         }
       >
         <View style={styles.statsGrid}>
@@ -405,10 +455,10 @@ const ControlSystemScreen: React.FC<ControlSystemScreenProps> = ({ navigation })
             <Icon name="info" size={18} color="#2563eb" />
             <Text style={styles.infoTitle}>كيفية استخدام نظام الكونترول</Text>
           </View>
-          <Text style={styles.infoStep}>1. اختر الاختبار المطلوب من القائمة.</Text>
-          <Text style={styles.infoStep}>2. اضغط "عرض الدرجات" لمراجعة نتائج المتدربين.</Text>
-          <Text style={styles.infoStep}>3. لتحديث القائمة استخدم السحب لأسفل.</Text>
-          <Text style={styles.infoStep}>4. يمكنك رفع ملف Excel لتحديث درجات المتدربين.</Text>
+          <Text style={styles.infoStep}>1. اضغط تحميل شيت الدرجات لتحميل ملف Excel بقائمة المتدربين.</Text>
+          <Text style={styles.infoStep}>2. أدخل الدرجات داخل عمود الدرجة في الملف.</Text>
+          <Text style={styles.infoStep}>3. اضغط رفع لإدخال الدرجات تلقائيا في النظام.</Text>
+          <Text style={styles.infoStep}>4. اضغط الدرجات لعرض تفاصيل نتائج المتدربين.</Text>
         </View>
 
         {filteredExams.length === 0 ? (
@@ -422,10 +472,11 @@ const ControlSystemScreen: React.FC<ControlSystemScreenProps> = ({ navigation })
         ) : (
           filteredExams.map((exam) => {
             const statusInfo = getStatusInfo(exam.status);
-            const isReportLoaded = !!loadedReportIds[exam.id];
-            const gradedCount = reportsByExam[exam.id]?.gradedCount || 0;
-            const totalCount = exam._count?.answerSheets || 0;
+            const gradedCount = (exam.answerSheets || []).filter((s) => s.status === 'GRADED').length;
+            const totalCount = exam._count?.answerSheets || exam.answerSheets?.length || 0;
             const progressPct = totalCount > 0 ? Math.round((gradedCount / totalCount) * 100) : 0;
+            const programName = exam.trainingContent?.classroom?.program?.name || '';
+            const classroomName = exam.trainingContent?.classroom?.name || '';
 
             return (
               <View key={exam.id} style={styles.examCard}>
@@ -435,6 +486,11 @@ const ControlSystemScreen: React.FC<ControlSystemScreenProps> = ({ navigation })
                     <Text style={styles.examSub}>
                       {(exam.trainingContent?.code || '-') + ' - ' + (exam.trainingContent?.name || '-')}
                     </Text>
+                    {!!(programName || classroomName) && (
+                      <Text style={styles.examSubMeta}>
+                        {(programName || '-') + ' - ' + (classroomName || '-')}
+                      </Text>
+                    )}
                   </View>
 
                   <View style={[styles.statusBadge, { backgroundColor: statusInfo.bg }]}>
@@ -460,9 +516,7 @@ const ControlSystemScreen: React.FC<ControlSystemScreenProps> = ({ navigation })
                 <View style={styles.progressWrap}>
                   <View style={styles.progressRowText}>
                     <Text style={styles.progressLabel}>نسبة التصحيح</Text>
-                    <Text style={styles.progressLabel}>
-                      {isReportLoaded ? `${gradedCount}/${totalCount} (${progressPct}%)` : 'جاري تحميل التقرير...'}
-                    </Text>
+                    <Text style={styles.progressLabel}>{`${gradedCount}/${totalCount} (${progressPct}%)`}</Text>
                   </View>
                   <View style={styles.progressBarBase}>
                     <View style={[styles.progressBarFill, { width: `${progressPct}%` }]} />
@@ -476,7 +530,9 @@ const ControlSystemScreen: React.FC<ControlSystemScreenProps> = ({ navigation })
                     disabled={downloadingExamId === exam.id}
                   >
                     <Icon name="download" size={16} color="#1a237e" />
-                    <Text style={styles.secondaryBtnText}>{downloadingExamId === exam.id ? 'جاري التحميل...' : 'تحميل'}</Text>
+                    <Text style={styles.secondaryBtnText}>
+                      {downloadingExamId === exam.id ? 'جاري التحميل...' : 'تحميل'}
+                    </Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -488,10 +544,7 @@ const ControlSystemScreen: React.FC<ControlSystemScreenProps> = ({ navigation })
                     <Text style={styles.primaryBtnText}>{uploadingExamId === exam.id ? 'جاري الرفع...' : 'رفع'}</Text>
                   </TouchableOpacity>
 
-                  <TouchableOpacity
-                    style={[styles.actionBtn, styles.secondaryBtn]}
-                    onPress={() => openGradesModal(exam)}
-                  >
+                  <TouchableOpacity style={[styles.actionBtn, styles.secondaryBtn]} onPress={() => openGradesModal(exam)}>
                     <Icon name="bar-chart" size={16} color="#1a237e" />
                     <Text style={styles.secondaryBtnText}>الدرجات</Text>
                   </TouchableOpacity>
@@ -504,19 +557,14 @@ const ControlSystemScreen: React.FC<ControlSystemScreenProps> = ({ navigation })
         <View style={{ height: 16 }} />
       </ScrollView>
 
-      <Modal
-        visible={showGradesModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowGradesModal(false)}
-      >
+      <Modal visible={showGradesModal} transparent animationType="slide" onRequestClose={() => setShowGradesModal(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.modalTitle}>{selectedExam?.title || 'الدرجات'}</Text>
+                <Text style={styles.modalTitle}>{activeSelectedExam?.title || 'الدرجات'}</Text>
                 <Text style={styles.modalSubtitle}>
-                  {(selectedExam?.trainingContent?.name || '-') + ' - ' + getGradeTypeLabel(selectedExam?.gradeType)}
+                  {(activeSelectedExam?.trainingContent?.name || '-') + ' - ' + getGradeTypeLabel(activeSelectedExam?.gradeType)}
                 </Text>
               </View>
               <TouchableOpacity style={styles.modalClose} onPress={() => setShowGradesModal(false)}>
@@ -525,34 +573,39 @@ const ControlSystemScreen: React.FC<ControlSystemScreenProps> = ({ navigation })
             </View>
 
             <ScrollView style={styles.modalBody}>
-              {selectedExam && !loadedReportIds[selectedExam.id] ? (
-                <View style={styles.modalLoading}>
-                  <ActivityIndicator size="small" color="#1a237e" />
-                  <Text style={styles.modalLoadingText}>جاري تحميل درجات الاختبار...</Text>
-                </View>
-              ) : null}
-
               {selectedSheets.length === 0 ? (
                 <View style={styles.modalEmpty}>
                   <Icon name="groups" size={40} color="#cbd5e1" />
-                  <Text style={styles.modalEmptyText}>لا توجد أوراق إجابة مصححة لهذا الاختبار</Text>
+                  <Text style={styles.modalEmptyText}>لا توجد أوراق إجابة لهذا الاختبار</Text>
                 </View>
               ) : (
-                selectedSheets.map((sheet, index) => (
-                  <View key={sheet.id} style={styles.sheetCard}>
-                    <View style={styles.sheetTop}>
-                      <Text style={styles.sheetName}>{index + 1}. {sheet.trainee?.nameAr || 'غير معروف'}</Text>
-                      <Text style={styles.sheetStatus}>
-                        {sheet.status === 'GRADED' || sheet.status === 'VERIFIED' ? 'مُصحح' : (sheet.status || '-')}
-                      </Text>
+                selectedSheets.map((sheet, index) => {
+                  const statusInfo = getSheetStatus(sheet.status);
+                  const percentageColors = getPercentageColors(sheet.percentage);
+
+                  return (
+                    <View key={sheet.id} style={styles.sheetCard}>
+                      <View style={styles.sheetTop}>
+                        <Text style={styles.sheetName}>
+                          {index + 1}. {sheet.trainee?.nameAr || 'غير معروف'}
+                        </Text>
+                        <Text style={[styles.sheetStatus, { color: statusInfo.color }]}>{statusInfo.label}</Text>
+                      </View>
+
+                      <View style={styles.sheetMetaRow}>
+                        <Text style={styles.sheetMeta}>النموذج: {sheet.model?.modelCode || '-'}</Text>
+                        <Text style={styles.sheetMeta}>
+                          الدرجة: {sheet.score ?? '-'} / {activeSelectedExam?.totalMarks || '-'}
+                        </Text>
+                        <View style={[styles.percentageBadge, { backgroundColor: percentageColors.bg }]}>
+                          <Text style={[styles.percentageText, { color: percentageColors.text }]}>
+                            {sheet.percentage != null ? `${sheet.percentage.toFixed(1)}%` : '-'}
+                          </Text>
+                        </View>
+                      </View>
                     </View>
-                    <View style={styles.sheetMetaRow}>
-                      <Text style={styles.sheetMeta}>النموذج: {sheet.model?.modelCode || '-'}</Text>
-                      <Text style={styles.sheetMeta}>الدرجة: {sheet.score ?? '-'} / {selectedExam?.totalMarks || '-'}</Text>
-                      <Text style={styles.sheetMeta}>النسبة: {sheet.percentage != null ? `${sheet.percentage.toFixed(1)}%` : '-'}</Text>
-                    </View>
-                  </View>
-                ))
+                  );
+                })
               )}
             </ScrollView>
           </View>
@@ -576,8 +629,12 @@ const styles = StyleSheet.create({
   headerContent: { flex: 1 },
   title: { fontSize: 22, fontWeight: '700', color: '#1a237e' },
   subtitle: { marginTop: 4, color: '#6b7280' },
-  centerContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  centerContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingHorizontal: 24 },
   loadingText: { color: '#6b7280' },
+  noAccessTitle: { fontSize: 18, fontWeight: '800', color: '#111827', marginTop: 8 },
+  noAccessText: { color: '#6b7280', textAlign: 'center' },
+  backBtn: { marginTop: 8, backgroundColor: '#1a237e', borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 },
+  backBtnText: { color: '#fff', fontWeight: '700' },
   content: { flex: 1, padding: 20 },
   statsGrid: {
     flexDirection: 'row',
@@ -691,6 +748,11 @@ const styles = StyleSheet.create({
     marginTop: 3,
     color: '#64748b',
     fontSize: 12,
+  },
+  examSubMeta: {
+    marginTop: 2,
+    color: '#94a3b8',
+    fontSize: 11,
   },
   statusBadge: {
     borderRadius: 20,
@@ -820,17 +882,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 10,
   },
-  modalLoading: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 10,
-    gap: 8,
-  },
-  modalLoadingText: {
-    color: '#64748b',
-    fontSize: 12,
-  },
   modalEmpty: {
     paddingVertical: 36,
     alignItems: 'center',
@@ -859,15 +910,24 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   sheetStatus: {
-    color: '#15803d',
     fontSize: 12,
     fontWeight: '700',
   },
   sheetMetaRow: {
-    gap: 4,
+    gap: 6,
   },
   sheetMeta: {
     color: '#475569',
     fontSize: 12,
+  },
+  percentageBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  percentageText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

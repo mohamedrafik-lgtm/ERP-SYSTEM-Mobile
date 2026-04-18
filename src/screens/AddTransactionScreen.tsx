@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -12,76 +12,193 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import SelectBox from '../components/SelectBox';
 import AuthService from '../services/AuthService';
-import { CreateTransactionPayload, TransactionType, ISafe } from '../types/student';
+import { CreateTransactionPayload, ISafe, SafeCategory, TransactionType } from '../types/student';
+import { usePermissions } from '../hooks/usePermissions';
 
 interface AddTransactionScreenProps {
   navigation: any;
-  route: {
-    params: {
-      safe: ISafe;
+  route?: {
+    params?: {
+      safe?: ISafe;
     };
   };
 }
 
 const AddTransactionScreen = ({ navigation, route }: AddTransactionScreenProps) => {
-  const { safe } = route.params;
+  const selectedSafeFromRoute = route?.params?.safe;
+  const { hasPermission } = usePermissions();
+
   const [loading, setLoading] = useState(false);
+  const [safesLoading, setSafesLoading] = useState(false);
   const [safes, setSafes] = useState<ISafe[]>([]);
   const [formData, setFormData] = useState<CreateTransactionPayload>({
     amount: 0,
     type: 'DEPOSIT',
     description: '',
-    reference: '',
-    sourceId: '',
+    sourceId: selectedSafeFromRoute?.id || '',
     targetId: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const transactionTypeOptions = [
-    { value: 'DEPOSIT', label: 'إيداع' },
-    { value: 'WITHDRAW', label: 'سحب' },
-    { value: 'TRANSFER', label: 'تحويل' },
-    { value: 'FEE', label: 'رسوم' },
-    { value: 'PAYMENT', label: 'دفع' },
-  ];
+  const canViewBalances = hasPermission('finances.safes.balances', 'view');
+
+  const currentSourceSafe = useMemo(() => {
+    if (!formData.sourceId) return null;
+    return safes.find(safe => safe.id === formData.sourceId) || null;
+  }, [formData.sourceId, safes]);
 
   useEffect(() => {
-    fetchSafes();
-    // تعيين الخزينة المحددة كخزينة مصدر للتحويلات
-    if (safe) {
-      setFormData(prev => ({
-        ...prev,
-        sourceId: safe.id,
-      }));
+    void fetchSafes();
+  }, []);
+
+  useEffect(() => {
+    if (!currentSourceSafe || formData.type !== 'TRANSFER') {
+      return;
     }
-  }, [safe]);
+
+    const targetAllowed = getAllowedTargetSafes(currentSourceSafe).some(
+      option => option.value === formData.targetId,
+    );
+
+    if (!targetAllowed) {
+      setFormData(prev => ({ ...prev, targetId: '' }));
+    }
+  }, [currentSourceSafe, formData.type]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchSafes = async () => {
     try {
+      setSafesLoading(true);
       const data = await AuthService.getAllSafes();
-      setSafes(data);
+      const normalized = Array.isArray(data) ? data : [];
+      setSafes(normalized);
+
+      if (!selectedSafeFromRoute && normalized.length > 0 && !formData.sourceId) {
+        setFormData(prev => ({ ...prev, sourceId: normalized[0].id }));
+      }
     } catch (error) {
       console.error('Error fetching safes:', error);
+      Alert.alert('خطأ', 'فشل في تحميل قائمة الخزائن');
+    } finally {
+      setSafesLoading(false);
     }
   };
 
+  const canSourceSafeTransfer = (safe: ISafe | null) => {
+    if (!safe) return false;
+    return !['DEBT', 'EXPENSE', 'ASSETS'].includes(safe.category);
+  };
+
+  const getAllowedTargetSafes = (sourceSafe: ISafe) => {
+    if (sourceSafe.category === 'DEBT') {
+      return [];
+    }
+
+    if (sourceSafe.category === 'EXPENSE' || sourceSafe.category === 'ASSETS') {
+      return [];
+    }
+
+    if (sourceSafe.category === 'INCOME') {
+      return safes
+        .filter(
+          safe =>
+            safe.id !== sourceSafe.id &&
+            (safe.category === 'INCOME' || safe.category === 'EXPENSE' || safe.category === 'ASSETS'),
+        )
+        .map(safe => ({ value: safe.id, label: `${safe.name} (${safe.category})` }));
+    }
+
+    return safes
+      .filter(safe => safe.id !== sourceSafe.id)
+      .map(safe => ({ value: safe.id, label: `${safe.name} (${safe.category})` }));
+  };
+
+  const transactionTypeOptions = useMemo(() => {
+    const options: { value: TransactionType; label: string }[] = [{ value: 'DEPOSIT', label: 'إيداع' }];
+    if (canSourceSafeTransfer(currentSourceSafe)) {
+      options.push({ value: 'TRANSFER', label: 'تحويل' });
+    }
+    return options;
+  }, [currentSourceSafe]);
+
+  useEffect(() => {
+    if (formData.type === 'TRANSFER' && !canSourceSafeTransfer(currentSourceSafe)) {
+      setFormData(prev => ({ ...prev, type: 'DEPOSIT', targetId: '' }));
+    }
+  }, [formData.type, currentSourceSafe]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
+
+    if (!currentSourceSafe) {
+      newErrors.sourceId = 'يجب اختيار خزينة المصدر';
+    }
 
     if (formData.amount <= 0) {
       newErrors.amount = 'المبلغ يجب أن يكون أكبر من 0';
     }
 
-    if (formData.type === 'TRANSFER' && !formData.targetId) {
-      newErrors.targetId = 'يجب اختيار خزينة الهدف للتحويل';
-    }
+    if (formData.type === 'TRANSFER') {
+      if (!canSourceSafeTransfer(currentSourceSafe)) {
+        newErrors.type = 'هذه الخزينة لا تدعم التحويل، تدعم الإيداع فقط';
+      }
 
-    if (formData.type === 'TRANSFER' && formData.sourceId === formData.targetId) {
-      newErrors.targetId = 'لا يمكن التحويل لنفس الخزينة';
+      if (!formData.targetId) {
+        newErrors.targetId = 'يجب اختيار خزينة الهدف للتحويل';
+      }
+
+      if (formData.sourceId === formData.targetId) {
+        newErrors.targetId = 'لا يمكن التحويل إلى نفس الخزينة';
+      }
+
+      if (currentSourceSafe && currentSourceSafe.balance < formData.amount) {
+        newErrors.amount = `الرصيد غير كاف. الرصيد الحالي ${currentSourceSafe.balance.toLocaleString('ar-EG')} ${currentSourceSafe.currency}`;
+      }
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const handleInputChange = (field: keyof CreateTransactionPayload, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value,
+    }));
+
+    if (errors[field]) {
+      setErrors(prev => ({
+        ...prev,
+        [field]: '',
+      }));
+    }
+  };
+
+  const submitTransaction = async () => {
+    if (!currentSourceSafe) return;
+
+    const payload: CreateTransactionPayload = {
+      amount: formData.amount,
+      type: formData.type,
+      description: formData.description?.trim() || undefined,
+    };
+
+    if (formData.type === 'TRANSFER') {
+      payload.sourceId = currentSourceSafe.id;
+      payload.targetId = formData.targetId || undefined;
+    } else {
+      payload.targetId = currentSourceSafe.id;
+    }
+
+    try {
+      setLoading(true);
+      await AuthService.createTransaction(payload);
+      Alert.alert('نجح', 'تم تنفيذ المعاملة بنجاح', [{ text: 'حسنا', onPress: () => navigation.goBack() }]);
+    } catch (error) {
+      console.error('Error creating transaction:', error);
+      Alert.alert('خطأ', 'فشل في إنشاء المعاملة. تأكد من البيانات وحاول مرة أخرى.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -89,174 +206,118 @@ const AddTransactionScreen = ({ navigation, route }: AddTransactionScreenProps) 
       return;
     }
 
-    try {
-      setLoading(true);
+    const modeLabel = formData.type === 'TRANSFER' ? 'تحويل' : 'إيداع';
+    const amountLabel = `${formData.amount.toLocaleString('ar-EG')} ${currentSourceSafe?.currency || 'EGP'}`;
 
-      // إعداد البيانات للإرسال
-      const transactionData: CreateTransactionPayload = {
-        amount: formData.amount,
-        type: formData.type,
-        description: formData.description?.trim() || undefined,
-        reference: formData.reference?.trim() || undefined,
-        sourceId: formData.sourceId || undefined,
-        targetId: formData.targetId || undefined,
-      };
+    Alert.alert('تأكيد العملية', `هل تريد تنفيذ ${modeLabel} بمبلغ ${amountLabel}؟`, [
+      { text: 'إلغاء', style: 'cancel' },
+      { text: 'تأكيد', onPress: () => void submitTransaction() },
+    ]);
+  };
 
-      // إرسال البيانات للـ API
-      await AuthService.createTransaction(transactionData);
-      
-      Alert.alert('نجح', 'تم إنشاء المعاملة بنجاح', [
-        {
-          text: 'حسناً',
-          onPress: () => navigation.goBack(),
-        },
-      ]);
-    } catch (error) {
-      console.error('Error creating transaction:', error);
-      Alert.alert('خطأ', 'فشل في إنشاء المعاملة. تأكد من صحة البيانات وحاول مرة أخرى.');
-    } finally {
-      setLoading(false);
+  const getTypeHint = () => {
+    if (!currentSourceSafe) return 'اختر خزينة المصدر أولاً';
+
+    if (formData.type === 'TRANSFER') {
+      if (currentSourceSafe.category === 'INCOME') {
+        return 'يمكن التحويل من خزائن الدخل إلى خزائن الدخل أو المصروفات أو الأصول';
+      }
+      if (currentSourceSafe.category === 'UNSPECIFIED') {
+        return 'يمكن التحويل من الخزينة غير المحددة إلى أي خزينة أخرى';
+      }
+      return 'هذه الخزينة لا تسمح بالتحويل';
     }
+
+    return 'الإيداع متاح لجميع أنواع الخزائن';
   };
 
-  const handleInputChange = (field: string, value: any) => {
-    setFormData({
-      ...formData,
-      [field]: value,
-    });
-    
-    // مسح الخطأ عند بدء الكتابة
-    if (errors[field]) {
-      setErrors({
-        ...errors,
-        [field]: '',
-      });
-    }
-  };
-
-  const getTransactionTypeDescription = (type: TransactionType) => {
-    switch (type) {
-      case 'DEPOSIT':
-        return 'إضافة مبلغ إلى الخزينة';
-      case 'WITHDRAW':
-        return 'سحب مبلغ من الخزينة';
-      case 'TRANSFER':
-        return 'تحويل مبلغ من خزينة إلى أخرى';
-      case 'FEE':
-        return 'رسوم أو تكاليف';
-      case 'PAYMENT':
-        return 'دفع أو تسديد';
-      default:
-        return '';
-    }
-  };
-
-  const getSourceSafes = () => {
-    return safes.map(safe => ({
-      value: safe.id,
-      label: safe.name,
-    }));
-  };
-
-  const getTargetSafes = () => {
-    return safes
-      .filter(s => s.id !== formData.sourceId)
-      .map(safe => ({
-        value: safe.id,
-        label: safe.name,
-      }));
-  };
+  const sourceSafeOptions = safes.map(safe => ({ value: safe.id, label: safe.name }));
+  const targetSafeOptions = currentSourceSafe ? getAllowedTargetSafes(currentSourceSafe) : [];
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Icon name="arrow-back" size={24} color="#1a237e" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>إنشاء معاملة جديدة</Text>
-          <Text style={styles.headerSubtitle}>إضافة معاملة مالية للخزينة</Text>
+          <Text style={styles.headerTitle}>معاملة مالية جديدة</Text>
+          <Text style={styles.headerSubtitle}>منطق مطابق لنسخة الويب</Text>
         </View>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.form}>
-          {/* Safe Info */}
           <View style={styles.safeInfoCard}>
-            <Text style={styles.safeInfoTitle}>الخزينة المحددة</Text>
-            <Text style={styles.safeInfoName}>{safe.name}</Text>
-            <Text style={styles.safeInfoBalance}>
-              الرصيد الحالي: {safe.balance.toLocaleString()} {safe.currency}
-            </Text>
+            <Text style={styles.safeInfoTitle}>الخزينة المصدر</Text>
+            {selectedSafeFromRoute ? (
+              <>
+                <Text style={styles.safeInfoName}>{selectedSafeFromRoute.name}</Text>
+                <Text style={styles.safeInfoBalance}>
+                  {canViewBalances
+                    ? `الرصيد الحالي: ${selectedSafeFromRoute.balance.toLocaleString('ar-EG')} ${selectedSafeFromRoute.currency}`
+                    : 'الرصيد مخفي حسب الصلاحيات'}
+                </Text>
+              </>
+            ) : (
+              <SelectBox
+                label="اختر الخزينة المصدر *"
+                selectedValue={formData.sourceId}
+                onValueChange={value => handleInputChange('sourceId', value)}
+                items={sourceSafeOptions}
+                placeholder={safesLoading ? 'جاري تحميل الخزائن...' : 'اختر الخزينة'}
+                loading={safesLoading}
+                error={errors.sourceId}
+              />
+            )}
           </View>
 
-          {/* Transaction Type */}
           <View style={styles.formGroup}>
             <SelectBox
               label="نوع المعاملة *"
               selectedValue={formData.type}
-              onValueChange={(value) => handleInputChange('type', value)}
+              onValueChange={value => handleInputChange('type', value)}
               items={transactionTypeOptions}
               placeholder="اختر نوع المعاملة"
+              error={errors.type}
             />
-            <Text style={styles.typeDescription}>
-              {getTransactionTypeDescription(formData.type)}
-            </Text>
+            <Text style={styles.typeHint}>{getTypeHint()}</Text>
           </View>
 
-          {/* Amount */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>المبلغ *</Text>
             <TextInput
-              style={[styles.input, errors.amount && styles.errorInput]}
-              value={formData.amount.toString()}
-              onChangeText={(text) => handleInputChange('amount', Number(text) || 0)}
+              style={[styles.input, errors.amount ? styles.errorInput : null]}
+              value={String(formData.amount || '')}
+              onChangeText={text => handleInputChange('amount', Number(text) || 0)}
               placeholder="0.00"
               placeholderTextColor="#9CA3AF"
               keyboardType="numeric"
               textAlign="right"
             />
-            {errors.amount && <Text style={styles.errorText}>{errors.amount}</Text>}
+            {errors.amount ? <Text style={styles.errorText}>{errors.amount}</Text> : null}
           </View>
 
-          {/* Source Safe (for transfers) */}
-          {formData.type === 'TRANSFER' && (
-            <View style={styles.formGroup}>
-              <SelectBox
-                label="الخزينة المصدر *"
-                selectedValue={formData.sourceId}
-                onValueChange={(value) => handleInputChange('sourceId', value)}
-                items={getSourceSafes()}
-                placeholder="اختر الخزينة المصدر"
-              />
-            </View>
-          )}
-
-          {/* Target Safe (for transfers) */}
           {formData.type === 'TRANSFER' && (
             <View style={styles.formGroup}>
               <SelectBox
                 label="الخزينة الهدف *"
                 selectedValue={formData.targetId}
-                onValueChange={(value) => handleInputChange('targetId', value)}
-                items={getTargetSafes()}
+                onValueChange={value => handleInputChange('targetId', value)}
+                items={targetSafeOptions}
                 placeholder="اختر الخزينة الهدف"
                 error={errors.targetId}
               />
             </View>
           )}
 
-          {/* Description */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>الوصف (اختياري)</Text>
             <TextInput
-              style={[styles.textArea]}
-              value={formData.description}
-              onChangeText={(text) => handleInputChange('description', text)}
-              placeholder="أدخل وصف للمعاملة"
+              style={styles.textArea}
+              value={formData.description || ''}
+              onChangeText={text => handleInputChange('description', text)}
+              placeholder="أدخل وصف المعاملة"
               placeholderTextColor="#9CA3AF"
               multiline
               numberOfLines={3}
@@ -264,22 +325,8 @@ const AddTransactionScreen = ({ navigation, route }: AddTransactionScreenProps) 
             />
           </View>
 
-          {/* Reference */}
-          <View style={styles.formGroup}>
-            <Text style={styles.label}>المرجع (اختياري)</Text>
-            <TextInput
-              style={styles.input}
-              value={formData.reference}
-              onChangeText={(text) => handleInputChange('reference', text)}
-              placeholder="أدخل رقم مرجعي"
-              placeholderTextColor="#9CA3AF"
-              textAlign="right"
-            />
-          </View>
-
-          {/* Submit Button */}
           <TouchableOpacity
-            style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+            style={[styles.submitButton, loading ? styles.submitButtonDisabled : null]}
             onPress={handleSubmit}
             disabled={loading}
           >
@@ -287,8 +334,8 @@ const AddTransactionScreen = ({ navigation, route }: AddTransactionScreenProps) 
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <>
-                <Icon name="add" size={20} color="#fff" />
-                <Text style={styles.submitButtonText}>إنشاء المعاملة</Text>
+                <Icon name="check-circle" size={20} color="#fff" />
+                <Text style={styles.submitButtonText}>تنفيذ المعاملة</Text>
               </>
             )}
           </TouchableOpacity>
@@ -351,7 +398,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#e3f2fd',
     padding: 16,
     borderRadius: 12,
-    marginBottom: 24,
+    marginBottom: 20,
     borderLeftWidth: 4,
     borderLeftColor: '#1a237e',
   },
@@ -368,12 +415,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   safeInfoBalance: {
-    fontSize: 16,
-    color: '#1976d2',
+    fontSize: 14,
+    color: '#334155',
     fontWeight: '500',
   },
   formGroup: {
-    marginBottom: 24,
+    marginBottom: 20,
     backgroundColor: '#fff',
     padding: 16,
     borderRadius: 12,
@@ -422,20 +469,19 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
-  typeDescription: {
-    fontSize: 14,
-    color: '#6b7280',
+  typeHint: {
     marginTop: 8,
-    fontStyle: 'italic',
+    color: '#64748b',
+    fontSize: 13,
   },
   submitButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#1a237e',
-    paddingVertical: 18,
+    paddingVertical: 16,
     borderRadius: 12,
-    marginTop: 24,
+    marginTop: 16,
     marginHorizontal: 8,
     shadowColor: '#1a237e',
     shadowOffset: {
@@ -451,7 +497,7 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '600',
     marginLeft: 8,
   },

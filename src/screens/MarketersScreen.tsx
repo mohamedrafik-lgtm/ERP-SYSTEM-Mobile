@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, 
 import CustomMenu from '../components/CustomMenu';
 import AuthService from '../services/AuthService';
 import type { MarketingEmployeesResponse } from '../types/marketing';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 
 const MarketersScreen = ({ navigation }: any) => {
   const [loading, setLoading] = useState(true);

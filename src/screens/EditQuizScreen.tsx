@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,9 +11,11 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import CustomMenu from '../components/CustomMenu';
+import SelectBox from '../components/SelectBox';
+import DateTimePickerField from '../components/DateTimePickerField';
 import AuthService from '../services/AuthService';
 import Toast from 'react-native-toast-message';
-import { QuizResponse } from '../types/quiz';
+import { QuizQuestionDto, QuizResponse } from '../types/quiz';
 
 interface EditQuizScreenProps {
   navigation: any;
@@ -24,11 +26,86 @@ interface EditQuizScreenProps {
   };
 }
 
+interface QuestionItem {
+  id: number;
+  text: string;
+  type?: string;
+  skill?: string;
+  difficulty?: string;
+  chapter?: number;
+}
+
+interface SelectedQuestionItem extends QuizQuestionDto {
+  order: number;
+  points: number;
+  question: QuestionItem;
+}
+
+const extractArray = (data: any): any[] => {
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray(data.data)) return data.data;
+  if (data && Array.isArray(data.questions)) return data.questions;
+  if (data && Array.isArray(data.items)) return data.items;
+  return [];
+};
+
+const normalizeQuestion = (raw: any): QuestionItem | null => {
+  const id = Number(raw?.id ?? raw?.questionId ?? raw?.question?.id);
+  if (!id) return null;
+
+  const textRaw = raw?.text ?? raw?.questionText ?? raw?.content ?? raw?.question?.text ?? raw?.question?.content;
+  const text = typeof textRaw === 'string' && textRaw.trim().length > 0
+    ? textRaw.trim()
+    : `سؤال رقم ${id}`;
+
+  const chapterValue = Number(raw?.chapter ?? raw?.question?.chapter);
+
+  return {
+    id,
+    text,
+    type: raw?.type ?? raw?.question?.type,
+    skill: raw?.skill ?? raw?.question?.skill,
+    difficulty: raw?.difficulty ?? raw?.question?.difficulty,
+    chapter: Number.isFinite(chapterValue) && chapterValue > 0 ? chapterValue : undefined,
+  };
+};
+
+const reindexSelectedQuestions = (items: SelectedQuestionItem[]): SelectedQuestionItem[] => {
+  return items.map((item, index) => ({
+    ...item,
+    order: index + 1,
+  }));
+};
+
+const mapQuestionType = (type?: string) => {
+  if (type === 'MULTIPLE_CHOICE') return 'اختيار متعدد';
+  if (type === 'TRUE_FALSE') return 'صح/خطأ';
+  return type || 'غير محدد';
+};
+
+const mapSkill = (skill?: string) => {
+  if (skill === 'KNOWLEDGE') return 'معرفة';
+  if (skill === 'COMPREHENSION') return 'فهم';
+  if (skill === 'APPLICATION') return 'تطبيق';
+  if (skill === 'ANALYSIS') return 'تحليل';
+  if (skill === 'SYNTHESIS') return 'تركيب';
+  if (skill === 'EVALUATION') return 'تقييم';
+  return skill;
+};
+
+const mapDifficulty = (difficulty?: string) => {
+  if (difficulty === 'EASY') return 'سهل';
+  if (difficulty === 'MEDIUM') return 'متوسط';
+  if (difficulty === 'HARD') return 'صعب';
+  return difficulty;
+};
+
 const EditQuizScreen: React.FC<EditQuizScreenProps> = ({ navigation, route }) => {
   const quizId = route.params?.quizId;
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [loadingQuestions, setLoadingQuestions] = useState(false);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -46,10 +123,59 @@ const EditQuizScreen: React.FC<EditQuizScreenProps> = ({ navigation, route }) =>
   const [isPublished, setIsPublished] = useState(false);
 
   const [quiz, setQuiz] = useState<QuizResponse | null>(null);
+  const [availableQuestions, setAvailableQuestions] = useState<QuestionItem[]>([]);
+  const [selectedQuestions, setSelectedQuestions] = useState<SelectedQuestionItem[]>([]);
+  const [selectedQuestionPickerId, setSelectedQuestionPickerId] = useState<number | undefined>(undefined);
+  const [questionSearch, setQuestionSearch] = useState('');
 
   const toInputDate = (value?: string) => {
     if (!value) return '';
     return new Date(value).toISOString().slice(0, 16);
+  };
+
+  const loadQuestionsForContent = async (contentId: number) => {
+    try {
+      setLoadingQuestions(true);
+
+      let normalized: QuestionItem[] = [];
+
+      try {
+        const questionBankData = await AuthService.getAllQuestions({
+          contentId,
+          limit: 200,
+        });
+        normalized = extractArray(questionBankData)
+          .map(normalizeQuestion)
+          .filter((q): q is QuestionItem => q !== null);
+      } catch (error) {
+        const contentData = await AuthService.getQuestionsByContent(contentId);
+        normalized = extractArray(contentData)
+          .map(normalizeQuestion)
+          .filter((q): q is QuestionItem => q !== null);
+      }
+
+      const unique = normalized.filter((question, index, arr) => {
+        return arr.findIndex(item => item.id === question.id) === index;
+      });
+
+      setAvailableQuestions(unique);
+
+      setSelectedQuestions(prev =>
+        prev.map(item => {
+          const matched = unique.find(question => question.id === item.questionId);
+          return matched ? { ...item, question: matched } : item;
+        })
+      );
+    } catch (error) {
+      setAvailableQuestions([]);
+      Toast.show({
+        type: 'error',
+        text1: 'فشل تحميل بنك الأسئلة',
+        position: 'bottom',
+      });
+    } finally {
+      setLoadingQuestions(false);
+    }
   };
 
   const loadQuiz = async () => {
@@ -78,8 +204,36 @@ const EditQuizScreen: React.FC<EditQuizScreenProps> = ({ navigation, route }) =>
       setShowCorrectAnswers(!!data.showCorrectAnswers);
       setIsActive(!!data.isActive);
       setIsPublished(!!data.isPublished);
+
+      const mappedQuestions = extractArray((data as any).questions)
+        .map((item: any, index: number) => {
+          const normalized = normalizeQuestion(item?.question || item);
+          const questionId = Number(item?.questionId ?? item?.question?.id ?? normalized?.id);
+          if (!questionId) return null;
+
+          const fallbackQuestion: QuestionItem =
+            normalized || {
+              id: questionId,
+              text: `سؤال رقم ${questionId}`,
+            };
+
+          return {
+            questionId,
+            order: Number(item?.order ?? index + 1) || index + 1,
+            points: Number(item?.points ?? 1) || 1,
+            question: fallbackQuestion,
+          } as SelectedQuestionItem;
+        })
+        .filter((item: SelectedQuestionItem | null): item is SelectedQuestionItem => item !== null)
+        .sort((a, b) => a.order - b.order);
+
+      setSelectedQuestions(reindexSelectedQuestions(mappedQuestions));
+
+      const contentId = Number((data as any)?.trainingContent?.id ?? (data as any)?.trainingContentId);
+      if (contentId) {
+        await loadQuestionsForContent(contentId);
+      }
     } catch (error) {
-      console.error('Error loading quiz for edit:', error);
       Toast.show({
         type: 'error',
         text1: 'فشل تحميل بيانات الاختبار',
@@ -94,6 +248,67 @@ const EditQuizScreen: React.FC<EditQuizScreenProps> = ({ navigation, route }) =>
     loadQuiz();
   }, [quizId]);
 
+  const addQuestion = (question: QuestionItem) => {
+    setSelectedQuestions(prev => {
+      const exists = prev.some(item => item.questionId === question.id);
+      if (exists) {
+        Toast.show({
+          type: 'error',
+          text1: 'هذا السؤال مضاف مسبقاً',
+          position: 'bottom',
+        });
+        return prev;
+      }
+
+      return [
+        ...prev,
+        {
+          questionId: question.id,
+          order: prev.length + 1,
+          points: 1,
+          question,
+        },
+      ];
+    });
+  };
+
+  const removeQuestion = (questionId: number) => {
+    setSelectedQuestions(prev => reindexSelectedQuestions(prev.filter(item => item.questionId !== questionId)));
+  };
+
+  const updateQuestionPoints = (questionId: number, value: string) => {
+    const points = Number(value);
+    const safePoints = Number.isFinite(points) && points >= 0.5 ? points : 0.5;
+
+    setSelectedQuestions(prev =>
+      prev.map(item => (item.questionId === questionId ? { ...item, points: safePoints } : item))
+    );
+  };
+
+  const moveQuestion = (index: number, direction: 'up' | 'down') => {
+    setSelectedQuestions(prev => {
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= prev.length) {
+        return prev;
+      }
+
+      const next = [...prev];
+      const temp = next[index];
+      next[index] = next[targetIndex];
+      next[targetIndex] = temp;
+      return reindexSelectedQuestions(next);
+    });
+  };
+
+  const handleQuestionPickerChange = (questionId: number) => {
+    setSelectedQuestionPickerId(questionId);
+    const question = unselectedQuestions.find(item => item.id === questionId);
+    if (question) {
+      addQuestion(question);
+      setSelectedQuestionPickerId(undefined);
+    }
+  };
+
   const handleSave = async () => {
     if (!quizId) return;
 
@@ -105,8 +320,16 @@ const EditQuizScreen: React.FC<EditQuizScreenProps> = ({ navigation, route }) =>
       Toast.show({ type: 'error', text1: 'أدخل تاريخ البداية والنهاية', position: 'bottom' });
       return;
     }
+    if (new Date(startDate) >= new Date(endDate)) {
+      Toast.show({ type: 'error', text1: 'تاريخ البداية يجب أن يكون قبل النهاية', position: 'bottom' });
+      return;
+    }
     if (!duration || Number(duration) < 1) {
       Toast.show({ type: 'error', text1: 'مدة الاختبار غير صحيحة', position: 'bottom' });
+      return;
+    }
+    if (selectedQuestions.length === 0) {
+      Toast.show({ type: 'error', text1: 'يجب إضافة سؤال واحد على الأقل', position: 'bottom' });
       return;
     }
 
@@ -129,6 +352,11 @@ const EditQuizScreen: React.FC<EditQuizScreenProps> = ({ navigation, route }) =>
         showCorrectAnswers,
         isActive,
         isPublished,
+        questions: selectedQuestions.map(item => ({
+          questionId: item.questionId,
+          order: item.order,
+          points: item.points,
+        })),
       });
 
       Toast.show({
@@ -139,7 +367,6 @@ const EditQuizScreen: React.FC<EditQuizScreenProps> = ({ navigation, route }) =>
 
       navigation.goBack();
     } catch (error) {
-      console.error('Error updating quiz:', error);
       Toast.show({
         type: 'error',
         text1: 'فشل تحديث الاختبار',
@@ -150,6 +377,19 @@ const EditQuizScreen: React.FC<EditQuizScreenProps> = ({ navigation, route }) =>
       setSaving(false);
     }
   };
+
+  const unselectedQuestions = useMemo(
+    () => availableQuestions.filter(question => !selectedQuestions.some(item => item.questionId === question.id)),
+    [availableQuestions, selectedQuestions]
+  );
+
+  const filteredUnselectedQuestions = useMemo(() => {
+    const query = questionSearch.trim().toLowerCase();
+    if (!query) return unselectedQuestions;
+    return unselectedQuestions.filter(question => question.text.toLowerCase().includes(query));
+  }, [unselectedQuestions, questionSearch]);
+
+  const totalPoints = selectedQuestions.reduce((sum, item) => sum + (item.points || 0), 0);
 
   if (loading) {
     return (
@@ -188,9 +428,7 @@ const EditQuizScreen: React.FC<EditQuizScreenProps> = ({ navigation, route }) =>
 
           <Text style={styles.label}>المحتوى التدريبي</Text>
           <View style={styles.readonlyBox}>
-            <Text style={styles.readonlyText}>
-              {quiz?.trainingContent?.nameAr || quiz?.trainingContent?.nameEn || '-'}
-            </Text>
+            <Text style={styles.readonlyText}>{quiz?.trainingContent?.nameAr || quiz?.trainingContent?.nameEn || '-'}</Text>
           </View>
 
           <Text style={styles.label}>عنوان الاختبار *</Text>
@@ -220,11 +458,19 @@ const EditQuizScreen: React.FC<EditQuizScreenProps> = ({ navigation, route }) =>
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>التوقيت والإعدادات</Text>
 
-          <Text style={styles.label}>البداية *</Text>
-          <TextInput style={styles.input} value={startDate} onChangeText={setStartDate} placeholder="YYYY-MM-DDTHH:MM" />
+          <DateTimePickerField
+            label="البداية *"
+            value={startDate}
+            onChange={setStartDate}
+            placeholder="اختر تاريخ ووقت البداية"
+          />
 
-          <Text style={styles.label}>النهاية *</Text>
-          <TextInput style={styles.input} value={endDate} onChangeText={setEndDate} placeholder="YYYY-MM-DDTHH:MM" />
+          <DateTimePickerField
+            label="النهاية *"
+            value={endDate}
+            onChange={setEndDate}
+            placeholder="اختر تاريخ ووقت النهاية"
+          />
 
           <Text style={styles.label}>المدة بالدقائق *</Text>
           <TextInput style={styles.input} value={duration} onChangeText={setDuration} keyboardType="numeric" />
@@ -234,6 +480,104 @@ const EditQuizScreen: React.FC<EditQuizScreenProps> = ({ navigation, route }) =>
 
           <Text style={styles.label}>عدد المحاولات</Text>
           <TextInput style={styles.input} value={maxAttempts} onChangeText={setMaxAttempts} keyboardType="numeric" />
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>الأسئلة</Text>
+
+          {loadingQuestions ? (
+            <View style={styles.loadingRow}>
+              <ActivityIndicator size="small" color="#1a237e" />
+              <Text style={styles.loadingText}>جاري تحميل بنك الأسئلة...</Text>
+            </View>
+          ) : (
+            <>
+              <View style={styles.questionStatsCard}>
+                <Text style={styles.statsText}>المتاح: {unselectedQuestions.length}</Text>
+                <Text style={styles.statsText}>المختار: {selectedQuestions.length}</Text>
+                <Text style={styles.statsText}>إجمالي الدرجات: {totalPoints}</Text>
+              </View>
+
+              <Text style={styles.label}>بحث في بنك الأسئلة</Text>
+              <TextInput
+                style={styles.input}
+                value={questionSearch}
+                onChangeText={setQuestionSearch}
+                placeholder="اكتب جزءاً من نص السؤال"
+              />
+
+              <Text style={styles.label}>إضافة سؤال يدوياً</Text>
+              <SelectBox
+                label=""
+                items={filteredUnselectedQuestions.map(question => ({
+                  value: question.id,
+                  label: question.text.length > 90 ? `${question.text.slice(0, 90)}...` : question.text,
+                }))}
+                selectedValue={selectedQuestionPickerId}
+                onValueChange={handleQuestionPickerChange}
+                placeholder={filteredUnselectedQuestions.length ? 'اختر سؤالاً للإضافة' : 'لا توجد أسئلة مطابقة'}
+                disabled={!filteredUnselectedQuestions.length}
+              />
+
+              {selectedQuestions.length === 0 ? (
+                <Text style={styles.emptyText}>لم يتم إضافة أسئلة بعد</Text>
+              ) : (
+                selectedQuestions.map((item, index) => (
+                  <View key={item.questionId} style={styles.selectedQuestionCard}>
+                    <View style={styles.selectedQuestionHeader}>
+                      <Text style={styles.selectedQuestionIndex}>#{index + 1}</Text>
+                      <View style={styles.selectedQuestionActions}>
+                        <TouchableOpacity
+                          style={styles.iconButton}
+                          onPress={() => moveQuestion(index, 'up')}
+                          disabled={index === 0}
+                        >
+                          <Icon name="arrow-upward" size={18} color={index === 0 ? '#9ca3af' : '#1a237e'} />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.iconButton}
+                          onPress={() => moveQuestion(index, 'down')}
+                          disabled={index === selectedQuestions.length - 1}
+                        >
+                          <Icon
+                            name="arrow-downward"
+                            size={18}
+                            color={index === selectedQuestions.length - 1 ? '#9ca3af' : '#1a237e'}
+                          />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.deleteButton} onPress={() => removeQuestion(item.questionId)}>
+                          <Icon name="delete-outline" size={18} color="#dc2626" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    <Text style={styles.selectedQuestionText}>{item.question.text}</Text>
+
+                    <View style={styles.questionMetaRow}>
+                      <Text style={styles.questionMetaBadge}>{mapQuestionType(item.question.type)}</Text>
+                      {item.question.skill ? <Text style={styles.questionMetaBadge}>{mapSkill(item.question.skill)}</Text> : null}
+                      {item.question.difficulty ? (
+                        <Text style={styles.questionMetaBadge}>{mapDifficulty(item.question.difficulty)}</Text>
+                      ) : null}
+                      {item.question.chapter ? (
+                        <Text style={styles.questionMetaBadge}>الباب {item.question.chapter}</Text>
+                      ) : null}
+                    </View>
+
+                    <View style={styles.pointsRow}>
+                      <Text style={styles.pointsLabel}>الدرجة</Text>
+                      <TextInput
+                        style={styles.pointsInput}
+                        value={String(item.points)}
+                        onChangeText={value => updateQuestionPoints(item.questionId, value)}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                  </View>
+                ))
+              )}
+            </>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -270,11 +614,7 @@ const EditQuizScreen: React.FC<EditQuizScreenProps> = ({ navigation, route }) =>
           </View>
         </View>
 
-        <TouchableOpacity
-          style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
-          onPress={handleSave}
-          disabled={saving}
-        >
+        <TouchableOpacity style={[styles.saveBtn, saving && styles.saveBtnDisabled]} onPress={handleSave} disabled={saving}>
           {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveBtnText}>حفظ التعديلات</Text>}
         </TouchableOpacity>
 
@@ -357,5 +697,115 @@ const styles = StyleSheet.create({
   saveBtnDisabled: { opacity: 0.65 },
   saveBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   centerContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 12,
+  },
   loadingText: { color: '#6b7280' },
+  questionStatsCard: {
+    backgroundColor: '#eef2ff',
+    borderWidth: 1,
+    borderColor: '#c7d2fe',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  statsText: {
+    color: '#3730a3',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  selectedQuestionCard: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    padding: 12,
+    marginBottom: 10,
+  },
+  selectedQuestionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  selectedQuestionIndex: {
+    color: '#4f46e5',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  selectedQuestionActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  iconButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#eef2ff',
+  },
+  deleteButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fee2e2',
+  },
+  selectedQuestionText: {
+    color: '#111827',
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  questionMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 10,
+  },
+  questionMetaBadge: {
+    fontSize: 12,
+    color: '#334155',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    overflow: 'hidden',
+  },
+  pointsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  pointsLabel: {
+    color: '#374151',
+    fontWeight: '600',
+  },
+  pointsInput: {
+    width: 88,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    textAlign: 'center',
+    color: '#111827',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
+    paddingVertical: 12,
+  },
 });

@@ -14,7 +14,9 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { launchCamera, launchImageLibrary, ImagePickerAsset } from 'react-native-image-picker';
 import AuthService from '../services/AuthService';
+import { usePermissions } from '../hooks/usePermissions';
 import {
   DocumentWithStatus,
   TraineeDocument,
@@ -37,12 +39,16 @@ const TraineeDocumentsScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute();
   const { trainee } = (route.params || {}) as TraineeRouteParams;
+  const { canEdit } = usePermissions();
 
   const [documentsData, setDocumentsData] = useState<TraineeDocumentsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [apiBaseUrl, setApiBaseUrl] = useState('');
   const [photoViewer, setPhotoViewer] = useState<PhotoViewerState>(null);
+  const [uploadingType, setUploadingType] = useState<string | null>(null);
+
+  const canUploadDocuments = canEdit('dashboard.trainee-documents');
 
   useEffect(() => {
     fetchDocuments();
@@ -239,6 +245,138 @@ const TraineeDocumentsScreen: React.FC = () => {
     }
   };
 
+  const normalizeImageAsset = (asset: ImagePickerAsset, docType: string) => {
+    const uri = asset.uri;
+    if (!uri) {
+      throw new Error('تعذر قراءة مسار الصورة المحددة');
+    }
+
+    const inferredType = asset.type || 'image/jpeg';
+    if (!inferredType.startsWith('image/')) {
+      throw new Error('يرجى اختيار صورة فقط');
+    }
+
+    const extFromMime = inferredType.split('/')[1] || 'jpg';
+    const fileName =
+      asset.fileName || `${String(docType).toLowerCase()}_${Date.now()}.${extFromMime}`;
+
+    return {
+      uri,
+      type: inferredType,
+      fileName,
+      fileSize: asset.fileSize || 0,
+    };
+  };
+
+  const uploadDocumentAsset = async (doc: DocumentWithStatus, asset?: ImagePickerAsset) => {
+    if (!asset) {
+      return;
+    }
+
+    try {
+      const normalized = normalizeImageAsset(asset, String(doc.type));
+      setUploadingType(String(doc.type));
+
+      const uploadResult = await AuthService.uploadFile(
+        {
+          uri: normalized.uri,
+          name: normalized.fileName,
+          type: normalized.type,
+        },
+        'documents',
+      );
+
+      await AuthService.uploadTraineeDocument(trainee.id, {
+        documentType: doc.type,
+        fileName: normalized.fileName,
+        filePath: uploadResult.url,
+        fileSize: normalized.fileSize,
+        mimeType: normalized.type,
+      });
+
+      Alert.alert('تم بنجاح', 'تم رفع الوثيقة بنجاح');
+      await fetchDocuments();
+    } catch (error: any) {
+      Alert.alert('خطأ في الرفع', error?.message || 'تعذر رفع الوثيقة');
+    } finally {
+      setUploadingType(null);
+    }
+  };
+
+  const pickFromCamera = async (doc: DocumentWithStatus) => {
+    const result = await launchCamera({
+      mediaType: 'photo',
+      quality: 0.85,
+      saveToPhotos: false,
+      includeBase64: false,
+      selectionLimit: 1,
+    });
+
+    if (result.didCancel) {
+      return;
+    }
+
+    if (result.errorCode) {
+      throw new Error(result.errorMessage || 'تعذر فتح الكاميرا');
+    }
+
+    await uploadDocumentAsset(doc, result.assets?.[0]);
+  };
+
+  const pickFromLibrary = async (doc: DocumentWithStatus) => {
+    const result = await launchImageLibrary({
+      mediaType: 'photo',
+      quality: 0.85,
+      includeBase64: false,
+      selectionLimit: 1,
+    });
+
+    if (result.didCancel) {
+      return;
+    }
+
+    if (result.errorCode) {
+      throw new Error(result.errorMessage || 'تعذر فتح معرض الصور');
+    }
+
+    await uploadDocumentAsset(doc, result.assets?.[0]);
+  };
+
+  const handleUploadDocument = (doc: DocumentWithStatus) => {
+    if (!canUploadDocuments) {
+      Alert.alert('غير مسموح', 'لا تمتلك صلاحية رفع وثائق المتدربين');
+      return;
+    }
+
+    if (uploadingType) {
+      return;
+    }
+
+    Alert.alert('رفع الوثيقة', 'اختر مصدر الصورة', [
+      {
+        text: 'التقاط بالكاميرا',
+        onPress: async () => {
+          try {
+            await pickFromCamera(doc);
+          } catch (error: any) {
+            Alert.alert('خطأ', error?.message || 'تعذر التقاط الصورة');
+          }
+        },
+      },
+      {
+        text: 'اختيار من المعرض',
+        onPress: async () => {
+          try {
+            await pickFromLibrary(doc);
+          } catch (error: any) {
+            Alert.alert('خطأ', error?.message || 'تعذر اختيار الصورة');
+          }
+        },
+      },
+      { text: 'إلغاء', style: 'cancel' },
+    ]);
+  };
+
   const stats = documentsData?.stats;
 
   const completionColor = useMemo(() => {
@@ -322,6 +460,7 @@ const TraineeDocumentsScreen: React.FC = () => {
   const renderDocumentCard = (doc: DocumentWithStatus) => {
     const meta = getDocumentTypeMeta(String(doc.type));
     const documentUrl = doc.document ? resolveDocumentUrl(doc.document.filePath) : '';
+    const isUploadingThisType = uploadingType === String(doc.type);
 
     return (
       <View key={`${doc.type}-${doc.nameAr}`} style={styles.documentCard}>
@@ -414,11 +553,43 @@ const TraineeDocumentsScreen: React.FC = () => {
                     : 'فتح الملف'}
               </Text>
             </TouchableOpacity>
+
+            {canUploadDocuments ? (
+              <TouchableOpacity
+                style={[styles.uploadButton, styles.replaceButton, uploadingType ? styles.disabledActionButton : null]}
+                onPress={() => handleUploadDocument(doc)}
+                disabled={Boolean(uploadingType)}
+              >
+                {isUploadingThisType ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Icon name="upload-file" size={18} color="#ffffff" />
+                )}
+                <Text style={styles.uploadButtonText}>{isUploadingThisType ? 'جاري الرفع...' : 'استبدال الوثيقة'}</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         ) : (
           <View style={styles.missingContainer}>
             <Icon name="cloud-off" size={18} color="#ef4444" />
             <Text style={styles.missingText}>هذه الوثيقة غير مرفوعة حتى الآن</Text>
+
+            {canUploadDocuments ? (
+              <TouchableOpacity
+                style={[styles.uploadButton, uploadingType ? styles.disabledActionButton : null]}
+                onPress={() => handleUploadDocument(doc)}
+                disabled={Boolean(uploadingType)}
+              >
+                {isUploadingThisType ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <Icon name="upload-file" size={18} color="#ffffff" />
+                )}
+                <Text style={styles.uploadButtonText}>
+                  {isUploadingThisType ? 'جاري الرفع...' : 'رفع الوثيقة'}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         )}
       </View>
@@ -884,6 +1055,27 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 13,
     fontWeight: '700',
+  },
+  uploadButton: {
+    marginTop: 8,
+    backgroundColor: '#0f766e',
+    borderRadius: 10,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  replaceButton: {
+    backgroundColor: '#0f766e',
+  },
+  uploadButtonText: {
+    marginLeft: 6,
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  disabledActionButton: {
+    opacity: 0.6,
   },
   missingContainer: {
     marginTop: 10,

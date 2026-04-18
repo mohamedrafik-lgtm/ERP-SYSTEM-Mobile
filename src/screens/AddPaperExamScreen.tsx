@@ -13,6 +13,7 @@ import Icon from 'react-native-vector-icons/MaterialIcons';
 import Toast from 'react-native-toast-message';
 import CustomMenu from '../components/CustomMenu';
 import SelectBox from '../components/SelectBox';
+import DateTimePickerField from '../components/DateTimePickerField';
 import AuthService from '../services/AuthService';
 
 interface AddPaperExamScreenProps {
@@ -220,13 +221,11 @@ const AddPaperExamScreen: React.FC<AddPaperExamScreenProps> = ({ navigation }) =
             textAlignVertical="top"
           />
 
-          <Text style={styles.label}>تاريخ الاختبار</Text>
-          <TextInput
-            style={styles.input}
+          <DateTimePickerField
+            label="تاريخ الاختبار"
             value={examDate}
-            onChangeText={setExamDate}
-            placeholder="2026-03-20T10:00:00"
-            placeholderTextColor="#9ca3af"
+            onChange={setExamDate}
+            placeholder="اختر تاريخ ووقت الاختبار"
           />
 
           <Text style={styles.label}>نوع الدرجة</Text>

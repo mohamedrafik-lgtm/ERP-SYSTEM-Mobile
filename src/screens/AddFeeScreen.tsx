@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -12,8 +12,15 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import SelectBox from '../components/SelectBox';
+import DatePickerModal from '../components/DatePickerModal';
 import AuthService from '../services/AuthService';
-import { CreateTraineeFeePayload, FeeType, ISafe } from '../types/student';
+import {
+  CreateTraineeFeePayload,
+  FeeType,
+  ISafe,
+  ITraineeFee,
+  UpdateTraineeFeePayload,
+} from '../types/student';
 
 interface Program {
   id: number;
@@ -23,20 +30,37 @@ interface Program {
 
 interface AddFeeScreenProps {
   navigation: any;
+  route?: {
+    params?: {
+      feeId?: number;
+      fee?: ITraineeFee;
+      isEdit?: boolean;
+    };
+  };
 }
 
-const AddFeeScreen = ({ navigation }: AddFeeScreenProps) => {
+const AddFeeScreen = ({ navigation, route }: AddFeeScreenProps) => {
+  const feeId = route?.params?.feeId;
+  const feeParam = route?.params?.fee;
+  const isEdit = Boolean(route?.params?.isEdit || feeId || feeParam);
+
   const [loading, setLoading] = useState(false);
+  const [screenLoading, setScreenLoading] = useState(isEdit && !feeParam);
   const [programsLoading, setProgramsLoading] = useState(true);
   const [safesLoading, setSafesLoading] = useState(true);
   const [programs, setPrograms] = useState<Program[]>([]);
   const [safes, setSafes] = useState<ISafe[]>([]);
+  const [isDatePickerVisible, setIsDatePickerVisible] = useState(false);
+
   const [formData, setFormData] = useState<CreateTraineeFeePayload>({
     name: '',
     amount: 0,
     type: 'TUITION',
-    academicYear: '',
+    academicYear: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
     allowMultipleApply: false,
+    allowPartialPayment: true,
+    refundDeadlineEnabled: false,
+    refundDeadlineAt: '',
     programId: 0,
     safeId: '',
   });
@@ -49,24 +73,76 @@ const AddFeeScreen = ({ navigation }: AddFeeScreenProps) => {
     { value: 'ADDITIONAL', label: 'رسوم إضافية' },
   ];
 
-  const academicYearOptions = [
-    { value: '2024-2025', label: '2024-2025' },
-    { value: '2025-2026', label: '2025-2026' },
-    { value: '2026-2027', label: '2026-2027' },
-    { value: '2027-2028', label: '2027-2028' },
-  ];
+  const academicYearOptions = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    return Array.from({ length: 6 }, (_, index) => {
+      const start = currentYear - 2 + index;
+      return {
+        value: `${start}-${start + 1}`,
+        label: `${start}-${start + 1}`,
+      };
+    });
+  }, []);
+
+  const debtSafes = useMemo(() => safes.filter(safe => safe.category === 'DEBT'), [safes]);
 
   useEffect(() => {
-    fetchPrograms();
-    fetchSafes();
-  }, []);
+    const bootstrap = async () => {
+      await Promise.all([fetchPrograms(), fetchSafes()]);
+
+      if (!isEdit) {
+        return;
+      }
+
+      if (feeParam) {
+        fillFormFromFee(feeParam);
+        return;
+      }
+
+      if (feeId) {
+        await fetchFeeById(feeId);
+      }
+    };
+
+    bootstrap();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const fillFormFromFee = (fee: ITraineeFee) => {
+    const normalizedRefundDeadlineEnabled = fee.type !== 'TUITION' && Boolean(fee.refundDeadlineEnabled);
+    const refundDate = fee.refundDeadlineAt ? new Date(fee.refundDeadlineAt).toISOString().split('T')[0] : '';
+
+    setFormData({
+      name: fee.name,
+      amount: fee.amount,
+      type: fee.type,
+      academicYear: fee.academicYear,
+      allowMultipleApply: fee.allowMultipleApply,
+      allowPartialPayment: fee.type === 'TUITION' ? true : fee.allowPartialPayment !== false,
+      refundDeadlineEnabled: normalizedRefundDeadlineEnabled,
+      refundDeadlineAt: normalizedRefundDeadlineEnabled ? refundDate : '',
+      programId: fee.programId,
+      safeId: fee.safeId,
+    });
+  };
+
+  const fetchFeeById = async (id: number) => {
+    try {
+      setScreenLoading(true);
+      const fee = await AuthService.getTraineeFeeById(id);
+      fillFormFromFee(fee);
+    } catch (error) {
+      console.error('Error fetching fee by id:', error);
+      Alert.alert('خطأ', 'تعذر تحميل بيانات الرسوم للتعديل');
+      navigation.goBack();
+    } finally {
+      setScreenLoading(false);
+    }
+  };
 
   const fetchPrograms = async () => {
     try {
       setProgramsLoading(true);
-      console.log('Fetching programs...');
       const data = await AuthService.getAllPrograms();
-      console.log('Fetched programs:', data);
       setPrograms(data);
     } catch (error) {
       console.error('Error fetching programs:', error);
@@ -79,9 +155,7 @@ const AddFeeScreen = ({ navigation }: AddFeeScreenProps) => {
   const fetchSafes = async () => {
     try {
       setSafesLoading(true);
-      console.log('Fetching safes...');
       const data = await AuthService.getAllSafes();
-      console.log('Fetched safes:', data);
       setSafes(data);
     } catch (error) {
       console.error('Error fetching safes:', error);
@@ -114,8 +188,30 @@ const AddFeeScreen = ({ navigation }: AddFeeScreenProps) => {
       newErrors.safeId = 'الخزينة مطلوبة';
     }
 
+    if (formData.type !== 'TUITION' && formData.refundDeadlineEnabled && !formData.refundDeadlineAt) {
+      newErrors.refundDeadlineAt = 'يرجى إدخال آخر موعد للاسترداد';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const buildPayload = (): CreateTraineeFeePayload => {
+    const isTuition = formData.type === 'TUITION';
+    const canUseRefundDate = !isTuition && Boolean(formData.refundDeadlineEnabled) && Boolean(formData.refundDeadlineAt);
+
+    return {
+      name: formData.name.trim(),
+      amount: formData.amount,
+      type: formData.type,
+      academicYear: formData.academicYear,
+      allowMultipleApply: Boolean(formData.allowMultipleApply),
+      allowPartialPayment: isTuition ? true : Boolean(formData.allowPartialPayment),
+      refundDeadlineEnabled: isTuition ? false : Boolean(formData.refundDeadlineEnabled),
+      refundDeadlineAt: canUseRefundDate ? formData.refundDeadlineAt : undefined,
+      programId: formData.programId,
+      safeId: formData.safeId,
+    };
   };
 
   const handleSubmit = async () => {
@@ -126,21 +222,15 @@ const AddFeeScreen = ({ navigation }: AddFeeScreenProps) => {
     try {
       setLoading(true);
 
-      // إعداد البيانات للإرسال
-      const feeData: CreateTraineeFeePayload = {
-        name: formData.name.trim(),
-        amount: formData.amount,
-        type: formData.type,
-        academicYear: formData.academicYear,
-        allowMultipleApply: formData.allowMultipleApply,
-        programId: formData.programId,
-        safeId: formData.safeId,
-      };
+      const payload = buildPayload();
 
-      // إرسال البيانات للـ API
-      await AuthService.createTraineeFee(feeData);
-      
-      Alert.alert('نجح', 'تم إنشاء الرسوم بنجاح', [
+      if (isEdit && feeId) {
+        await AuthService.updateTraineeFee(feeId, payload as UpdateTraineeFeePayload);
+      } else {
+        await AuthService.createTraineeFee(payload);
+      }
+
+      Alert.alert('نجح', isEdit ? 'تم تعديل الرسوم بنجاح' : 'تم إنشاء الرسوم بنجاح', [
         {
           text: 'حسناً',
           onPress: () => navigation.goBack(),
@@ -154,16 +244,26 @@ const AddFeeScreen = ({ navigation }: AddFeeScreenProps) => {
     }
   };
 
-  const handleInputChange = (field: string, value: any) => {
-    console.log(`Updating ${field}:`, value);
-    console.log('Current formData:', formData);
-    
-    setFormData({
-      ...formData,
-      [field]: value,
+  const handleInputChange = (field: keyof CreateTraineeFeePayload, value: any) => {
+    setFormData(prev => {
+      const next = {
+        ...prev,
+        [field]: value,
+      };
+
+      if (field === 'type' && value === 'TUITION') {
+        next.allowPartialPayment = true;
+        next.refundDeadlineEnabled = false;
+        next.refundDeadlineAt = '';
+      }
+
+      if (field === 'refundDeadlineEnabled' && !value) {
+        next.refundDeadlineAt = '';
+      }
+
+      return next;
     });
-    
-    // مسح الخطأ عند بدء الكتابة
+
     if (errors[field]) {
       setErrors({
         ...errors,
@@ -188,34 +288,29 @@ const AddFeeScreen = ({ navigation }: AddFeeScreenProps) => {
   };
 
   const getProgramOptions = () => {
-    console.log('Getting program options, programs:', programs);
-    console.log('Programs length:', programs.length);
-    
-    if (programs.length === 0) {
-      console.log('No programs available');
-      return [];
-    }
-    
-    const options = programs.map(program => {
-      console.log('Mapping program:', program);
-      return {
-        value: program.id,
-        label: program.nameAr,
-      };
-    });
-    console.log('Program options:', options);
-    return options;
+    return programs.map(program => ({
+      value: program.id,
+      label: program.nameAr,
+    }));
   };
 
   const getSafeOptions = () => {
-    console.log('Getting safe options, safes:', safes);
-    const options = safes.map(safe => ({
+    return debtSafes.map(safe => ({
       value: safe.id,
       label: safe.name,
     }));
-    console.log('Safe options:', options);
-    return options;
   };
+
+  if (screenLoading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#1a237e" />
+          <Text style={styles.loadingText}>جاري تحميل بيانات الرسوم...</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -227,14 +322,15 @@ const AddFeeScreen = ({ navigation }: AddFeeScreenProps) => {
           <Icon name="arrow-back" size={24} color="#1a237e" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>إضافة رسوم جديدة</Text>
-          <Text style={styles.headerSubtitle}>إنشاء رسوم للطلاب</Text>
+          <Text style={styles.headerTitle}>{isEdit ? 'تعديل الرسوم' : 'إضافة رسوم جديدة'}</Text>
+          <Text style={styles.headerSubtitle}>
+            {isEdit ? 'تحديث بيانات الرسوم الحالية' : 'إنشاء رسوم جديدة للمتدربين'}
+          </Text>
         </View>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.form}>
-          {/* Fee Name */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>اسم الرسوم *</Text>
             <TextInput
@@ -248,7 +344,6 @@ const AddFeeScreen = ({ navigation }: AddFeeScreenProps) => {
             {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
           </View>
 
-          {/* Fee Type */}
           <View style={styles.formGroup}>
             <SelectBox
               label="نوع الرسوم *"
@@ -262,7 +357,6 @@ const AddFeeScreen = ({ navigation }: AddFeeScreenProps) => {
             </Text>
           </View>
 
-          {/* Amount */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>قيمة الرسوم *</Text>
             <TextInput
@@ -277,7 +371,6 @@ const AddFeeScreen = ({ navigation }: AddFeeScreenProps) => {
             {errors.amount && <Text style={styles.errorText}>{errors.amount}</Text>}
           </View>
 
-          {/* Academic Year */}
           <View style={styles.formGroup}>
             <SelectBox
               label="العام الدراسي *"
@@ -289,47 +382,113 @@ const AddFeeScreen = ({ navigation }: AddFeeScreenProps) => {
             />
           </View>
 
-          {/* Program */}
           <View style={styles.formGroup}>
             <SelectBox
               label="البرنامج التدريبي *"
               selectedValue={formData.programId}
-              onValueChange={(value) => {
-                console.log('Program selected:', value);
-                handleInputChange('programId', value);
-              }}
+              onValueChange={(value) => handleInputChange('programId', value)}
               items={getProgramOptions()}
               placeholder="اختر البرنامج التدريبي"
               error={errors.programId}
               loading={programsLoading}
             />
-            {/* Debug Info */}
-            <Text style={styles.debugText}>
-              Selected Program ID: {formData.programId} | Programs Count: {programs.length}
-            </Text>
           </View>
 
-          {/* Safe */}
           <View style={styles.formGroup}>
             <SelectBox
-              label="الخزينة *"
+              label="خزينة الرسوم *"
               selectedValue={formData.safeId}
-              onValueChange={(value) => {
-                console.log('Safe selected:', value);
-                handleInputChange('safeId', value);
-              }}
+              onValueChange={(value) => handleInputChange('safeId', value)}
               items={getSafeOptions()}
-              placeholder="اختر الخزينة"
+              placeholder="اختر خزينة المديونية"
               error={errors.safeId}
               loading={safesLoading}
             />
-            {/* Debug Info */}
-            <Text style={styles.debugText}>
-              Selected Safe ID: {formData.safeId} | Safes Count: {safes.length}
-            </Text>
+            <Text style={styles.helperText}>يتم عرض خزائن المديونية فقط لتطبيق الرسوم عليها.</Text>
+
+            {!safesLoading && debtSafes.length === 0 ? (
+              <Text style={styles.warningText}>لا توجد خزائن مديونية متاحة حالياً.</Text>
+            ) : null}
           </View>
 
-          {/* Allow Multiple Apply */}
+          {formData.type !== 'TUITION' ? (
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>سياسة السداد</Text>
+              <View style={styles.segmentRow}>
+                <TouchableOpacity
+                  style={[
+                    styles.segmentButton,
+                    !formData.allowPartialPayment && styles.segmentButtonActive,
+                  ]}
+                  onPress={() => handleInputChange('allowPartialPayment', false)}
+                >
+                  <Text
+                    style={[
+                      styles.segmentButtonText,
+                      !formData.allowPartialPayment && styles.segmentButtonTextActive,
+                    ]}
+                  >
+                    سداد كامل فقط
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.segmentButton,
+                    formData.allowPartialPayment && styles.segmentButtonActive,
+                  ]}
+                  onPress={() => handleInputChange('allowPartialPayment', true)}
+                >
+                  <Text
+                    style={[
+                      styles.segmentButtonText,
+                      formData.allowPartialPayment && styles.segmentButtonTextActive,
+                    ]}
+                  >
+                    السماح بالسداد الجزئي
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.helperText}>يتم تطبيق السياسة على الدفع الإضافي لنفس الرسم.</Text>
+            </View>
+          ) : null}
+
+          {formData.type !== 'TUITION' ? (
+            <View style={styles.formGroup}>
+              <View style={styles.switchContainer}>
+                <View style={styles.switchContent}>
+                  <Text style={styles.switchLabel}>تفعيل الحد الأقصى للاسترداد</Text>
+                  <Text style={styles.switchDescription}>
+                    عند التفعيل، لا يمكن الاسترداد بعد التاريخ المحدد.
+                  </Text>
+                </View>
+                <Switch
+                  value={Boolean(formData.refundDeadlineEnabled)}
+                  onValueChange={(value) => handleInputChange('refundDeadlineEnabled', value)}
+                  trackColor={{ false: '#e5e7eb', true: '#1a237e' }}
+                  thumbColor={formData.refundDeadlineEnabled ? '#fff' : '#f3f4f6'}
+                />
+              </View>
+
+              {formData.refundDeadlineEnabled ? (
+                <View style={styles.dateRow}>
+                  <Text style={styles.label}>آخر موعد للاسترداد *</Text>
+                  <TouchableOpacity
+                    style={[styles.dateButton, errors.refundDeadlineAt && styles.errorInput]}
+                    onPress={() => setIsDatePickerVisible(true)}
+                  >
+                    <Icon name="event" size={18} color="#1a237e" />
+                    <Text style={styles.dateButtonText}>
+                      {formData.refundDeadlineAt || 'اختر تاريخ الاسترداد'}
+                    </Text>
+                  </TouchableOpacity>
+                  {errors.refundDeadlineAt ? (
+                    <Text style={styles.errorText}>{errors.refundDeadlineAt}</Text>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
           <View style={styles.formGroup}>
             <View style={styles.switchContainer}>
               <View style={styles.switchContent}>
@@ -347,14 +506,6 @@ const AddFeeScreen = ({ navigation }: AddFeeScreenProps) => {
             </View>
           </View>
 
-          {/* Debug Form Data */}
-          <View style={styles.formGroup}>
-            <Text style={styles.debugText}>
-              Form Data: {JSON.stringify(formData, null, 2)}
-            </Text>
-          </View>
-
-          {/* Submit Button */}
           <TouchableOpacity
             style={[styles.submitButton, loading && styles.submitButtonDisabled]}
             onPress={handleSubmit}
@@ -364,13 +515,25 @@ const AddFeeScreen = ({ navigation }: AddFeeScreenProps) => {
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <>
-                <Icon name="add" size={20} color="#fff" />
-                <Text style={styles.submitButtonText}>إنشاء الرسوم</Text>
+                <Icon name={isEdit ? 'save' : 'add'} size={20} color="#fff" />
+                <Text style={styles.submitButtonText}>{isEdit ? 'حفظ التعديلات' : 'إنشاء الرسوم'}</Text>
               </>
             )}
           </TouchableOpacity>
         </View>
       </ScrollView>
+
+      <DatePickerModal
+        visible={isDatePickerVisible}
+        onClose={() => setIsDatePickerVisible(false)}
+        title="اختر آخر موعد للاسترداد"
+        initialDate={formData.refundDeadlineAt ? new Date(formData.refundDeadlineAt) : new Date()}
+        onConfirm={(date) => {
+          const formatted = date.toISOString().split('T')[0];
+          handleInputChange('refundDeadlineAt', formatted);
+          setIsDatePickerVisible(false);
+        }}
+      />
     </View>
   );
 };
@@ -468,6 +631,43 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontStyle: 'italic',
   },
+  helperText: {
+    fontSize: 12,
+    color: '#1d4ed8',
+    marginTop: 8,
+  },
+  warningText: {
+    fontSize: 12,
+    color: '#b45309',
+    marginTop: 8,
+  },
+  segmentRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  segmentButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  segmentButtonActive: {
+    borderColor: '#1a237e',
+    backgroundColor: '#e0e7ff',
+  },
+  segmentButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#4b5563',
+  },
+  segmentButtonTextActive: {
+    color: '#1a237e',
+  },
   switchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -487,6 +687,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
     lineHeight: 20,
+  },
+  dateRow: {
+    marginTop: 16,
+  },
+  dateButton: {
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 10,
+    padding: 12,
+    backgroundColor: '#f9fafb',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  dateButtonText: {
+    marginLeft: 8,
+    color: '#1f2937',
+    fontSize: 15,
+    fontWeight: '500',
   },
   submitButton: {
     flexDirection: 'row',
@@ -515,11 +734,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 8,
   },
-  debugText: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 8,
-    fontStyle: 'italic',
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#6b7280',
   },
 });
 

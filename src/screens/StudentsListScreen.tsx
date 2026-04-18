@@ -15,9 +15,11 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import {launchCamera, launchImageLibrary} from 'react-native-image-picker';
 import CustomMenu from '../components/CustomMenu';
 import ArabicSearchInput from '../components/ArabicSearchInput';
 import AuthService from '../services/AuthService';
+import { mapApiBaseToFrontendBaseUrl } from '../config/api';
 import {usePermissions} from '../hooks/usePermissions';
 import {IPaginatedTraineesResponse, ITrainee} from '../types/student';
 
@@ -72,6 +74,13 @@ type DisciplinaryAction = {
   createdAt?: string;
 };
 
+type MinistryDeclarationUpload = {
+  url: string;
+  cloudinaryId?: string;
+  fileName: string;
+  mimeType: string;
+};
+
 type SortBy = 'name' | 'id';
 type SortOrder = 'asc' | 'desc';
 
@@ -114,6 +123,12 @@ const StudentsListScreen = ({navigation}: any) => {
     'dashboard.trainees.disciplinary-actions',
     'manage',
   );
+  const canViewMinistryDeclaration =
+    hasPermission('dashboard.ministry-exam-declarations', 'view') ||
+    hasAnyRole(['super_admin', 'admin', 'manager']);
+  const canConfirmMinistryDeclarationDelivery =
+    hasPermission('dashboard.ministry-exam-declarations', 'confirm-delivery') ||
+    hasAnyRole(['super_admin', 'admin', 'manager']);
   const canManageTraineeFinances =
     hasPermission('dashboard.financial', 'manage') ||
     hasPermission('dashboard.financial', 'view') ||
@@ -165,6 +180,14 @@ const StudentsListScreen = ({navigation}: any) => {
   const [newNoteContent, setNewNoteContent] = useState('');
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteContent, setEditingNoteContent] = useState('');
+
+  const [showMinistryDeliveryModal, setShowMinistryDeliveryModal] = useState(false);
+  const [ministryDeliveryNotes, setMinistryDeliveryNotes] = useState('');
+  const [ministryDeclarationPreviewUri, setMinistryDeclarationPreviewUri] = useState('');
+  const [ministryDeclarationUpload, setMinistryDeclarationUpload] =
+    useState<MinistryDeclarationUpload | null>(null);
+  const [ministryUploadLoading, setMinistryUploadLoading] = useState(false);
+  const [ministryDeliverySubmitting, setMinistryDeliverySubmitting] = useState(false);
 
   const [showPaymentExceptionModal, setShowPaymentExceptionModal] = useState(false);
   const [exceptionFees, setExceptionFees] = useState<FeeWithSchedule[]>([]);
@@ -586,9 +609,19 @@ const StudentsListScreen = ({navigation}: any) => {
     Linking.openURL(supported ? whatsappUrl : webUrl);
   };
 
-  const handleEdit = (trainee: ITrainee) => {
+  const handleEdit = async (trainee: ITrainee) => {
     closeActionsMenu();
-    navigation.navigate('EditTrainee', {trainee});
+    try {
+      setProcessingAction(true);
+      const response = await AuthService.getTraineeById(trainee.id);
+      const fullTrainee = (response?.data || response || trainee) as ITrainee;
+      navigation.navigate('EditTrainee', {trainee: fullTrainee});
+    } catch (error) {
+      console.error('Failed to fetch full trainee before edit, using list payload:', error);
+      navigation.navigate('EditTrainee', {trainee});
+    } finally {
+      setProcessingAction(false);
+    }
   };
 
   const handleOpenPayments = (trainee: ITrainee) => {
@@ -611,6 +644,303 @@ const StudentsListScreen = ({navigation}: any) => {
     navigation.navigate('TraineeDocuments', {
       trainee: {id: trainee.id, nameAr: trainee.nameAr},
     });
+  };
+
+  const handleOpenApplicationFormInApp = async (trainee: ITrainee) => {
+    closeActionsMenu();
+    try {
+      setProcessingAction(true);
+      const apiBaseUrl = await AuthService.getCurrentApiBaseUrl();
+      const authToken = await AuthService.getToken();
+      const webBaseUrl = mapApiBaseToFrontendBaseUrl(apiBaseUrl);
+
+      const printUrl = `${webBaseUrl}/print/application-form/${trainee.id}`;
+
+      navigation.navigate('PrintWebView', {
+        url: printUrl,
+        title: `استمارة ${trainee.nameAr}`,
+        authToken,
+      });
+    } catch (error: any) {
+      Alert.alert('خطأ', error?.message || 'تعذر فتح استمارة المتدرب');
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const getMinistryPolicyBlockingMessage = (payload: any): string | null => {
+    const policy = payload?.submissionPolicy;
+
+    if (!policy || typeof policy !== 'object') {
+      return null;
+    }
+
+    const hasLinkedFee = !!policy?.fee;
+    const isRequestsOpen = policy?.isRequestsOpen === true;
+    const isFullyPaid = policy?.payment?.isFullyPaid === true;
+
+    if (hasLinkedFee && isRequestsOpen && !isFullyPaid) {
+      const feeName = policy?.fee?.name || 'رسم اختبار وزارة العمل';
+      const feeAmountValue = Number(policy?.fee?.amount ?? policy?.payment?.requiredAmount ?? 0);
+      const feeAmount =
+        feeAmountValue > 0 ? ` (${feeAmountValue.toLocaleString('ar-EG')} ج.م)` : '';
+
+      return `لا يمكن طباعة أو تسليم إقرار وزارة العمل لهذا المتدرب قبل سداد الرسم المرتبط بالكامل. الرسم المطلوب: ${feeName}${feeAmount}.`;
+    }
+
+    if (policy?.isBlocked === true) {
+      return policy?.blockReason || 'لا يمكن تنفيذ الإجراء على إقرار وزارة العمل في الوقت الحالي.';
+    }
+
+    return null;
+  };
+
+  const resolveMinistryDeclarationPrintUrl = (payload: any, webBaseUrl: string) => {
+    const rawPath = typeof payload?.path === 'string' ? payload.path.trim() : '';
+    const normalizedPath = rawPath
+      ? rawPath.startsWith('/')
+        ? rawPath
+        : `/${rawPath}`
+      : '';
+
+    const urlFromPath = normalizedPath ? `${webBaseUrl}${normalizedPath}` : '';
+    const urlFromPayload = typeof payload?.url === 'string' ? payload.url.trim() : '';
+    const tokenFromPayload = typeof payload?.token === 'string' ? payload.token.trim() : '';
+    const urlFromToken = tokenFromPayload
+      ? `${webBaseUrl}/print/ministry-exam-declaration/${encodeURIComponent(tokenFromPayload)}`
+      : '';
+
+    return urlFromPath || urlFromPayload || urlFromToken;
+  };
+
+  const handleOpenMinistryDeclarationPrint = async (trainee: ITrainee) => {
+    closeActionsMenu();
+    try {
+      setProcessingAction(true);
+
+      const statusPayload = await AuthService.getMinistryDeclarationDeliveryStatus(trainee.id);
+      const blockingMessage = getMinistryPolicyBlockingMessage(statusPayload);
+      if (blockingMessage) {
+        Alert.alert('تنبيه', blockingMessage);
+        return;
+      }
+
+      const apiBaseUrl = await AuthService.getCurrentApiBaseUrl();
+      const authToken = await AuthService.getToken();
+      const webBaseUrl = mapApiBaseToFrontendBaseUrl(apiBaseUrl);
+
+      const linkPayload = await AuthService.getMinistryDeclarationPublicLink(trainee.id);
+      const printUrl = resolveMinistryDeclarationPrintUrl(linkPayload, webBaseUrl);
+
+      if (!printUrl) {
+        Alert.alert('خطأ', 'تعذر إنشاء رابط طباعة الإقرار لهذا المتدرب');
+        return;
+      }
+
+      navigation.navigate('PrintWebView', {
+        url: printUrl,
+        title: `إقرار وزارة العمل - ${trainee.nameAr}`,
+        authToken,
+      });
+    } catch (error: any) {
+      Alert.alert('خطأ', error?.message || 'تعذر فتح نموذج إقرار وزارة العمل');
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const resetMinistryDeliveryState = () => {
+    setMinistryDeliveryNotes('');
+    setMinistryDeclarationPreviewUri('');
+    setMinistryDeclarationUpload(null);
+    setMinistryUploadLoading(false);
+    setMinistryDeliverySubmitting(false);
+  };
+
+  const closeMinistryDeliveryModal = () => {
+    setShowMinistryDeliveryModal(false);
+    resetMinistryDeliveryState();
+    setSelectedTrainee(null);
+  };
+
+  const handleOpenMinistryDeliveryModal = async (trainee: ITrainee) => {
+    closeActionsMenu(true);
+    try {
+      setProcessingAction(true);
+
+      const statusPayload = await AuthService.getMinistryDeclarationDeliveryStatus(trainee.id);
+      const blockingMessage = getMinistryPolicyBlockingMessage(statusPayload);
+      if (blockingMessage) {
+        Alert.alert('تنبيه', blockingMessage);
+        return;
+      }
+
+      if (statusPayload?.canDeliver === false) {
+        Alert.alert('تنبيه', statusPayload?.message || 'تم استلام الإقرار مسبقاً');
+        return;
+      }
+
+      setSelectedTrainee(trainee);
+      resetMinistryDeliveryState();
+      setShowMinistryDeliveryModal(true);
+    } catch (error: any) {
+      Alert.alert('خطأ', error?.message || 'تعذر التحقق من حالة التسليم');
+    } finally {
+      setProcessingAction(false);
+    }
+  };
+
+  const buildMinistryDeclarationFileMeta = (asset: {
+    uri?: string;
+    fileName?: string;
+    type?: string;
+  }) => {
+    const uri = asset?.uri;
+    if (!uri) {
+      throw new Error('بيانات صورة الإقرار غير مكتملة');
+    }
+
+    const fallbackName = `ministry-declaration-${Date.now()}.jpg`;
+    const fileName = asset.fileName || uri.split('/').pop() || fallbackName;
+    const fileType = asset.type || 'image/jpeg';
+
+    return {
+      uri,
+      name: fileName,
+      type: fileType,
+    };
+  };
+
+  const handleUploadMinistryDeclarationFile = async (asset: {
+    uri?: string;
+    fileName?: string;
+    type?: string;
+  }) => {
+    const previousPreview = ministryDeclarationPreviewUri;
+    const previousUpload = ministryDeclarationUpload;
+
+    try {
+      const uploadFile = buildMinistryDeclarationFileMeta(asset);
+
+      setMinistryDeclarationPreviewUri(uploadFile.uri);
+      setMinistryUploadLoading(true);
+
+      const uploaded = await AuthService.uploadFile(uploadFile, 'ministry-declarations');
+      const uploadedUrl = String(uploaded?.url || '').trim();
+
+      if (!uploadedUrl) {
+        throw new Error('تم رفع الصورة لكن لم يتم استلام الرابط');
+      }
+
+      setMinistryDeclarationPreviewUri(uploadedUrl);
+      setMinistryDeclarationUpload({
+        url: uploadedUrl,
+        cloudinaryId: String(uploaded?.public_id || '').trim() || undefined,
+        fileName: String(uploaded?.originalname || uploadFile.name || `declaration-${Date.now()}.jpg`),
+        mimeType: String(uploaded?.mimetype || uploadFile.type || 'image/jpeg'),
+      });
+    } catch (error: any) {
+      setMinistryDeclarationPreviewUri(previousPreview);
+      setMinistryDeclarationUpload(previousUpload);
+      Alert.alert('خطأ', error?.message || 'فشل في رفع صورة إقرار وزارة العمل');
+    } finally {
+      setMinistryUploadLoading(false);
+    }
+  };
+
+  const handlePickMinistryDeclarationFile = () => {
+    if (ministryUploadLoading || ministryDeliverySubmitting) {
+      return;
+    }
+
+    Alert.alert('رفع صورة الإقرار', 'اختر الطريقة المناسبة', [
+      {
+        text: 'التقاط صورة بالكاميرا',
+        onPress: () => {
+          launchCamera({mediaType: 'photo', quality: 0.7, saveToPhotos: true}, response => {
+            if (response.didCancel) {
+              return;
+            }
+            if (response.errorCode) {
+              Alert.alert('خطأ', 'حدث خطأ أثناء استخدام الكاميرا');
+              return;
+            }
+            const asset = response.assets?.[0];
+            if (asset) {
+              handleUploadMinistryDeclarationFile(asset);
+            }
+          });
+        },
+      },
+      {
+        text: 'اختيار صورة من المعرض',
+        onPress: () => {
+          launchImageLibrary({mediaType: 'photo', quality: 0.7}, response => {
+            if (response.didCancel) {
+              return;
+            }
+            if (response.errorCode) {
+              Alert.alert('خطأ', 'حدث خطأ أثناء اختيار الصورة');
+              return;
+            }
+            const asset = response.assets?.[0];
+            if (asset) {
+              handleUploadMinistryDeclarationFile(asset);
+            }
+          });
+        },
+      },
+      {text: 'إلغاء', style: 'cancel'},
+    ]);
+  };
+
+  const handleSubmitMinistryDelivery = async () => {
+    if (!selectedTrainee) {
+      return;
+    }
+
+    if (ministryUploadLoading) {
+      Alert.alert('تنبيه', 'جاري رفع صورة الإقرار، يرجى الانتظار');
+      return;
+    }
+
+    if (!ministryDeclarationUpload?.url) {
+      Alert.alert('تنبيه', 'رفع صورة واضحة للإقرار إلزامي قبل الحفظ');
+      return;
+    }
+
+    try {
+      setMinistryDeliverySubmitting(true);
+
+      const statusPayload = await AuthService.getMinistryDeclarationDeliveryStatus(selectedTrainee.id);
+      const blockingMessage = getMinistryPolicyBlockingMessage(statusPayload);
+      if (blockingMessage) {
+        Alert.alert('تنبيه', blockingMessage);
+        return;
+      }
+
+      if (statusPayload?.canDeliver === false) {
+        Alert.alert('تنبيه', statusPayload?.message || 'تم استلام الإقرار مسبقاً');
+        return;
+      }
+
+      await AuthService.deliverMinistryDeclaration(selectedTrainee.id, {
+        deliveryMode: 'PAPER_ONLY',
+        submissionNotes: ministryDeliveryNotes.trim() || undefined,
+        declarationFileUrl: ministryDeclarationUpload.url,
+        declarationFileCloudinaryId: ministryDeclarationUpload.cloudinaryId,
+        declarationFileName: ministryDeclarationUpload.fileName,
+        declarationFileMimeType: ministryDeclarationUpload.mimeType,
+      });
+
+      Alert.alert('تم', 'تم تسجيل تسليم إقرار وزارة العمل واعتماده تلقائياً');
+      closeMinistryDeliveryModal();
+      fetchTrainees(currentPage, {showLoader: false});
+    } catch (error: any) {
+      Alert.alert('خطأ', error?.message || 'تعذر تسجيل تسليم إقرار وزارة العمل');
+    } finally {
+      setMinistryDeliverySubmitting(false);
+    }
   };
 
   const handleOpenGrades = (trainee: ITrainee) => {
@@ -1668,6 +1998,17 @@ const StudentsListScreen = ({navigation}: any) => {
                   {renderActionItem('أرشيف المتدرب', 'folder', () =>
                     handleOpenTraineeArchive(selectedTrainee),
                   )}
+                  {renderActionItem('استمارة المتدرب (طباعة)', 'print', () =>
+                    handleOpenApplicationFormInApp(selectedTrainee),
+                  )}
+                  {canViewMinistryDeclaration &&
+                    renderActionItem('إقرار وزارة العمل (طباعة)', 'article', () =>
+                      handleOpenMinistryDeclarationPrint(selectedTrainee),
+                    )}
+                  {canConfirmMinistryDeclarationDelivery &&
+                    renderActionItem('تسليم إقرار وزارة العمل', 'verified', () =>
+                      handleOpenMinistryDeliveryModal(selectedTrainee),
+                    )}
                   {renderActionItem('عرض المستندات', 'description', () => handleOpenDocuments(selectedTrainee))}
                   {renderActionItem('عرض الدرجات', 'bar-chart', () => handleOpenGrades(selectedTrainee))}
                   {renderActionItem('ملاحظات المتدرب', 'sticky-note-2', () =>
@@ -1739,6 +2080,87 @@ const StudentsListScreen = ({navigation}: any) => {
             </ScrollView>
 
             <TouchableOpacity style={styles.actionsCloseButton} onPress={closeActionsMenu}>
+              <Text style={styles.actionsCloseButtonText}>إغلاق</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showMinistryDeliveryModal}
+        transparent
+        animationType="slide"
+        onRequestClose={closeMinistryDeliveryModal}>
+        <View style={styles.modalOverlayBottom}>
+          <TouchableOpacity style={styles.modalBackdrop} onPress={closeMinistryDeliveryModal} />
+          <View style={styles.detailSheet}>
+            <View style={styles.actionsHandle} />
+            <Text style={styles.actionsTitle}>تسليم إقرار وزارة العمل</Text>
+            <Text style={styles.actionsSubtitle}>{selectedTrainee?.nameAr || ''}</Text>
+
+            <Text style={styles.modalHelperText}>رفع صورة واضحة للإقرار إلزامي قبل الحفظ.</Text>
+
+            <TouchableOpacity
+              style={styles.modalPrimaryButton}
+              onPress={handlePickMinistryDeclarationFile}
+              disabled={ministryUploadLoading || ministryDeliverySubmitting}>
+              <Icon name="upload-file" size={18} color="#ffffff" />
+              <Text style={styles.modalPrimaryButtonText}>
+                {ministryDeclarationUpload ? 'تغيير صورة الإقرار' : 'رفع صورة الإقرار'}
+              </Text>
+            </TouchableOpacity>
+
+            {ministryUploadLoading && (
+              <View style={styles.modalLoadingWrap}>
+                <ActivityIndicator size="small" color="#1e3a8a" />
+                <Text style={styles.modalHelperText}>جاري رفع الصورة...</Text>
+              </View>
+            )}
+
+            {ministryDeclarationPreviewUri ? (
+              <View style={styles.ministryPreviewCard}>
+                <Image
+                  source={{uri: ministryDeclarationPreviewUri}}
+                  style={styles.ministryPreviewImage}
+                  resizeMode="cover"
+                />
+                <Text style={styles.ministryPreviewName} numberOfLines={1}>
+                  {ministryDeclarationUpload?.fileName || 'تم رفع صورة الإقرار'}
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.modalWarningText}>لم يتم رفع صورة الإقرار بعد</Text>
+            )}
+
+            <TextInput
+              style={styles.modalMultilineInput}
+              placeholder="ملاحظات التسليم (اختياري)"
+              placeholderTextColor="#94a3b8"
+              value={ministryDeliveryNotes}
+              onChangeText={setMinistryDeliveryNotes}
+              multiline
+              textAlign="right"
+              editable={!ministryDeliverySubmitting}
+            />
+
+            <TouchableOpacity
+              style={[
+                styles.modalPrimaryButton,
+                (ministryUploadLoading || ministryDeliverySubmitting) && styles.modalPrimaryButtonDisabled,
+              ]}
+              onPress={handleSubmitMinistryDelivery}
+              disabled={ministryUploadLoading || ministryDeliverySubmitting}>
+              {ministryDeliverySubmitting ? (
+                <ActivityIndicator size="small" color="#ffffff" />
+              ) : (
+                <Icon name="verified" size={18} color="#ffffff" />
+              )}
+              <Text style={styles.modalPrimaryButtonText}>
+                {ministryDeliverySubmitting ? 'جاري حفظ التسليم...' : 'تأكيد تسليم الإقرار'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.actionsCloseButton} onPress={closeMinistryDeliveryModal}>
               <Text style={styles.actionsCloseButtonText}>إغلاق</Text>
             </TouchableOpacity>
           </View>
@@ -2971,6 +3393,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginBottom: 8,
   },
+  modalHelperText: {
+    color: '#334155',
+    fontSize: 12,
+    textAlign: 'right',
+    marginBottom: 8,
+  },
+  modalWarningText: {
+    color: '#b91c1c',
+    fontSize: 12,
+    textAlign: 'right',
+    marginBottom: 8,
+  },
   modalPrimaryButton: {
     marginBottom: 10,
     borderRadius: 10,
@@ -2980,6 +3414,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexDirection: 'row',
     gap: 8,
+  },
+  modalPrimaryButtonDisabled: {
+    opacity: 0.7,
   },
   modalPrimaryButtonText: {
     color: '#ffffff',
@@ -3025,6 +3462,27 @@ const styles = StyleSheet.create({
     color: '#334155',
     fontSize: 13,
     lineHeight: 19,
+    textAlign: 'right',
+  },
+  ministryPreviewCard: {
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    borderRadius: 10,
+    backgroundColor: '#eff6ff',
+    padding: 8,
+    marginBottom: 8,
+  },
+  ministryPreviewImage: {
+    width: '100%',
+    height: 160,
+    borderRadius: 8,
+    backgroundColor: '#e2e8f0',
+  },
+  ministryPreviewName: {
+    marginTop: 6,
+    color: '#1e3a8a',
+    fontSize: 12,
+    fontWeight: '600',
     textAlign: 'right',
   },
   modalCardDeleteButton: {

@@ -14,6 +14,7 @@ import CustomMenu from '../components/CustomMenu';
 import AuthService from '../services/AuthService';
 import Toast from 'react-native-toast-message';
 import { TraineeDistributionsResponse, DistributionType } from '../types/distribution';
+import { usePermissions } from '../hooks/usePermissions';
 
 interface ProgramDistributionsScreenProps {
   navigation: any;
@@ -22,9 +23,13 @@ interface ProgramDistributionsScreenProps {
 
 const ProgramDistributionsScreen: React.FC<ProgramDistributionsScreenProps> = ({ navigation, route }) => {
   const { programId, programName } = route.params;
+  const { canCreate, hasPermission } = usePermissions();
   const [distributions, setDistributions] = useState<TraineeDistributionsResponse>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  const canCreateDistribution = canCreate('dashboard.trainees.distribution');
+  const canPrintDistribution = hasPermission('dashboard.trainees.distribution', 'print');
 
   const loadDistributions = async () => {
     try {
@@ -140,13 +145,15 @@ const ProgramDistributionsScreen: React.FC<ProgramDistributionsScreenProps> = ({
           <Icon name="visibility" size={16} color="#1a237e" />
           <Text style={styles.viewText}>عرض التفاصيل</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={styles.printBtn}
-          onPress={() => handlePrintDistribution(item)}
-        >
-          <Icon name="print" size={16} color="#059669" />
-          <Text style={styles.printText}>طباعة</Text>
-        </TouchableOpacity>
+        {canPrintDistribution && (
+          <TouchableOpacity
+            style={styles.printBtn}
+            onPress={() => handlePrintDistribution(item)}
+          >
+            <Icon name="print" size={16} color="#059669" />
+            <Text style={styles.printText}>طباعة</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -205,13 +212,15 @@ const ProgramDistributionsScreen: React.FC<ProgramDistributionsScreenProps> = ({
             <Text style={styles.emptySubtitle}>
               لم يتم إنشاء أي توزيعات لهذا البرنامج بعد
             </Text>
-            <TouchableOpacity 
-              style={styles.createBtn}
-              onPress={() => navigation.navigate('AddDistribution', { programId })}
-            >
-              <Icon name="add" size={20} color="#fff" />
-              <Text style={styles.createBtnText}>إنشاء توزيع جديد</Text>
-            </TouchableOpacity>
+            {canCreateDistribution && (
+              <TouchableOpacity
+                style={styles.createBtn}
+                onPress={() => navigation.navigate('AddDistribution', { programId })}
+              >
+                <Icon name="add" size={20} color="#fff" />
+                <Text style={styles.createBtnText}>إنشاء توزيع جديد</Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
           <View style={styles.distributionsContainer}>

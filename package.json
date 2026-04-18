@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "android": "react-native run-android",
+    "dev:android": "powershell -ExecutionPolicy Bypass -File scripts/dev-android.ps1",
     "ios": "react-native run-ios",
     "lint": "eslint .",
     "start": "react-native start",
@@ -11,6 +12,7 @@
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",
+    "@react-native-community/datetimepicker": "^9.1.0",
     "@react-native-documents/picker": "^12.0.1",
     "@react-native/new-app-screen": "0.81.1",
     "@react-navigation/drawer": "^7.5.8",
@@ -19,8 +21,11 @@
     "react": "19.1.0",
     "react-native": "0.81.1",
     "react-native-blob-util": "^0.24.7",
+    "react-native-camera-kit": "^17.0.1",
+    "react-native-geolocation-service": "^5.3.1",
     "react-native-gesture-handler": "^2.28.0",
     "react-native-image-picker": "^8.2.1",
+    "react-native-print": "^0.11.0",
     "react-native-reanimated": "^4.1.0",
     "react-native-safe-area-context": "^5.6.1",
     "react-native-screens": "^4.16.0",

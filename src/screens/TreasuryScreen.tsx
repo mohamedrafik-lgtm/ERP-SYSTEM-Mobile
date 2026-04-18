@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -8,149 +8,98 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
-  SafeAreaView,
+  TextInput,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AuthService from '../services/AuthService';
 import { ISafe, SafeCategory, ITransaction, TransactionType } from '../types/student';
 import CustomMenu from '../components/CustomMenu';
+import { usePermissions } from '../hooks/usePermissions';
 
 interface TreasuryScreenProps {
   navigation: any;
 }
 
+const CATEGORY_LABELS: Record<SafeCategory, string> = {
+  DEBT: 'مديونية',
+  INCOME: 'دخل',
+  EXPENSE: 'مصروفات',
+  ASSETS: 'أصول',
+  UNSPECIFIED: 'غير محدد',
+};
+
+const CATEGORY_COLORS: Record<SafeCategory, string> = {
+  DEBT: '#dc2626',
+  INCOME: '#059669',
+  EXPENSE: '#ea580c',
+  ASSETS: '#2563eb',
+  UNSPECIFIED: '#6b7280',
+};
+
+const HIDE_BALANCES_KEY = 'safes_hide_balances';
+
 const TreasuryScreen = ({ navigation }: TreasuryScreenProps) => {
-  const [activeTab, setActiveTab] = useState<'treasuries' | 'operations'>('treasuries');
-  const [selectedTreasury, setSelectedTreasury] = useState<ISafe | null>(null);
+  const { hasPermission, hasScreenAction } = usePermissions();
+
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [treasuries, setTreasuries] = useState<ISafe[]>([]);
-  const [transactions, setTransactions] = useState<ITransaction[]>([]);
   const [transactionsLoading, setTransactionsLoading] = useState(false);
+  const [safes, setSafes] = useState<ISafe[]>([]);
+  const [transactions, setTransactions] = useState<ITransaction[]>([]);
+  const [selectedSafeId, setSelectedSafeId] = useState<string | null>(null);
+  const [activeCategory, setActiveCategory] = useState<SafeCategory | 'ALL'>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [hideBalances, setHideBalances] = useState(false);
 
-  useEffect(() => {
-    fetchTreasuries();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const canManageTreasury = hasScreenAction('Treasury', 'manage') || hasPermission('dashboard.financial', 'manage');
+  const canViewReports =
+    hasPermission('dashboard.financial.reports', 'view') ||
+    hasPermission('finances.safes.transactions', 'view');
+  const canViewBalances = hasPermission('finances.safes.balances', 'view');
+  const showBalances = canViewBalances && !hideBalances;
 
-  const fetchTreasuries = async () => {
-    try {
-      setLoading(true);
-      const data = await AuthService.getAllSafes();
-      setTreasuries(data);
-    } catch (error) {
-      console.error('Error fetching treasuries:', error);
-      const errorMessage = error instanceof Error ? error.message : 'فشل في تحميل الخزائن';
-      
-      if (errorMessage.includes('401') || errorMessage.toLowerCase().includes('unauthorized')) {
-        Alert.alert('خطأ في المصادقة', 'انتهت صلاحية الجلسة، يرجى تسجيل الدخول مرة أخرى.');
-        AuthService.clearAuthData().then(() => {
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Login' }],
-          });
-        });
-      } else {
-        Alert.alert('خطأ', errorMessage);
-      }
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
+  const selectedSafe = useMemo(
+    () => safes.find(safe => safe.id === selectedSafeId) || null,
+    [safes, selectedSafeId],
+  );
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await fetchTreasuries();
-    
-    // إذا كان هناك خزينة محددة، قم بتحديث معاملاتها أيضاً
-    if (selectedTreasury) {
-      await fetchTransactions(selectedTreasury.id);
-    }
-  };
+  const categoryStats = useMemo(() => {
+    const build = (category: SafeCategory) => {
+      const items = safes.filter(safe => safe.category === category);
+      return {
+        count: items.length,
+        total: items.reduce((sum, item) => sum + item.balance, 0),
+      };
+    };
 
-  const fetchTransactions = async (safeId: string) => {
-    try {
-      setTransactionsLoading(true);
-      const response = await AuthService.getSafeTransactions(safeId) as any;
+    return {
+      DEBT: build('DEBT'),
+      INCOME: build('INCOME'),
+      EXPENSE: build('EXPENSE'),
+      ASSETS: build('ASSETS'),
+      UNSPECIFIED: build('UNSPECIFIED'),
+    };
+  }, [safes]);
 
-      // Defensive parsing: support array, { data: [] }, { data: { data: [] } }
-      let normalized: ITransaction[] = [];
-      if (Array.isArray(response)) {
-        normalized = response;
-      } else if (response && Array.isArray(response.data)) {
-        normalized = response.data;
-      } else if (response && response.data && Array.isArray(response.data.data)) {
-        normalized = response.data.data;
-      }
+  const filteredSafes = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
 
-      console.log('[TreasuryScreen] transactions normalized count:', normalized.length);
-      setTransactions(normalized);
-    } catch (error) {
-      console.error('Error fetching transactions:', error);
-      const errorMessage = error instanceof Error ? error.message : 'فشل في تحميل المعاملات';
-      
-      if (errorMessage.includes('401') || errorMessage.toLowerCase().includes('unauthorized')) {
-        Alert.alert('خطأ في المصادقة', 'انتهت صلاحية الجلسة، يرجى تسجيل الدخول مرة أخرى.');
-        AuthService.clearAuthData().then(() => {
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Login' }],
-          });
-        });
-      } else {
-        Alert.alert('خطأ', errorMessage);
-        setTransactions([]);
-      }
-    } finally {
-      setTransactionsLoading(false);
-    }
-  };
+    return safes.filter(safe => {
+      const categoryMatch = activeCategory === 'ALL' || safe.category === activeCategory;
+      if (!categoryMatch) return false;
 
-  const handleTreasurySelect = async (treasury: ISafe) => {
-    setSelectedTreasury(treasury);
-    setActiveTab('operations');
-    await fetchTransactions(treasury.id);
-  };
+      if (!query) return true;
+      return (
+        safe.name.toLowerCase().includes(query) ||
+        (safe.description || '').toLowerCase().includes(query) ||
+        CATEGORY_LABELS[safe.category].toLowerCase().includes(query)
+      );
+    });
+  }, [safes, activeCategory, searchQuery]);
 
-  const handleBackToTreasuries = () => {
-    setSelectedTreasury(null);
-    setActiveTab('treasuries');
-    setTransactions([]);
-  };
-
-  const getTreasuryCategoryLabel = (category: SafeCategory) => {
-    switch (category) {
-      case 'DEBT':
-        return 'ديون';
-      case 'INCOME':
-        return 'إيرادات';
-      case 'EXPENSE':
-        return 'مصروفات';
-      case 'ASSETS':
-        return 'أصول';
-      case 'UNSPECIFIED':
-        return 'غير محدد';
-      default:
-        return category;
-    }
-  };
-
-  const getTreasuryCategoryColor = (category: SafeCategory) => {
-    switch (category) {
-      case 'DEBT':
-        return '#dc2626';
-      case 'INCOME':
-        return '#059669';
-      case 'EXPENSE':
-        return '#f59e0b';
-      case 'ASSETS':
-        return '#1a237e';
-      case 'UNSPECIFIED':
-        return '#6b7280';
-      default:
-        return '#666';
-    }
-  };
+  const formatAmount = (amount: number, currency?: string) =>
+    `${amount.toLocaleString('ar-EG')} ${currency || 'EGP'}`;
 
   const getTransactionTypeLabel = (type: TransactionType) => {
     switch (type) {
@@ -169,267 +118,402 @@ const TreasuryScreen = ({ navigation }: TreasuryScreenProps) => {
     }
   };
 
-  const getTransactionTypeColor = (type: TransactionType) => {
-    switch (type) {
-      case 'DEPOSIT':
-        return '#059669';
-      case 'WITHDRAW':
-        return '#dc2626';
-      case 'TRANSFER':
-        return '#1a237e';
-      case 'FEE':
-        return '#f59e0b';
-      case 'PAYMENT':
-        return '#3b82f6';
-      default:
-        return '#666';
+  const getTransactionSign = (transaction: ITransaction) => {
+    if (!selectedSafe) return '-';
+
+    const isIncome =
+      transaction.type === 'DEPOSIT' ||
+      transaction.type === 'PAYMENT' ||
+      (transaction.type === 'TRANSFER' && transaction.targetSafe?.id === selectedSafe.id);
+
+    return isIncome ? '+' : '-';
+  };
+
+  const getTransactionColor = (transaction: ITransaction) => {
+    return getTransactionSign(transaction) === '+' ? '#059669' : '#dc2626';
+  };
+
+  const loadHideBalancesPreference = async () => {
+    try {
+      const saved = await AsyncStorage.getItem(HIDE_BALANCES_KEY);
+      setHideBalances(saved === 'true');
+    } catch (error) {
+      console.warn('Failed to load hide balances preference:', error);
     }
   };
 
-  const renderTreasuryCard = (treasury: ISafe) => (
-    <TouchableOpacity 
-      key={treasury.id} 
-      style={styles.treasuryCard}
-      onPress={() => handleTreasurySelect(treasury)}
-    >
-      <View style={styles.treasuryHeader}>
-        <View style={styles.treasuryInfo}>
-          <Text style={styles.treasuryName}>{treasury.name}</Text>
-          <View style={[styles.typeBadge, { backgroundColor: getTreasuryCategoryColor(treasury.category) + '20' }]}>
-            <Text style={[styles.typeText, { color: getTreasuryCategoryColor(treasury.category) }]}>
-              {getTreasuryCategoryLabel(treasury.category)}
+  const toggleHideBalances = async () => {
+    try {
+      const next = !hideBalances;
+      setHideBalances(next);
+      await AsyncStorage.setItem(HIDE_BALANCES_KEY, String(next));
+    } catch (error) {
+      console.warn('Failed to save hide balances preference:', error);
+    }
+  };
+
+  const fetchSafes = async () => {
+    try {
+      setLoading(true);
+      const data = await AuthService.getAllSafes();
+      const normalized = Array.isArray(data) ? data : [];
+      setSafes(normalized);
+
+      if (selectedSafeId && !normalized.some(safe => safe.id === selectedSafeId)) {
+        setSelectedSafeId(null);
+        setTransactions([]);
+      }
+    } catch (error) {
+      console.error('Error fetching safes:', error);
+      Alert.alert('خطأ', 'فشل في تحميل الخزائن');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const fetchTransactions = async (safeId: string) => {
+    try {
+      setTransactionsLoading(true);
+      const response = await AuthService.getSafeTransactions(safeId, { limit: 50 });
+      setTransactions(Array.isArray(response) ? response : []);
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+      Alert.alert('خطأ', 'فشل في تحميل معاملات الخزينة');
+      setTransactions([]);
+    } finally {
+      setTransactionsLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchSafes();
+    if (selectedSafeId) {
+      await fetchTransactions(selectedSafeId);
+    }
+  };
+
+  useEffect(() => {
+    void loadHideBalancesPreference();
+    void fetchSafes();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      void fetchSafes();
+      if (selectedSafeId) {
+        void fetchTransactions(selectedSafeId);
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation, selectedSafeId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const openSafeDetails = async (safe: ISafe) => {
+    setSelectedSafeId(safe.id);
+    await fetchTransactions(safe.id);
+  };
+
+  const openAddTransaction = (safe: ISafe) => {
+    navigation.navigate('AddTransactionScreen', { safe });
+  };
+
+  const openSafeReport = (safe: ISafe) => {
+    navigation.navigate('TreasurySafeReport', { safeId: safe.id, safeName: safe.name });
+  };
+
+  const openEditSafe = (safe: ISafe) => {
+    navigation.navigate('AddTreasuryScreen', { safe });
+  };
+
+  const handleDeleteSafe = (safe: ISafe) => {
+    if ((safe.balance !== 0 && safe.balance != null) || safe.hasTransactions) {
+      Alert.alert('غير مسموح', 'لا يمكن حذف خزينة بها رصيد أو معاملات');
+      return;
+    }
+
+    Alert.alert('تأكيد الحذف', `هل تريد حذف الخزينة "${safe.name}"؟`, [
+      { text: 'إلغاء', style: 'cancel' },
+      {
+        text: 'حذف',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await AuthService.deleteSafe(safe.id);
+            if (selectedSafeId === safe.id) {
+              setSelectedSafeId(null);
+              setTransactions([]);
+            }
+            await fetchSafes();
+            Alert.alert('نجح', 'تم حذف الخزينة بنجاح');
+          } catch (error) {
+            console.error('Error deleting safe:', error);
+            Alert.alert('خطأ', 'فشل في حذف الخزينة');
+          }
+        },
+      },
+    ]);
+  };
+
+  const renderCategoryFilter = (value: SafeCategory | 'ALL', label: string, count: number, color: string) => {
+    const active = activeCategory === value;
+    return (
+      <TouchableOpacity
+        key={value}
+        style={[
+          styles.categoryChip,
+          active ? { backgroundColor: color, borderColor: color } : { borderColor: '#cbd5e1' },
+        ]}
+        onPress={() => setActiveCategory(active ? 'ALL' : value)}
+      >
+        <Text style={[styles.categoryChipText, active ? { color: '#fff' } : { color: '#334155' }]}> 
+          {label} ({count})
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderSafeCard = (safe: ISafe) => {
+    const selected = safe.id === selectedSafeId;
+
+    return (
+      <View key={safe.id} style={[styles.safeCard, selected && styles.safeCardSelected]}>
+        <View style={styles.safeHeaderRow}>
+          <View style={styles.safeHeaderTextWrap}>
+            <Text style={styles.safeName}>{safe.name}</Text>
+            <Text style={styles.safeDescription}>{safe.description || 'بدون وصف'}</Text>
+          </View>
+          <View style={[styles.categoryBadge, { backgroundColor: `${CATEGORY_COLORS[safe.category]}20` }]}>
+            <Text style={[styles.categoryBadgeText, { color: CATEGORY_COLORS[safe.category] }]}> 
+              {CATEGORY_LABELS[safe.category]}
             </Text>
           </View>
         </View>
-        <View style={styles.treasuryActions}>
-          <Icon name="account-balance" size={32} color={getTreasuryCategoryColor(treasury.category)} />
-          <Icon name="arrow-forward" size={20} color="#666" style={styles.arrowIcon} />
+
+        <View style={styles.safeStatsRow}>
+          <View>
+            <Text style={styles.statCaption}>الرصيد</Text>
+            <Text style={styles.balanceText}>
+              {showBalances
+                ? formatAmount(safe.balance, safe.currency)
+                : canViewBalances
+                  ? '••••••'
+                  : 'لا توجد صلاحية'}
+            </Text>
+          </View>
+          <View style={styles.statusWrap}>
+            <View style={[styles.statusDot, { backgroundColor: safe.isActive ? '#10b981' : '#ef4444' }]} />
+            <Text style={styles.statusText}>{safe.isActive ? 'نشطة' : 'غير نشطة'}</Text>
+          </View>
+        </View>
+
+        <View style={styles.safeActionsRow}>
+          <TouchableOpacity style={styles.actionBtn} onPress={() => void openSafeDetails(safe)}>
+            <Icon name="visibility" size={16} color="#1a237e" />
+            <Text style={styles.actionBtnText}>التفاصيل</Text>
+          </TouchableOpacity>
+
+          {canManageTreasury && (
+            <TouchableOpacity style={styles.actionBtn} onPress={() => openAddTransaction(safe)}>
+              <Icon name="add-circle" size={16} color="#166534" />
+              <Text style={styles.actionBtnText}>معاملة</Text>
+            </TouchableOpacity>
+          )}
+
+          {canViewReports && (
+            <TouchableOpacity style={styles.actionBtn} onPress={() => openSafeReport(safe)}>
+              <Icon name="description" size={16} color="#7c3aed" />
+              <Text style={styles.actionBtnText}>تقرير</Text>
+            </TouchableOpacity>
+          )}
+
+          {canManageTreasury && (
+            <TouchableOpacity style={styles.actionBtn} onPress={() => openEditSafe(safe)}>
+              <Icon name="edit" size={16} color="#0369a1" />
+              <Text style={styles.actionBtnText}>تعديل</Text>
+            </TouchableOpacity>
+          )}
+
+          {canManageTreasury && (
+            <TouchableOpacity style={styles.actionBtn} onPress={() => handleDeleteSafe(safe)}>
+              <Icon name="delete" size={16} color="#dc2626" />
+              <Text style={styles.actionBtnText}>حذف</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
-      
-      {treasury.description && (
-        <View style={styles.descriptionContainer}>
-          <Text style={styles.descriptionText}>{treasury.description}</Text>
-        </View>
-      )}
-      
-      <View style={styles.treasuryDetails}>
-        <View style={styles.balanceContainer}>
-          <Text style={styles.balanceLabel}>الرصيد</Text>
-          <Text style={styles.balanceAmount}>
-            {treasury.balance.toLocaleString()} {treasury.currency}
-          </Text>
-        </View>
-        <View style={styles.statusContainer}>
-          <View style={[styles.statusDot, { backgroundColor: treasury.isActive ? '#10b981' : '#dc2626' }]} />
-          <Text style={styles.statusText}>
-            {treasury.isActive ? 'نشطة' : 'غير نشطة'}
-          </Text>
-        </View>
-      </View>
-      
-      <View style={styles.treasuryFooter}>
-        <TouchableOpacity 
-          style={styles.addTransactionButton}
-          onPress={() => navigation.navigate('AddTransactionScreen', { safe: treasury })}
-        >
-          <Icon name="add" size={16} color="#1a237e" />
-          <Text style={styles.addTransactionButtonText}>إنشاء معاملة</Text>
-        </TouchableOpacity>
-        <Text style={styles.tapToViewText}>اضغط لعرض المعاملات</Text>
-      </View>
-    </TouchableOpacity>
-  );
+    );
+  };
 
   const renderTransactionCard = (transaction: ITransaction) => (
-    <View key={transaction.id} style={styles.operationCard}>
-      <View style={styles.operationHeader}>
-        <View style={styles.operationInfo}>
-          <Text style={styles.operationDescription}>
-            {transaction.description || 'معاملة مالية'}
-          </Text>
-          <Text style={styles.operationDate}>
-            {new Date(transaction.createdAt).toLocaleDateString('ar-EG')}
-          </Text>
-          {transaction.reference && (
-            <Text style={styles.operationReference}>
-              المرجع: {transaction.reference}
+    <View key={transaction.id} style={styles.transactionCard}>
+      <View style={styles.transactionTopRow}>
+        <View style={styles.transactionHeadTextWrap}>
+          <Text style={styles.transactionDescription}>{transaction.description || 'معاملة مالية'}</Text>
+          <Text style={styles.transactionDate}>{new Date(transaction.createdAt).toLocaleString('ar-EG')}</Text>
+          {transaction.type === 'TRANSFER' && (
+            <Text style={styles.transferRouteText}>
+              من: {transaction.sourceSafe?.name || '-'} | إلى: {transaction.targetSafe?.name || '-'}
             </Text>
           )}
         </View>
-        <View style={[styles.operationTypeBadge, { backgroundColor: getTransactionTypeColor(transaction.type) + '20' }]}>
-          <Text style={[styles.operationTypeText, { color: getTransactionTypeColor(transaction.type) }]}>
-            {getTransactionTypeLabel(transaction.type)}
-          </Text>
+        <View style={styles.transactionTypeBadge}>
+          <Text style={styles.transactionTypeText}>{getTransactionTypeLabel(transaction.type)}</Text>
         </View>
       </View>
-      
-      <View style={styles.operationDetails}>
-        <Text style={[
-          styles.operationAmount,
-          { color: ['DEPOSIT', 'PAYMENT'].includes(transaction.type) ? '#059669' : '#dc2626' }
-        ]}>
-          {['DEPOSIT', 'PAYMENT'].includes(transaction.type) ? '+' : '-'}{transaction.amount.toLocaleString()} {selectedTreasury?.currency || 'EGP'}
-        </Text>
-        <View style={[styles.statusDot, { backgroundColor: '#10b981' }]} />
-      </View>
+
+      <Text style={[styles.transactionAmount, { color: getTransactionColor(transaction) }]}>
+        {getTransactionSign(transaction)} {formatAmount(transaction.amount, selectedSafe?.currency)}
+      </Text>
     </View>
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <CustomMenu navigation={navigation} activeRouteName="Treasury" />
-      
+
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Icon name="arrow-back" size={24} color="#1a237e" />
         </TouchableOpacity>
-        
+
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>الخزائن</Text>
-          <Text style={styles.headerSubtitle}>إدارة الخزائن والعمليات المالية</Text>
+          <Text style={styles.headerTitle}>إدارة الخزائن</Text>
+          <Text style={styles.headerSubtitle}>منطق وصلاحيات متطابقة مع نسخة الويب</Text>
         </View>
-        
-        {!selectedTreasury && (
+
+        {canViewBalances && (
+          <TouchableOpacity style={styles.headerIconBtn} onPress={toggleHideBalances}>
+            <Icon name={hideBalances ? 'visibility-off' : 'visibility'} size={20} color="#1a237e" />
+          </TouchableOpacity>
+        )}
+
+        {canManageTreasury && (
           <TouchableOpacity
-            style={styles.addButton}
+            style={[styles.headerIconBtn, { marginLeft: 8 }]}
             onPress={() => navigation.navigate('AddTreasuryScreen')}
           >
-            <Icon name="add" size={24} color="#1a237e" />
+            <Icon name="add" size={22} color="#1a237e" />
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Tab Navigation - Only show if no treasury selected */}
-      {!selectedTreasury && (
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'treasuries' && styles.activeTab]}
-            onPress={() => setActiveTab('treasuries')}
-          >
-            <Icon 
-              name="account-balance" 
-              size={20} 
-              color={activeTab === 'treasuries' ? '#fff' : '#666'} 
-            />
-            <Text style={[styles.tabText, activeTab === 'treasuries' && styles.activeTabText]}>
-              الخزائن
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[styles.tab, activeTab === 'operations' && styles.activeTab]}
-            onPress={() => setActiveTab('operations')}
-            disabled={true}
-          >
-            <Icon 
-              name="history" 
-              size={20} 
-              color="#ccc" 
-            />
-            <Text style={[styles.tabText, { color: '#ccc' }]}>
-              العمليات
-            </Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Selected Treasury Header */}
-      {selectedTreasury && (
-        <View style={styles.selectedTreasuryHeader}>
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={handleBackToTreasuries}
-          >
-            <Icon name="arrow-back" size={24} color="#1a237e" />
-          </TouchableOpacity>
-          <View style={styles.selectedTreasuryInfo}>
-            <Text style={styles.selectedTreasuryName}>{selectedTreasury.name}</Text>
-            <Text style={styles.selectedTreasuryBalance}>
-              {selectedTreasury.balance.toLocaleString()} {selectedTreasury.currency}
-            </Text>
-          </View>
-          <View style={[styles.selectedTreasuryTypeBadge, { backgroundColor: getTreasuryCategoryColor(selectedTreasury.category) + '20' }]}>
-            <Text style={[styles.selectedTreasuryTypeText, { color: getTreasuryCategoryColor(selectedTreasury.category) }]}>
-              {getTreasuryCategoryLabel(selectedTreasury.category)}
-            </Text>
-          </View>
-        </View>
-      )}
-
-      {/* Content */}
-      <ScrollView 
-        style={styles.content} 
+      <ScrollView
+        style={styles.content}
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            colors={['#1a237e']}
-          />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={['#1a237e']} />}
       >
+        <View style={styles.filtersCard}>
+          <View style={styles.searchWrap}>
+            <Icon name="search" size={20} color="#94a3b8" />
+            <TextInput
+              style={styles.searchInput}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="ابحث في الخزائن..."
+              placeholderTextColor="#94a3b8"
+              textAlign="right"
+            />
+          </View>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoriesScroll}>
+            {renderCategoryFilter('ALL', 'الكل', safes.length, '#1a237e')}
+            {renderCategoryFilter('DEBT', 'مديونية', categoryStats.DEBT.count, CATEGORY_COLORS.DEBT)}
+            {renderCategoryFilter('INCOME', 'دخل', categoryStats.INCOME.count, CATEGORY_COLORS.INCOME)}
+            {renderCategoryFilter('EXPENSE', 'مصروفات', categoryStats.EXPENSE.count, CATEGORY_COLORS.EXPENSE)}
+            {renderCategoryFilter('ASSETS', 'أصول', categoryStats.ASSETS.count, CATEGORY_COLORS.ASSETS)}
+            {renderCategoryFilter(
+              'UNSPECIFIED',
+              'غير محدد',
+              categoryStats.UNSPECIFIED.count,
+              CATEGORY_COLORS.UNSPECIFIED,
+            )}
+          </ScrollView>
+        </View>
+
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>الخزائن ({filteredSafes.length})</Text>
+        </View>
+
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#1a237e" />
             <Text style={styles.loadingText}>جاري تحميل الخزائن...</Text>
           </View>
-        ) : !selectedTreasury ? (
-          <View style={styles.treasuriesContainer}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>خزائنك</Text>
-              <Text style={styles.sectionSubtitle}>إجمالي {treasuries.length} خزينة - اضغط على خزينة لعرض معاملاتها</Text>
-            </View>
-            
-            {treasuries.length === 0 ? (
-              <View style={styles.emptyContainer}>
-                <Icon name="account-balance" size={64} color="#d1d5db" />
-                <Text style={styles.emptyTitle}>لا توجد خزائن</Text>
-                <Text style={styles.emptySubtitle}>لم يتم العثور على أي خزائن في النظام</Text>
-                <TouchableOpacity 
-                  style={styles.retryButton}
-                  onPress={fetchTreasuries}
-                >
-                  <Icon name="refresh" size={20} color="#1a237e" />
-                  <Text style={styles.retryButtonText}>إعادة المحاولة</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              treasuries.map(renderTreasuryCard)
-            )}
+        ) : filteredSafes.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <Icon name="account-balance" size={64} color="#cbd5e1" />
+            <Text style={styles.emptyTitle}>لا توجد خزائن مطابقة</Text>
+            <Text style={styles.emptySubtitle}>جرّب تغيير الفلتر أو البحث</Text>
           </View>
         ) : (
-          <View style={styles.operationsContainer}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>معاملات {selectedTreasury.name}</Text>
-              <Text style={styles.sectionSubtitle}>
-                {transactions.length} معاملة - آخر المعاملات
-              </Text>
-            </View>
-            
-            {transactionsLoading ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#1a237e" />
-                <Text style={styles.loadingText}>جاري تحميل المعاملات...</Text>
+          filteredSafes.map(renderSafeCard)
+        )}
+
+        {selectedSafe && (
+          <View style={styles.detailsCard}>
+            <View style={styles.detailsHeader}>
+              <Text style={styles.detailsTitle}>تفاصيل الخزينة: {selectedSafe.name}</Text>
+              <View style={styles.detailsActionsRow}>
+                <TouchableOpacity style={styles.smallActionBtn} onPress={() => void fetchTransactions(selectedSafe.id)}>
+                  <Icon name="refresh" size={16} color="#1a237e" />
+                  <Text style={styles.smallActionBtnText}>تحديث</Text>
+                </TouchableOpacity>
+                {canViewReports && (
+                  <TouchableOpacity style={styles.smallActionBtn} onPress={() => openSafeReport(selectedSafe)}>
+                    <Icon name="description" size={16} color="#7c3aed" />
+                    <Text style={styles.smallActionBtnText}>تقرير</Text>
+                  </TouchableOpacity>
+                )}
+                {canManageTreasury && (
+                  <TouchableOpacity style={styles.smallActionBtn} onPress={() => openAddTransaction(selectedSafe)}>
+                    <Icon name="add-circle" size={16} color="#166534" />
+                    <Text style={styles.smallActionBtnText}>معاملة</Text>
+                  </TouchableOpacity>
+                )}
               </View>
-            ) : transactions.length > 0 ? (
-              transactions.map(renderTransactionCard)
-            ) : (
-              <View style={styles.emptyOperationsContainer}>
-                <Icon name="history" size={64} color="#ccc" />
-                <Text style={styles.emptyOperationsTitle}>لا توجد معاملات</Text>
-                <Text style={styles.emptyOperationsSubtitle}>
-                  لم يتم تسجيل أي معاملات على هذه الخزينة بعد
+            </View>
+
+            <View style={styles.detailsStatsRow}>
+              <View style={styles.detailStatItem}>
+                <Text style={styles.detailStatLabel}>الرصيد الحالي</Text>
+                <Text style={styles.detailStatValue}>
+                  {showBalances
+                    ? formatAmount(selectedSafe.balance, selectedSafe.currency)
+                    : canViewBalances
+                      ? '••••••'
+                      : 'لا توجد صلاحية'}
                 </Text>
               </View>
+              <View style={styles.detailStatItem}>
+                <Text style={styles.detailStatLabel}>العملة</Text>
+                <Text style={styles.detailStatValue}>{selectedSafe.currency}</Text>
+              </View>
+              <View style={styles.detailStatItem}>
+                <Text style={styles.detailStatLabel}>الحالة</Text>
+                <Text style={styles.detailStatValue}>{selectedSafe.isActive ? 'نشطة' : 'غير نشطة'}</Text>
+              </View>
+            </View>
+
+            <Text style={styles.transactionsTitle}>آخر المعاملات</Text>
+
+            {transactionsLoading ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color="#1a237e" />
+                <Text style={styles.loadingText}>جاري تحميل المعاملات...</Text>
+              </View>
+            ) : transactions.length === 0 ? (
+              <View style={styles.emptyTransactionsWrap}>
+                <Text style={styles.emptyTransactionsText}>لا توجد معاملات مسجلة لهذه الخزينة</Text>
+              </View>
+            ) : (
+              transactions.map(renderTransactionCard)
             )}
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 };
 
@@ -447,7 +531,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
-    marginBottom: 16,
+    marginBottom: 12,
     marginHorizontal: 8,
     borderRadius: 12,
     shadowColor: '#000',
@@ -456,384 +540,335 @@ const styles = StyleSheet.create({
       height: 2,
     },
     shadowOpacity: 0.1,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowRadius: 4,
+    elevation: 3,
   },
   backButton: {
     padding: 8,
     marginRight: 12,
     borderRadius: 8,
     backgroundColor: '#f0f9ff',
-    borderWidth: 1,
-    borderColor: '#1a237e',
   },
   headerContent: {
     flex: 1,
-    alignItems: 'center',
-  },
-  addButton: {
-    padding: 8,
-    backgroundColor: '#f0f9ff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#1a237e',
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#1a237e',
   },
   headerSubtitle: {
-    fontSize: 16,
-    color: '#666',
-    marginTop: 4,
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 2,
   },
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    marginHorizontal: 8,
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
+  headerIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#f0f9ff',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-  },
-  activeTab: {
-    backgroundColor: '#1a237e',
-  },
-  tabText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#666',
-    marginLeft: 8,
-  },
-  activeTabText: {
-    color: '#fff',
   },
   content: {
     flex: 1,
     paddingHorizontal: 8,
   },
-  sectionHeader: {
-    marginBottom: 16,
-    paddingHorizontal: 8,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1a237e',
-    marginBottom: 4,
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: '#666',
-  },
-  treasuriesContainer: {
-    paddingBottom: 16,
-  },
-  treasuryCard: {
+  filtersCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 16,
+    padding: 12,
     marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
-  treasuryActions: {
+  searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    backgroundColor: '#f8fafc',
   },
-  arrowIcon: {
-    marginLeft: 8,
-  },
-  treasuryFooter: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    alignItems: 'center',
-  },
-  tapToViewText: {
-    fontSize: 14,
-    color: '#1a237e',
-    fontWeight: '500',
-  },
-  treasuryHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  treasuryInfo: {
+  searchInput: {
     flex: 1,
+    color: '#0f172a',
+    paddingVertical: 10,
+    marginLeft: 6,
   },
-  treasuryName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1a237e',
-    marginBottom: 8,
+  categoriesScroll: {
+    marginTop: 10,
+    paddingRight: 4,
+    paddingLeft: 2,
   },
-  typeBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
-    alignSelf: 'flex-start',
+  categoryChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginRight: 8,
   },
-  typeText: {
+  categoryChipText: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: '700',
   },
-  treasuryDetails: {
+  sectionHeader: {
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  loadingText: {
+    marginTop: 8,
+    color: '#64748b',
+  },
+  emptyWrap: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    alignItems: 'center',
+    padding: 24,
+  },
+  emptyTitle: {
+    marginTop: 8,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  emptySubtitle: {
+    marginTop: 4,
+    color: '#94a3b8',
+  },
+  safeCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  safeCardSelected: {
+    borderColor: '#1a237e',
+    backgroundColor: '#f8faff',
+  },
+  safeHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  safeHeaderTextWrap: {
+    flex: 1,
+    marginRight: 8,
+  },
+  safeName: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  safeDescription: {
+    marginTop: 3,
+    fontSize: 13,
+    color: '#64748b',
+  },
+  categoryBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  categoryBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  safeStatsRow: {
+    marginTop: 10,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  balanceContainer: {
-    flex: 1,
+  statCaption: {
+    fontSize: 12,
+    color: '#64748b',
   },
-  balanceLabel: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
-  },
-  balanceAmount: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  balanceText: {
+    marginTop: 2,
+    fontSize: 16,
+    fontWeight: '800',
     color: '#1a237e',
   },
-  statusContainer: {
+  statusWrap: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   statusDot: {
     width: 8,
     height: 8,
-    borderRadius: 4,
+    borderRadius: 999,
     marginRight: 6,
   },
   statusText: {
-    fontSize: 14,
-    color: '#666',
+    color: '#475569',
+    fontWeight: '600',
   },
-  operationsContainer: {
-    paddingBottom: 16,
+  safeActionsRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
   },
-  operationCard: {
+  actionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  actionBtnText: {
+    marginLeft: 4,
+    color: '#334155',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  detailsCard: {
+    marginTop: 6,
+    marginBottom: 18,
     backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
     borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    padding: 12,
   },
-  operationHeader: {
+  detailsHeader: {
+    marginBottom: 12,
+  },
+  detailsTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 8,
+  },
+  detailsActionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  smallActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    marginRight: 8,
+    marginBottom: 8,
+  },
+  smallActionBtnText: {
+    marginLeft: 4,
+    color: '#334155',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  detailsStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  detailStatItem: {
+    flex: 1,
+    marginRight: 8,
+    padding: 10,
+    borderRadius: 10,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  detailStatLabel: {
+    fontSize: 12,
+    color: '#64748b',
+  },
+  detailStatValue: {
+    marginTop: 4,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  transactionsTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginBottom: 8,
+  },
+  emptyTransactionsWrap: {
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    padding: 16,
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+  },
+  emptyTransactionsText: {
+    color: '#64748b',
+  },
+  transactionCard: {
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 8,
+    backgroundColor: '#f8fafc',
+  },
+  transactionTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
   },
-  operationInfo: {
+  transactionHeadTextWrap: {
     flex: 1,
-    marginRight: 12,
+    marginRight: 8,
   },
-  operationDescription: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#1a237e',
-    marginBottom: 4,
-  },
-  operationDate: {
+  transactionDescription: {
     fontSize: 14,
-    color: '#666',
+    fontWeight: '700',
+    color: '#0f172a',
   },
-  operationTypeBadge: {
-    paddingHorizontal: 12,
+  transactionDate: {
+    marginTop: 3,
+    fontSize: 12,
+    color: '#64748b',
+  },
+  transferRouteText: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#334155',
+  },
+  transactionTypeBadge: {
+    paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: 999,
+    backgroundColor: '#e2e8f0',
   },
-  operationTypeText: {
-    fontSize: 12,
-    fontWeight: '500',
+  transactionTypeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#334155',
   },
-  operationDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  operationAmount: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  selectedTreasuryHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    marginHorizontal: 8,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  backButton: {
-    marginRight: 16,
-    padding: 8,
-  },
-  selectedTreasuryInfo: {
-    flex: 1,
-  },
-  selectedTreasuryName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1a237e',
-    marginBottom: 4,
-  },
-  selectedTreasuryBalance: {
-    fontSize: 16,
-    color: '#666',
-  },
-  selectedTreasuryTypeBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  selectedTreasuryTypeText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  emptyOperationsContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 32,
-    alignItems: 'center',
-    marginTop: 16,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  emptyOperationsTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#666',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyOperationsSubtitle: {
-    fontSize: 14,
-    color: '#999',
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  loadingContainer: {
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#6b7280',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 20,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#6b7280',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptySubtitle: {
-    fontSize: 16,
-    color: '#9ca3af',
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  retryButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f3f4f6',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#1a237e',
-  },
-  retryButtonText: {
-    color: '#1a237e',
-    fontWeight: '600',
-    marginLeft: 8,
-  },
-  descriptionContainer: {
-    marginBottom: 12,
-  },
-  descriptionText: {
-    fontSize: 14,
-    color: '#6b7280',
-    lineHeight: 20,
-  },
-  operationReference: {
-    fontSize: 12,
-    color: '#9ca3af',
-    marginTop: 2,
-  },
-  addTransactionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f0f9ff',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#1a237e',
-    marginBottom: 8,
-    alignSelf: 'center',
-  },
-  addTransactionButtonText: {
-    color: '#1a237e',
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 4,
+  transactionAmount: {
+    marginTop: 8,
+    fontSize: 15,
+    fontWeight: '800',
   },
 });
 

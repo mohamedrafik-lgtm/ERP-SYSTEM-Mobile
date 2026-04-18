@@ -53,21 +53,74 @@ const TYPE_FILTERS: Array<ComplaintType | 'ALL'> = [
 ];
 
 const ComplaintsRequestsScreen = ({ navigation }: ComplaintsRequestsScreenProps) => {
+  const COMPLAINTS_PAGE_SIZE = 20;
+
   const [complaints, setComplaints] = useState<ComplaintItem[]>([]);
   const [stats, setStats] = useState<ComplaintsStatsResponse>(DEFAULT_STATS);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState<ComplaintStatus | 'ALL'>('ALL');
   const [selectedType, setSelectedType] = useState<ComplaintType | 'ALL'>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
 
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [selectedComplaint, setSelectedComplaint] = useState<ComplaintItem | null>(null);
   const [reviewStatus, setReviewStatus] = useState<ReviewComplaintPayload['status']>('IN_PROGRESS');
   const [adminResponse, setAdminResponse] = useState('');
 
+  const requestWithTimeout = async <T,>(request: Promise<T>, timeoutMs = 15000): Promise<T> => {
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+
+    try {
+      return await new Promise<T>((resolve, reject) => {
+        timeoutHandle = setTimeout(() => {
+          reject(new Error('انتهت مهلة الاتصال بالخادم'));
+        }, timeoutMs);
+
+        request
+          .then(resolve)
+          .catch(reject);
+      });
+    } finally {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
+    }
+  };
+
   useEffect(() => {
-    fetchComplaints();
+    void fetchComplaints(1, false);
   }, [selectedStatus, selectedType]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const filteredComplaints = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    if (!query) {
+      return complaints;
+    }
+
+    return complaints.filter(item => {
+      const subject = item.subject?.toLowerCase() || '';
+      const description = item.description?.toLowerCase() || '';
+      const traineeName = item.trainee?.nameAr?.toLowerCase() || '';
+      const nationalId = item.trainee?.nationalId?.toLowerCase() || '';
+      const phone = item.trainee?.phone?.toLowerCase() || '';
+      const program = item.trainee?.program?.nameAr?.toLowerCase() || '';
+
+      return (
+        subject.includes(query) ||
+        description.includes(query) ||
+        traineeName.includes(query) ||
+        nationalId.includes(query) ||
+        phone.includes(query) ||
+        program.includes(query)
+      );
+    });
+  }, [complaints, searchQuery]);
 
   const computedStats = useMemo(() => {
     const source = complaints;
@@ -82,9 +135,23 @@ const ComplaintsRequestsScreen = ({ navigation }: ComplaintsRequestsScreenProps)
     };
   }, [complaints]);
 
-  const fetchComplaints = async () => {
+  const mergeUniqueComplaints = (oldList: ComplaintItem[], newList: ComplaintItem[]) => {
+    const itemsMap = new Map<string, ComplaintItem>();
+
+    oldList.forEach(item => itemsMap.set(item.id, item));
+    newList.forEach(item => itemsMap.set(item.id, item));
+
+    return Array.from(itemsMap.values());
+  };
+
+  const fetchComplaints = async (page = 1, append = false) => {
     try {
-      setLoading(true);
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
+
       const params: any = {};
 
       if (selectedStatus !== 'ALL') {
@@ -95,10 +162,13 @@ const ComplaintsRequestsScreen = ({ navigation }: ComplaintsRequestsScreenProps)
         params.type = selectedType;
       }
 
-      const [complaintsData, statsData] = await Promise.all([
+      params.page = page;
+      params.limit = COMPLAINTS_PAGE_SIZE;
+
+      const complaintsData = await requestWithTimeout(
         AuthService.getComplaints(params),
-        AuthService.getComplaintsStats().catch(() => null),
-      ]);
+        15000,
+      );
 
       const normalizedComplaints = Array.isArray(complaintsData)
         ? complaintsData
@@ -106,8 +176,28 @@ const ComplaintsRequestsScreen = ({ navigation }: ComplaintsRequestsScreenProps)
           ? (complaintsData as any).data
           : [];
 
-      setComplaints(normalizedComplaints);
-      setStats((statsData as ComplaintsStatsResponse) || DEFAULT_STATS);
+      if (append) {
+        setComplaints(prev => mergeUniqueComplaints(prev, normalizedComplaints));
+      } else {
+        setComplaints(normalizedComplaints);
+      }
+
+      const pagination = (complaintsData as any)?.pagination;
+      const apiTotalPages = Math.max(1, pagination?.totalPages || 1);
+      const apiTotal = pagination?.total || normalizedComplaints.length;
+
+      setCurrentPage(page);
+      setTotalPages(apiTotalPages);
+      setTotalItems(apiTotal);
+
+      // لا تجعل الإحصائيات تمنع ظهور القائمة إذا تأخرت.
+      requestWithTimeout(AuthService.getComplaintsStats(), 8000)
+        .then(statsData => {
+          setStats((statsData as ComplaintsStatsResponse) || DEFAULT_STATS);
+        })
+        .catch(() => {
+          // تجاهل فشل الإحصائيات واعتمد على computedStats من القائمة.
+        });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'فشل في تحميل الشكاوى والاقتراحات';
       Toast.show({
@@ -118,15 +208,30 @@ const ComplaintsRequestsScreen = ({ navigation }: ComplaintsRequestsScreenProps)
       });
       setComplaints([]);
       setStats(DEFAULT_STATS);
+      setCurrentPage(1);
+      setTotalPages(1);
+      setTotalItems(0);
     } finally {
-      setLoading(false);
+      if (append) {
+        setLoadingMore(false);
+      } else {
+        setLoading(false);
+      }
       setRefreshing(false);
     }
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchComplaints();
+    await fetchComplaints(1, false);
+  };
+
+  const handleLoadMore = async () => {
+    if (loading || loadingMore || currentPage >= totalPages) {
+      return;
+    }
+
+    await fetchComplaints(currentPage + 1, true);
   };
 
   const handleOpenReviewModal = (item: ComplaintItem) => {
@@ -164,7 +269,7 @@ const ComplaintsRequestsScreen = ({ navigation }: ComplaintsRequestsScreenProps)
       setShowReviewModal(false);
       setSelectedComplaint(null);
       setAdminResponse('');
-      await fetchComplaints();
+      await fetchComplaints(1, false);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'فشل في مراجعة الطلب';
       Toast.show({
@@ -197,7 +302,7 @@ const ComplaintsRequestsScreen = ({ navigation }: ComplaintsRequestsScreenProps)
                 text2: 'تم حذف الطلب بنجاح',
                 position: 'top',
               });
-              await fetchComplaints();
+              await fetchComplaints(1, false);
             } catch (error) {
               const message = error instanceof Error ? error.message : 'فشل في حذف الطلب';
               Toast.show({
@@ -368,6 +473,30 @@ const ComplaintsRequestsScreen = ({ navigation }: ComplaintsRequestsScreenProps)
         </ScrollView>
       </View>
 
+      <View style={styles.searchSection}>
+        <View style={styles.searchInputWrapper}>
+          <Icon name="search" size={18} color="#9ca3af" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="بحث بالاسم أو رقم الهوية أو العنوان..."
+            placeholderTextColor="#9ca3af"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            textAlign="right"
+          />
+          {!!searchQuery && (
+            <TouchableOpacity style={styles.clearSearchButton} onPress={() => setSearchQuery('')}>
+              <Icon name="close" size={16} color="#64748b" />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <Text style={styles.resultsInfoText}>
+          المعروض: {filteredComplaints.length} من {complaints.length} طلب محمل
+          {totalItems > 0 ? ` (الإجمالي: ${totalItems})` : ''}
+        </Text>
+      </View>
+
       <ScrollView
         style={styles.content}
         refreshControl={
@@ -384,15 +513,37 @@ const ComplaintsRequestsScreen = ({ navigation }: ComplaintsRequestsScreenProps)
             <ActivityIndicator size="large" color="#1a237e" />
             <Text style={styles.loadingText}>جاري تحميل الطلبات...</Text>
           </View>
-        ) : complaints.length === 0 ? (
+        ) : filteredComplaints.length === 0 ? (
           <View style={styles.emptyState}>
             <Icon name="inbox" size={60} color="#cbd5e1" />
-            <Text style={styles.emptyTitle}>لا توجد بيانات</Text>
-            <Text style={styles.emptySubtitle}>لا توجد شكاوى أو اقتراحات مطابقة للفلاتر الحالية</Text>
+            <Text style={styles.emptyTitle}>{searchQuery ? 'لا توجد نتائج للبحث' : 'لا توجد بيانات'}</Text>
+            <Text style={styles.emptySubtitle}>
+              {searchQuery
+                ? 'لا توجد نتائج مطابقة. يمكنك تحميل المزيد من الطلبات القديمة.'
+                : 'لا توجد شكاوى أو اقتراحات مطابقة للفلاتر الحالية'}
+            </Text>
+
+            {currentPage < totalPages && (
+              <TouchableOpacity
+                style={[styles.loadMoreButton, loadingMore && styles.loadMoreButtonDisabled]}
+                onPress={handleLoadMore}
+                disabled={loadingMore}
+              >
+                {loadingMore ? (
+                  <ActivityIndicator size="small" color="#1a237e" />
+                ) : (
+                  <Icon name="expand-more" size={20} color="#1a237e" />
+                )}
+                <Text style={styles.loadMoreButtonText}>
+                  {loadingMore ? 'جاري التحميل...' : 'تحميل المزيد لتوسيع البحث'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
-          complaints.map(item => (
-            <View key={item.id} style={styles.card}>
+          <>
+            {filteredComplaints.map(item => (
+              <View key={item.id} style={styles.card}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
                   <Text style={styles.subject}>{item.subject}</Text>
@@ -472,8 +623,30 @@ const ComplaintsRequestsScreen = ({ navigation }: ComplaintsRequestsScreenProps)
                   </View>
                 )}
               </View>
-            </View>
-          ))
+              </View>
+            ))}
+
+            {currentPage < totalPages && (
+              <TouchableOpacity
+                style={[styles.loadMoreButton, loadingMore && styles.loadMoreButtonDisabled]}
+                onPress={handleLoadMore}
+                disabled={loadingMore}
+              >
+                {loadingMore ? (
+                  <ActivityIndicator size="small" color="#1a237e" />
+                ) : (
+                  <Icon name="expand-more" size={20} color="#1a237e" />
+                )}
+                <Text style={styles.loadMoreButtonText}>
+                  {loadingMore ? 'جاري التحميل...' : 'تحميل المزيد من الطلبات القديمة'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {currentPage >= totalPages && complaints.length > 0 && (
+              <Text style={styles.endOfListText}>تم عرض كل الطلبات المتاحة</Text>
+            )}
+          </>
         )}
       </ScrollView>
 
@@ -652,6 +825,40 @@ const styles = StyleSheet.create({
   filterTextActive: {
     color: '#ffffff',
   },
+  searchSection: {
+    marginTop: 8,
+    paddingHorizontal: 14,
+  },
+  searchInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 12,
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 10,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: '#0f172a',
+    paddingVertical: 10,
+    marginHorizontal: 8,
+  },
+  clearSearchButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#e2e8f0',
+  },
+  resultsInfoText: {
+    marginTop: 6,
+    fontSize: 12,
+    color: '#64748b',
+    textAlign: 'right',
+  },
   content: {
     flex: 1,
     marginTop: 12,
@@ -683,6 +890,32 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 14,
     lineHeight: 20,
+  },
+  loadMoreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#1a237e',
+    borderRadius: 12,
+    backgroundColor: '#eef2ff',
+    paddingVertical: 12,
+    gap: 8,
+    marginBottom: 10,
+  },
+  loadMoreButtonDisabled: {
+    opacity: 0.7,
+  },
+  loadMoreButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1a237e',
+  },
+  endOfListText: {
+    textAlign: 'center',
+    color: '#94a3b8',
+    fontSize: 12,
+    marginBottom: 12,
   },
   card: {
     backgroundColor: '#ffffff',

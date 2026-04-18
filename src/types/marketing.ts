@@ -150,6 +150,18 @@ export interface TraineeWithMarketingInfo {
   createdAt: string;       // ISO date
   updatedAt: string;       // ISO date
 
+  // مبالغ مالية مرتبطة بالتقديم
+  totalPaidAmount?: number;
+
+  // معرفات موظفي المتابعة
+  marketingEmployeeId?: number | null;
+  firstContactEmployeeId?: number | null;
+  secondContactEmployeeId?: number | null;
+
+  // صلاحيات تعديل التواصل (مقيدة بحالة العمولة)
+  canModifyFirstContact?: boolean;
+  canModifySecondContact?: boolean;
+
   // موظف التسويق المسؤول
   marketingEmployee?: {
     id: number;
@@ -174,6 +186,8 @@ export interface TraineeWithMarketingInfo {
     nameAr: string;
   };
 }
+
+export type MarketingContactType = 'FIRST_CONTACT' | 'SECOND_CONTACT';
 
 export interface MarketingTraineesResponse {
   data: TraineeWithMarketingInfo[];

@@ -14,18 +14,19 @@ import SelectBox from '../components/SelectBox';
 import ArabicTextInput from '../components/ArabicTextInput';
 import AuthService from '../services/AuthService';
 import { 
-  ScheduleSlotRequest, 
+  ScheduleSlotRequest,
   DAYS_OF_WEEK, 
-  ATTENDANCE_TYPES, 
   START_TIMES, 
   END_TIMES 
 } from '../types/schedule';
+import { ClassroomScheduleResponse, SLOT_TYPES } from '../types/scheduleManagement';
 
 interface AddScheduleSlotModalProps {
   visible: boolean;
   onClose: () => void;
   onSuccess: () => void;
   classroomId?: number;
+  slotToEdit?: ClassroomScheduleResponse | null;
 }
 
 interface TrainingContent {
@@ -41,72 +42,123 @@ interface Classroom {
   endDate: string;
 }
 
+interface DistributionRoomOption {
+  id: string;
+  roomName: string;
+  _count?: {
+    assignments?: number;
+  };
+}
+
 const AddScheduleSlotModal = ({ 
   visible, 
   onClose, 
   onSuccess, 
-  classroomId 
+  classroomId,
+  slotToEdit,
 }: AddScheduleSlotModalProps) => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const isEditMode = Boolean(slotToEdit?.id);
+
+  const getInitialFormData = (): ScheduleSlotRequest => ({
+    contentId: slotToEdit?.contentId || 0,
+    classroomId: classroomId || slotToEdit?.classroomId || 0,
+    dayOfWeek: slotToEdit?.dayOfWeek || 'SUNDAY',
+    startTime: slotToEdit?.startTime || '09:00',
+    endTime: slotToEdit?.endTime || '10:00',
+    type: slotToEdit?.type || 'THEORY',
+    location: slotToEdit?.location || '',
+    distributionRoomId: slotToEdit?.distributionRoomId || '',
+  });
   
   // Form data
-  const [formData, setFormData] = useState<ScheduleSlotRequest>({
-    contentId: 0,
-    classroomId: classroomId || 0,
-    dayOfWeek: '',
-    startTime: '',
-    endTime: '',
-    type: '',
-    location: '',
-    distributionRoomId: '',
-  });
+  const [formData, setFormData] = useState<ScheduleSlotRequest>(getInitialFormData());
 
   // Options data
   const [trainingContents, setTrainingContents] = useState<TrainingContent[]>([]);
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+  const [availableRooms, setAvailableRooms] = useState<DistributionRoomOption[]>([]);
+  const [loadingRooms, setLoadingRooms] = useState(false);
 
   useEffect(() => {
     if (visible) {
+      setFormData(getInitialFormData());
       loadOptions();
     }
-  }, [visible]);
+  }, [visible, classroomId, slotToEdit]);
+
+  useEffect(() => {
+    if (!visible) {
+      return;
+    }
+
+    if (!formData.contentId || !formData.type || !['THEORY', 'PRACTICAL'].includes(formData.type)) {
+      setAvailableRooms([]);
+      return;
+    }
+
+    loadDistributionRooms(formData.contentId, formData.type as 'THEORY' | 'PRACTICAL');
+  }, [visible, formData.contentId, formData.type]);
+
+  const loadDistributionRooms = async (contentId: number, type: 'THEORY' | 'PRACTICAL') => {
+    try {
+      setLoadingRooms(true);
+      const rooms = await AuthService.getScheduleDistributionRooms(contentId, type);
+      setAvailableRooms(Array.isArray(rooms) ? rooms : []);
+    } catch {
+      setAvailableRooms([]);
+    } finally {
+      setLoadingRooms(false);
+    }
+  };
 
   const loadOptions = async () => {
     try {
       setLoading(true);
-      console.log('🔍 AddScheduleSlotModal - Loading options...');
+      const targetClassroomId = classroomId || slotToEdit?.classroomId || formData.classroomId;
 
-      // Load training contents
-      const contentsResponse = await AuthService.getTrainingContents();
-      console.log('🔍 AddScheduleSlotModal - Contents response:', contentsResponse);
-      
-      let contents = [];
-      if (contentsResponse.data) {
-        contents = Array.isArray(contentsResponse.data) ? contentsResponse.data : contentsResponse.data.data || contentsResponse.data.contents || contentsResponse.data.items || [];
+      if (targetClassroomId) {
+        const contents = await AuthService.getTrainingContentsByClassroom(targetClassroomId);
+        setTrainingContents(
+          (Array.isArray(contents) ? contents : []).map((content: any) => ({
+            id: Number(content.id),
+            code: content.code || content.nameAr || 'غير محدد',
+            name: content.nameAr || content.name || content.title || 'غير محدد',
+          })),
+        );
+
+        setClassrooms([]);
+      } else {
+        const programs = await AuthService.getAllPrograms();
+        const normalizedPrograms = Array.isArray(programs) ? programs : [];
+        const flattenedClassrooms = normalizedPrograms.flatMap((program: any) =>
+          (Array.isArray(program?.classrooms) ? program.classrooms : []).map((item: any) => ({
+            id: Number(item.id),
+            name: item.name || `فصل ${item.classNumber || item.id}`,
+            startDate: item.startDate || '',
+            endDate: item.endDate || '',
+          })),
+        );
+
+        const contents = await AuthService.getTrainingContents({ limit: 300 });
+        const normalizedContents = Array.isArray(contents)
+          ? contents
+          : Array.isArray((contents as any)?.data)
+            ? (contents as any).data
+            : [];
+
+        setClassrooms(flattenedClassrooms);
+        setTrainingContents(
+          normalizedContents.map((content: any) => ({
+            id: Number(content.id),
+            code: content.code || content.nameAr || 'غير محدد',
+            name: content.nameAr || content.name || content.title || 'غير محدد',
+          })),
+        );
       }
-      
-      setTrainingContents(contents.map((content: any) => ({
-        id: content.id,
-        code: content.code || content.nameAr || 'غير محدد',
-        name: content.nameAr || content.name || content.title || 'غير محدد'
-      })));
-
-      // Load classrooms (mock data for now)
-      const mockClassrooms = [
-        { id: 1, name: 'الفصل الأول - برمجة', startDate: '2025-01-15', endDate: '2025-06-15' },
-        { id: 2, name: 'الفصل الثاني - تصميم', startDate: '2025-01-20', endDate: '2025-06-20' },
-        { id: 3, name: 'الفصل الثالث - شبكات', startDate: '2025-01-25', endDate: '2025-06-25' },
-      ];
-      setClassrooms(mockClassrooms);
-
-      console.log('🔍 AddScheduleSlotModal - Options loaded:', {
-        contents: contents.length,
-        classrooms: mockClassrooms.length
-      });
 
     } catch (error) {
-      console.error('🔍 AddScheduleSlotModal - Error loading options:', error);
       Alert.alert('خطأ', 'فشل في تحميل البيانات');
     } finally {
       setLoading(false);
@@ -142,7 +194,7 @@ const AddScheduleSlotModal = ({
       return false;
     }
     if (!formData.type) {
-      Alert.alert('خطأ', 'يرجى اختيار نوع الحضور');
+      Alert.alert('خطأ', 'يرجى اختيار نوع الفترة');
       return false;
     }
     if (formData.startTime >= formData.endTime) {
@@ -157,41 +209,44 @@ const AddScheduleSlotModal = ({
 
     try {
       setSubmitting(true);
-      console.log('🔍 AddScheduleSlotModal - Submitting:', formData);
 
-      await AuthService.addScheduleSlot(formData);
-      
-      console.log('🔍 AddScheduleSlotModal - Success!');
-      Alert.alert('نجح', 'تم إضافة الفترة الدراسية بنجاح', [
+      const payload = {
+        contentId: Number(formData.contentId),
+        classroomId: Number(formData.classroomId),
+        dayOfWeek: formData.dayOfWeek as any,
+        startTime: formData.startTime,
+        endTime: formData.endTime,
+        type: formData.type as any,
+        location: formData.location?.trim() || undefined,
+        distributionRoomId: formData.distributionRoomId?.trim() || undefined,
+      };
+
+      if (isEditMode && slotToEdit?.id) {
+        await AuthService.updateScheduleSlot(slotToEdit.id, payload);
+      } else {
+        await AuthService.createScheduleSlot(payload);
+      }
+
+      Alert.alert('نجح', isEditMode ? 'تم تعديل الفترة الدراسية بنجاح' : 'تم إضافة الفترة الدراسية بنجاح', [
         {
           text: 'موافق',
           onPress: () => {
             onSuccess();
-            onClose();
             resetForm();
+            onClose();
           }
         }
       ]);
 
     } catch (error) {
-      console.error('🔍 AddScheduleSlotModal - Error submitting:', error);
-      Alert.alert('خطأ', 'فشل في إضافة الفترة الدراسية');
+      Alert.alert('خطأ', isEditMode ? 'فشل في تعديل الفترة الدراسية' : 'فشل في إضافة الفترة الدراسية');
     } finally {
       setSubmitting(false);
     }
   };
 
   const resetForm = () => {
-    setFormData({
-      contentId: 0,
-      classroomId: classroomId || 0,
-      dayOfWeek: '',
-      startTime: '',
-      endTime: '',
-      type: '',
-      location: '',
-      distributionRoomId: '',
-    });
+    setFormData(getInitialFormData());
   };
 
   const handleClose = () => {
@@ -209,7 +264,7 @@ const AddScheduleSlotModal = ({
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>إضافة فترة دراسية</Text>
+            <Text style={styles.modalTitle}>{isEditMode ? 'تعديل فترة دراسية' : 'إضافة فترة دراسية'}</Text>
             <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
               <Icon name="close" size={24} color="#666" />
             </TouchableOpacity>
@@ -226,38 +281,43 @@ const AddScheduleSlotModal = ({
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>المحتوى التدريبي *</Text>
                 <SelectBox
+                  label="المحتوى التدريبي"
                   items={trainingContents.map(content => ({
-                    id: content.id,
                     label: `${content.code} - ${content.name}`,
                     value: content.id
                   }))}
                   selectedValue={formData.contentId}
-                  onValueChange={(value) => handleInputChange('contentId', value)}
+                  onValueChange={(value) => {
+                    handleInputChange('contentId', value);
+                    handleInputChange('distributionRoomId', '');
+                  }}
                   placeholder="اختر المحتوى التدريبي"
                 />
               </View>
 
               {/* الفصل الدراسي */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>الفصل الدراسي *</Text>
-                <SelectBox
-                  items={classrooms.map(classroom => ({
-                    id: classroom.id,
-                    label: classroom.name,
-                    value: classroom.id
-                  }))}
-                  selectedValue={formData.classroomId}
-                  onValueChange={(value) => handleInputChange('classroomId', value)}
-                  placeholder="اختر الفصل الدراسي"
-                />
-              </View>
+              {!classroomId && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>الفصل الدراسي *</Text>
+                  <SelectBox
+                    label="الفصل الدراسي"
+                    items={classrooms.map(classroom => ({
+                      label: classroom.name,
+                      value: classroom.id
+                    }))}
+                    selectedValue={formData.classroomId}
+                    onValueChange={(value) => handleInputChange('classroomId', value)}
+                    placeholder="اختر الفصل الدراسي"
+                  />
+                </View>
+              )}
 
               {/* يوم الأسبوع */}
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>يوم الأسبوع *</Text>
                 <SelectBox
+                  label="يوم الأسبوع"
                   items={DAYS_OF_WEEK.map(day => ({
-                    id: day.value,
                     label: day.label,
                     value: day.value
                   }))}
@@ -271,8 +331,8 @@ const AddScheduleSlotModal = ({
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>وقت البداية *</Text>
                 <SelectBox
+                  label="وقت البداية"
                   items={START_TIMES.map(time => ({
-                    id: time,
                     label: time,
                     value: time
                   }))}
@@ -286,8 +346,8 @@ const AddScheduleSlotModal = ({
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>وقت النهاية *</Text>
                 <SelectBox
+                  label="وقت النهاية"
                   items={END_TIMES.map(time => ({
-                    id: time,
                     label: time,
                     value: time
                   }))}
@@ -299,16 +359,39 @@ const AddScheduleSlotModal = ({
 
               {/* نوع الحضور */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>نوع الحضور *</Text>
+                <Text style={styles.inputLabel}>نوع الفترة *</Text>
                 <SelectBox
-                  items={ATTENDANCE_TYPES.map(type => ({
-                    id: type.value,
+                  label="نوع الفترة"
+                  items={SLOT_TYPES.map(type => ({
                     label: type.label,
                     value: type.value
                   }))}
                   selectedValue={formData.type}
-                  onValueChange={(value) => handleInputChange('type', value)}
+                  onValueChange={(value) => {
+                    handleInputChange('type', value);
+                    handleInputChange('distributionRoomId', '');
+                  }}
                   placeholder="اختر نوع الحضور"
+                />
+              </View>
+
+              {/* المجموعة */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>المجموعة</Text>
+                <SelectBox
+                  label="المجموعة"
+                  items={[
+                    { label: 'الكل', value: '' },
+                    ...availableRooms.map((room) => ({
+                      label: `${room.roomName} (${room?._count?.assignments || 0})`,
+                      value: String(room.id),
+                    })),
+                  ]}
+                  selectedValue={formData.distributionRoomId || ''}
+                  onValueChange={(value) => handleInputChange('distributionRoomId', value)}
+                  placeholder="اختر المجموعة"
+                  disabled={availableRooms.length === 0}
+                  loading={loadingRooms}
                 />
               </View>
 
@@ -319,16 +402,6 @@ const AddScheduleSlotModal = ({
                   value={formData.location || ''}
                   onChangeText={(value) => handleInputChange('location', value)}
                   placeholder="أدخل القاعة أو المكان (اختياري)"
-                />
-              </View>
-
-              {/* معرف المجموعة */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>معرف المجموعة</Text>
-                <ArabicTextInput
-                  value={formData.distributionRoomId || ''}
-                  onChangeText={(value) => handleInputChange('distributionRoomId', value)}
-                  placeholder="أدخل معرف المجموعة (اختياري)"
                 />
               </View>
 
@@ -352,7 +425,7 @@ const AddScheduleSlotModal = ({
                   ) : (
                     <>
                       <Icon name="add" size={20} color="#fff" />
-                      <Text style={styles.submitButtonText}>إضافة الفترة</Text>
+                      <Text style={styles.submitButtonText}>{isEditMode ? 'حفظ التعديل' : 'إضافة الفترة'}</Text>
                     </>
                   )}
                 </TouchableOpacity>

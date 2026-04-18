@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -14,25 +14,60 @@ import CustomMenu from '../components/CustomMenu';
 import SelectBox from '../components/SelectBox';
 import DatePickerModal from '../components/DatePickerModal';
 import AuthService from '../services/AuthService';
-import { NonPaymentAction, NON_PAYMENT_ACTION_LABELS, CreatePaymentScheduleRequest } from '../types/paymentSchedules';
+import { usePermissions } from '../hooks/usePermissions';
+import {
+  NonPaymentAction,
+  NON_PAYMENT_ACTION_LABELS,
+  CreatePaymentScheduleRequest,
+  PaymentSchedule,
+  TraineeFee,
+} from '../types/paymentSchedules';
+
+interface Program {
+  id: number;
+  nameAr: string;
+  nameEn: string;
+}
+
+interface AddPaymentScheduleRouteParams {
+  mode?: 'create' | 'edit';
+  program: Program;
+  fees: TraineeFee[];
+  schedule?: PaymentSchedule;
+  preselectedFeeId?: number;
+  scheduledFeeIds?: number[];
+}
 
 interface AddPaymentScheduleScreenProps {
   navigation: any;
   route: {
-    params: {
-      program: {
-        id: number;
-        nameAr: string;
-        nameEn: string;
-      };
-      fees: any[];
-    };
+    params: AddPaymentScheduleRouteParams;
   };
 }
 
+const PAYMENT_SCHEDULES_RESOURCE = 'dashboard.financial.payment-schedules';
+
+const availableActions: NonPaymentAction[] = [
+  NonPaymentAction.DISABLE_ATTENDANCE,
+  NonPaymentAction.DISABLE_PLATFORM,
+  NonPaymentAction.DISABLE_QUIZZES,
+  NonPaymentAction.DISABLE_ALL,
+];
+
 const AddPaymentScheduleScreen = ({ navigation, route }: AddPaymentScheduleScreenProps) => {
-  const { program, fees } = route.params;
-  
+  const {
+    program,
+    fees,
+    schedule,
+    preselectedFeeId,
+    scheduledFeeIds = [],
+    mode = 'create',
+  } = route.params;
+
+  const { canManage } = usePermissions();
+  const canManageSchedules = canManage(PAYMENT_SCHEDULES_RESOURCE);
+  const isEditMode = mode === 'edit' && !!schedule;
+
   const [selectedFeeId, setSelectedFeeId] = useState<number | null>(null);
   const [paymentStartDate, setPaymentStartDate] = useState<Date | null>(null);
   const [paymentEndDate, setPaymentEndDate] = useState<Date | null>(null);
@@ -44,33 +79,154 @@ const AddPaymentScheduleScreen = ({ navigation, route }: AddPaymentScheduleScree
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const availableActions = [
-    NonPaymentAction.DISABLE_ATTENDANCE,
-    NonPaymentAction.DISABLE_PLATFORM,
-    NonPaymentAction.DISABLE_QUIZZES,
-    NonPaymentAction.DISABLE_ALL,
-  ];
+  const parseDate = (value: Date | string | null | undefined) => {
+    if (!value) {
+      return null;
+    }
+
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  };
+
+  const parseNonPaymentActions = (actions: unknown): NonPaymentAction[] => {
+    if (!actions) {
+      return [];
+    }
+
+    const rawActions = Array.isArray(actions)
+      ? actions
+      : typeof actions === 'string'
+        ? (() => {
+            try {
+              const parsed = JSON.parse(actions);
+              return Array.isArray(parsed) ? parsed : [];
+            } catch {
+              return [];
+            }
+          })()
+        : [];
+
+    return rawActions.filter((action): action is NonPaymentAction =>
+      Object.values(NonPaymentAction).includes(action as NonPaymentAction),
+    );
+  };
+
+  useEffect(() => {
+    if (isEditMode && schedule) {
+      setSelectedFeeId(schedule.feeId);
+      setPaymentStartDate(parseDate(schedule.paymentStartDate));
+      setPaymentEndDate(parseDate(schedule.paymentEndDate));
+      setGracePeriodDays(String(schedule.gracePeriodDays || 0));
+      setSelectedActions(parseNonPaymentActions(schedule.nonPaymentActions));
+      setActionEnabled(!!schedule.actionEnabled);
+      setNotes(schedule.notes || '');
+      return;
+    }
+
+    setSelectedFeeId(preselectedFeeId || null);
+    setPaymentStartDate(null);
+    setPaymentEndDate(null);
+    setGracePeriodDays('0');
+    setSelectedActions([]);
+    setActionEnabled(false);
+    setNotes('');
+  }, [isEditMode, preselectedFeeId, schedule]);
+
+  const availableFees = useMemo(() => {
+    if (isEditMode) {
+      return fees.filter(fee => fee.id === selectedFeeId);
+    }
+
+    const blocked = new Set(scheduledFeeIds);
+    return fees.filter(fee => !blocked.has(fee.id));
+  }, [fees, isEditMode, scheduledFeeIds, selectedFeeId]);
+
+  const selectedFee = useMemo(
+    () => fees.find(fee => fee.id === selectedFeeId),
+    [fees, selectedFeeId],
+  );
+
+  const feeOptions = useMemo(
+    () =>
+      availableFees.map(fee => ({
+        label: `${fee.name} - ${fee.amount.toLocaleString('ar-EG')} ج.م`,
+        value: fee.id.toString(),
+      })),
+    [availableFees],
+  );
 
   const toggleAction = (action: NonPaymentAction) => {
-    setSelectedActions(prev => {
-      if (prev.includes(action)) {
-        return prev.filter(a => a !== action);
+    if (action === NonPaymentAction.DISABLE_ALL) {
+      if (selectedActions.includes(NonPaymentAction.DISABLE_ALL)) {
+        setSelectedActions([]);
       } else {
-        return [...prev, action];
+        setSelectedActions([...availableActions]);
       }
-    });
+      return;
+    }
+
+    if (selectedActions.includes(action)) {
+      setSelectedActions(prev =>
+        prev.filter(a => a !== action && a !== NonPaymentAction.DISABLE_ALL),
+      );
+      return;
+    }
+
+    const baseActions = selectedActions.filter(a => a !== NonPaymentAction.DISABLE_ALL);
+    const updatedActions = [...baseActions, action];
+    const allWithoutDisableAll = availableActions.filter(
+      a => a !== NonPaymentAction.DISABLE_ALL,
+    );
+
+    if (allWithoutDisableAll.every(a => updatedActions.includes(a))) {
+      updatedActions.push(NonPaymentAction.DISABLE_ALL);
+    }
+
+    setSelectedActions(updatedActions);
   };
 
   const handleSelectAll = () => {
     if (selectedActions.length === availableActions.length) {
       setSelectedActions([]);
-    } else {
-      setSelectedActions([...availableActions]);
+      return;
     }
+    setSelectedActions([...availableActions]);
+  };
+
+  const formatDateForDisplay = (date: Date | null) => {
+    if (!date) {
+      return 'اختر التاريخ';
+    }
+
+    return date.toLocaleDateString('ar-EG', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  };
+
+  const calculateFinalDeadline = () => {
+    if (!paymentEndDate) {
+      return 'غير محدد';
+    }
+
+    const graceDays = parseInt(gracePeriodDays, 10) || 0;
+    const finalDate = new Date(paymentEndDate);
+    finalDate.setDate(finalDate.getDate() + graceDays);
+
+    return finalDate.toLocaleDateString('ar-EG');
   };
 
   const handleSubmit = async () => {
-    // Validation
+    if (!canManageSchedules) {
+      Toast.show({
+        type: 'error',
+        text1: 'غير مصرح',
+        text2: 'ليس لديك صلاحية إدارة مواعيد السداد',
+      });
+      return;
+    }
+
     if (!selectedFeeId) {
       Toast.show({
         type: 'error',
@@ -80,34 +236,55 @@ const AddPaymentScheduleScreen = ({ navigation, route }: AddPaymentScheduleScree
       return;
     }
 
+    if (paymentStartDate && paymentEndDate && paymentStartDate > paymentEndDate) {
+      Toast.show({
+        type: 'error',
+        text1: 'تواريخ غير صحيحة',
+        text2: 'موعد البداية يجب أن يكون قبل موعد النهاية',
+      });
+      return;
+    }
+
     try {
       setLoading(true);
 
-      const scheduleData: CreatePaymentScheduleRequest = {
+      const payload: CreatePaymentScheduleRequest = {
         feeId: selectedFeeId,
-        paymentStartDate: paymentStartDate ? paymentStartDate.toISOString().split('T')[0] : undefined,
-        paymentEndDate: paymentEndDate ? paymentEndDate.toISOString().split('T')[0] : undefined,
-        gracePeriodDays: parseInt(gracePeriodDays) || 0,
+        paymentStartDate: paymentStartDate
+          ? paymentStartDate.toISOString().split('T')[0]
+          : undefined,
+        paymentEndDate: paymentEndDate
+          ? paymentEndDate.toISOString().split('T')[0]
+          : undefined,
+        gracePeriodDays: Math.max(0, parseInt(gracePeriodDays, 10) || 0),
         nonPaymentActions: selectedActions.length > 0 ? selectedActions : undefined,
-        actionEnabled: actionEnabled,
-        notes: notes || undefined,
+        actionEnabled,
+        notes: notes.trim() || undefined,
       };
 
-      await AuthService.createPaymentSchedule(scheduleData);
-
-      Toast.show({
-        type: 'success',
-        text1: 'نجح',
-        text2: 'تم إضافة موعد السداد بنجاح',
-      });
+      if (isEditMode && schedule?.id) {
+        await AuthService.updatePaymentSchedule(schedule.id, payload);
+        Toast.show({
+          type: 'success',
+          text1: 'تم التحديث',
+          text2: 'تم تحديث موعد السداد بنجاح',
+        });
+      } else {
+        await AuthService.createPaymentSchedule(payload);
+        Toast.show({
+          type: 'success',
+          text1: 'تم الإنشاء',
+          text2: 'تم إضافة موعد السداد بنجاح',
+        });
+      }
 
       navigation.goBack();
     } catch (error) {
-      console.error('Error creating payment schedule:', error);
+      console.error('Error saving payment schedule:', error);
       Toast.show({
         type: 'error',
-        text1: 'خطأ',
-        text2: 'فشل في إضافة موعد السداد',
+        text1: 'فشل الحفظ',
+        text2: 'تعذر حفظ موعد السداد',
       });
     } finally {
       setLoading(false);
@@ -122,36 +299,12 @@ const AddPaymentScheduleScreen = ({ navigation, route }: AddPaymentScheduleScree
       [NonPaymentAction.DISABLE_ALL]: { name: 'block', color: '#dc2626' },
       [NonPaymentAction.NONE]: { name: 'check', color: '#10b981' },
     };
+
     return icons[action] || { name: 'help', color: '#64748b' };
-  };
-
-  const feeOptions = fees.map(fee => ({
-    label: `${fee.name} - ${fee.amount} ج.م`,
-    value: fee.id.toString(),
-  }));
-
-  const formatDateForDisplay = (date: Date | null) => {
-    if (!date) return 'اختر التاريخ';
-    return date.toLocaleDateString('ar-EG', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  };
-
-  const handleStartDateConfirm = (date: Date) => {
-    setPaymentStartDate(date);
-    setShowStartDatePicker(false);
-  };
-
-  const handleEndDateConfirm = (date: Date) => {
-    setPaymentEndDate(date);
-    setShowEndDatePicker(false);
   };
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <CustomMenu navigation={navigation} activeRouteName="PaymentSchedules" />
         <View style={styles.headerCenter}>
@@ -162,7 +315,9 @@ const AddPaymentScheduleScreen = ({ navigation, route }: AddPaymentScheduleScree
             <Icon name="arrow-back" size={24} color="#1a237e" />
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
-            <Text style={styles.headerTitle}>إضافة موعد سداد</Text>
+            <Text style={styles.headerTitle}>
+              {isEditMode ? 'تعديل موعد السداد' : 'إضافة موعد سداد'}
+            </Text>
             <Text style={styles.headerSubtitle}>{program.nameAr}</Text>
           </View>
         </View>
@@ -170,21 +325,48 @@ const AddPaymentScheduleScreen = ({ navigation, route }: AddPaymentScheduleScree
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* اختيار الرسوم */}
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>
-            الرسوم <Text style={styles.required}>*</Text>
-          </Text>
-          <SelectBox<string>
-            label=""
-            items={feeOptions}
-            selectedValue={selectedFeeId?.toString()}
-            onValueChange={(value) => setSelectedFeeId(parseInt(value as string))}
-            placeholder="اختر الرسوم"
-          />
-        </View>
+        {!canManageSchedules && (
+          <View style={styles.permissionWarning}>
+            <Icon name="lock" size={18} color="#b45309" />
+            <Text style={styles.permissionWarningText}>
+              لديك صلاحية العرض فقط. الحفظ والتعديل غير متاحين.
+            </Text>
+          </View>
+        )}
 
-        {/* التواريخ */}
+        {!isEditMode && (
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>
+              الرسوم <Text style={styles.required}>*</Text>
+            </Text>
+            <SelectBox<string>
+              label=""
+              items={feeOptions}
+              selectedValue={selectedFeeId?.toString()}
+              onValueChange={value => setSelectedFeeId(parseInt(value, 10))}
+              placeholder={
+                feeOptions.length > 0 ? 'اختر الرسوم' : 'جميع الرسوم لديها مواعيد سداد بالفعل'
+              }
+              disabled={feeOptions.length === 0}
+            />
+          </View>
+        )}
+
+        {isEditMode && selectedFee && (
+          <View style={styles.selectedFeeCard}>
+            <View style={styles.selectedFeeIcon}>
+              <Icon name="book" size={24} color="#fff" />
+            </View>
+            <View style={styles.selectedFeeInfo}>
+              <Text style={styles.selectedFeeLabel}>الرسم المطبق عليه الموعد:</Text>
+              <Text style={styles.selectedFeeName}>{selectedFee.name}</Text>
+              <Text style={styles.selectedFeeAmount}>
+                {selectedFee.amount.toLocaleString('ar-EG')} ج.م
+              </Text>
+            </View>
+          </View>
+        )}
+
         <View style={styles.datesRow}>
           <View style={styles.dateGroup}>
             <Text style={styles.label}>موعد بداية السداد</Text>
@@ -193,11 +375,16 @@ const AddPaymentScheduleScreen = ({ navigation, route }: AddPaymentScheduleScree
               onPress={() => setShowStartDatePicker(true)}
             >
               <Icon name="event" size={20} color="#1a237e" />
-              <Text style={[styles.dateButtonText, !paymentStartDate && styles.dateButtonPlaceholder]}>
+              <Text
+                style={[
+                  styles.dateButtonText,
+                  !paymentStartDate && styles.dateButtonPlaceholder,
+                ]}
+              >
                 {formatDateForDisplay(paymentStartDate)}
               </Text>
             </TouchableOpacity>
-            <Text style={styles.hint}>اتركه فارغاً [لا] كان غير محدد</Text>
+            <Text style={styles.hint}>اتركه فارغا إذا كان غير محدد</Text>
           </View>
 
           <View style={styles.dateGroup}>
@@ -207,20 +394,27 @@ const AddPaymentScheduleScreen = ({ navigation, route }: AddPaymentScheduleScree
               onPress={() => setShowEndDatePicker(true)}
             >
               <Icon name="event" size={20} color="#dc2626" />
-              <Text style={[styles.dateButtonText, !paymentEndDate && styles.dateButtonPlaceholder]}>
+              <Text
+                style={[
+                  styles.dateButtonText,
+                  !paymentEndDate && styles.dateButtonPlaceholder,
+                ]}
+              >
                 {formatDateForDisplay(paymentEndDate)}
               </Text>
             </TouchableOpacity>
-            <Text style={styles.hint}>اتركه فارغاً [لا] كان غير محدد</Text>
+            <Text style={styles.hint}>اتركه فارغا إذا كان غير محدد</Text>
           </View>
         </View>
 
-        {/* Date Pickers - Simple Modal Version */}
         {showStartDatePicker && (
           <DatePickerModal
             visible={showStartDatePicker}
             onClose={() => setShowStartDatePicker(false)}
-            onConfirm={handleStartDateConfirm}
+            onConfirm={date => {
+              setPaymentStartDate(date);
+              setShowStartDatePicker(false);
+            }}
             initialDate={paymentStartDate}
             title="اختر موعد بداية السداد"
           />
@@ -230,13 +424,15 @@ const AddPaymentScheduleScreen = ({ navigation, route }: AddPaymentScheduleScree
           <DatePickerModal
             visible={showEndDatePicker}
             onClose={() => setShowEndDatePicker(false)}
-            onConfirm={handleEndDateConfirm}
+            onConfirm={date => {
+              setPaymentEndDate(date);
+              setShowEndDatePicker(false);
+            }}
             initialDate={paymentEndDate}
             title="اختر موعد نهاية السداد"
           />
         )}
 
-        {/* فترة السماح */}
         <View style={styles.formGroup}>
           <Text style={styles.label}>فترة السماح (بالأيام)</Text>
           <TextInput
@@ -247,16 +443,23 @@ const AddPaymentScheduleScreen = ({ navigation, route }: AddPaymentScheduleScree
             value={gracePeriodDays}
             onChangeText={setGracePeriodDays}
           />
+          {(parseInt(gracePeriodDays, 10) || 0) > 0 && (
+            <View style={styles.finalDeadlineBox}>
+              <Icon name="info" size={16} color="#7c3aed" />
+              <Text style={styles.finalDeadlineText}>
+                الموعد النهائي بعد فترة السماح: {calculateFinalDeadline()}
+              </Text>
+            </View>
+          )}
         </View>
 
-        {/* الإجراءات عند عدم السداد */}
         <View style={styles.formGroup}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>
-              الإجراءات عند عدم السداد (اختيار متعدد)
-            </Text>
+            <Text style={styles.sectionTitle}>الإجراءات عند عدم السداد (اختيار متعدد)</Text>
             <TouchableOpacity onPress={handleSelectAll} style={styles.selectAllButton}>
-              <Text style={styles.selectAllText}>تحديد الكل</Text>
+              <Text style={styles.selectAllText}>
+                {selectedActions.length === availableActions.length ? 'إلغاء الكل' : 'تحديد الكل'}
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -264,7 +467,7 @@ const AddPaymentScheduleScreen = ({ navigation, route }: AddPaymentScheduleScree
             {availableActions.map(action => {
               const iconInfo = getActionIcon(action);
               const isSelected = selectedActions.includes(action);
-              
+
               return (
                 <TouchableOpacity
                   key={action}
@@ -276,9 +479,7 @@ const AddPaymentScheduleScreen = ({ navigation, route }: AddPaymentScheduleScree
                     <View style={[styles.actionIcon, { backgroundColor: `${iconInfo.color}20` }]}>
                       <Icon name={iconInfo.name} size={24} color={iconInfo.color} />
                     </View>
-                    <Text style={styles.actionLabel}>
-                      {NON_PAYMENT_ACTION_LABELS[action]}
-                    </Text>
+                    <Text style={styles.actionLabel}>{NON_PAYMENT_ACTION_LABELS[action]}</Text>
                   </View>
                   <View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
                     {isSelected && <Icon name="check" size={18} color="#fff" />}
@@ -289,7 +490,6 @@ const AddPaymentScheduleScreen = ({ navigation, route }: AddPaymentScheduleScree
           </View>
         </View>
 
-        {/* الإجراءات المفعلة */}
         {selectedActions.length > 0 && (
           <View style={styles.selectedActionsInfo}>
             <View style={styles.selectedActionsHeader}>
@@ -297,25 +497,16 @@ const AddPaymentScheduleScreen = ({ navigation, route }: AddPaymentScheduleScree
               <Text style={styles.selectedActionsTitle}>الإجراءات المفعلة:</Text>
             </View>
             <View style={styles.selectedActionsList}>
-              {selectedActions.map((action, index) => (
-                <View key={index} style={styles.selectedActionTag}>
+              {selectedActions.map(action => (
+                <View key={action} style={styles.selectedActionTag}>
                   <Icon name="check-circle" size={14} color="#059669" />
-                  <Text style={styles.selectedActionText}>
-                    {NON_PAYMENT_ACTION_LABELS[action]}
-                  </Text>
+                  <Text style={styles.selectedActionText}>{NON_PAYMENT_ACTION_LABELS[action]}</Text>
                 </View>
               ))}
-            </View>
-            <View style={styles.warningBox}>
-              <Icon name="warning" size={16} color="#f59e0b" />
-              <Text style={styles.warningText}>
-                يمنع الوصول الكامل - ينصح بالتسجيل الكامل المذكور عند التطبيق
-              </Text>
             </View>
           </View>
         )}
 
-        {/* تفعيل الإجراءات */}
         <TouchableOpacity
           style={styles.toggleContainer}
           onPress={() => setActionEnabled(!actionEnabled)}
@@ -327,7 +518,6 @@ const AddPaymentScheduleScreen = ({ navigation, route }: AddPaymentScheduleScree
           </View>
         </TouchableOpacity>
 
-        {/* ملاحظات */}
         <View style={styles.formGroup}>
           <Text style={styles.label}>ملاحظات (اختياري)</Text>
           <TextInput
@@ -342,12 +532,15 @@ const AddPaymentScheduleScreen = ({ navigation, route }: AddPaymentScheduleScree
           />
         </View>
 
-        {/* أزرار الحفظ والإلغاء */}
         <View style={styles.actions}>
           <TouchableOpacity
-            style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+            style={[
+              styles.submitButton,
+              (loading || !canManageSchedules || (!isEditMode && !selectedFeeId)) &&
+                styles.submitButtonDisabled,
+            ]}
             onPress={handleSubmit}
-            disabled={loading}
+            disabled={loading || !canManageSchedules || (!isEditMode && !selectedFeeId)}
             activeOpacity={0.8}
           >
             {loading ? (
@@ -355,7 +548,9 @@ const AddPaymentScheduleScreen = ({ navigation, route }: AddPaymentScheduleScree
             ) : (
               <>
                 <Icon name="save" size={24} color="#fff" />
-                <Text style={styles.submitButtonText}>حفظ موعد السداد</Text>
+                <Text style={styles.submitButtonText}>
+                  {isEditMode ? 'حفظ التعديلات' : 'إنشاء موعد السداد'}
+                </Text>
               </>
             )}
           </TouchableOpacity>
@@ -431,6 +626,64 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 20,
   },
+  permissionWarning: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fef3c7',
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    gap: 8,
+  },
+  permissionWarningText: {
+    flex: 1,
+    color: '#92400e',
+    fontSize: 12,
+    fontWeight: '600',
+    textAlign: 'right',
+  },
+  selectedFeeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 18,
+    gap: 10,
+  },
+  selectedFeeIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#2563eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  selectedFeeInfo: {
+    flex: 1,
+    alignItems: 'flex-end',
+  },
+  selectedFeeLabel: {
+    fontSize: 11,
+    color: '#2563eb',
+    marginBottom: 2,
+  },
+  selectedFeeName: {
+    fontSize: 15,
+    color: '#0f172a',
+    fontWeight: '700',
+    textAlign: 'right',
+  },
+  selectedFeeAmount: {
+    fontSize: 13,
+    color: '#059669',
+    fontWeight: '700',
+    marginTop: 2,
+  },
   formGroup: {
     marginBottom: 24,
   },
@@ -466,20 +719,46 @@ const styles = StyleSheet.create({
   dateGroup: {
     flex: 1,
   },
-  dateInput: {
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: '#e2e8f0',
     borderRadius: 12,
     padding: 14,
-    fontSize: 15,
+    gap: 8,
+  },
+  dateButtonText: {
+    fontSize: 14,
     color: '#1a237e',
-    textAlign: 'center',
+    fontWeight: '600',
+  },
+  dateButtonPlaceholder: {
+    color: '#9ca3af',
+    fontWeight: '400',
   },
   hint: {
     fontSize: 11,
     color: '#9ca3af',
     marginTop: 6,
+    textAlign: 'right',
+  },
+  finalDeadlineBox: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#f5f3ff',
+    borderRadius: 8,
+    padding: 10,
+  },
+  finalDeadlineText: {
+    color: '#6d28d9',
+    fontSize: 12,
+    fontWeight: '600',
+    flex: 1,
     textAlign: 'right',
   },
   sectionHeader: {
@@ -493,6 +772,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1a237e',
     textAlign: 'right',
+    flex: 1,
   },
   selectAllButton: {
     paddingHorizontal: 12,
@@ -581,7 +861,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginBottom: 12,
   },
   selectedActionTag: {
     flexDirection: 'row',
@@ -596,20 +875,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#059669',
     fontWeight: '600',
-  },
-  warningBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fef3c7',
-    padding: 12,
-    borderRadius: 8,
-    gap: 8,
-  },
-  warningText: {
-    fontSize: 11,
-    color: '#78350f',
-    flex: 1,
-    textAlign: 'right',
   },
   toggleContainer: {
     flexDirection: 'row',
@@ -691,26 +956,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#dc2626',
-  },
-  dateButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 12,
-    padding: 14,
-    gap: 8,
-  },
-  dateButtonText: {
-    fontSize: 14,
-    color: '#1a237e',
-    fontWeight: '600',
-  },
-  dateButtonPlaceholder: {
-    color: '#9ca3af',
-    fontWeight: '400',
   },
 });
 

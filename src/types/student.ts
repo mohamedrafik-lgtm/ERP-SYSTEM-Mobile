@@ -74,6 +74,7 @@ export interface ITrainee {
   facebook?: string | null;
   educationType: EducationType;
   schoolName: string;
+  educationalAdministration?: string | null;
   graduationDate: string;
   totalGrade?: number | null;
   gradePercentage?: number | null;
@@ -253,6 +254,37 @@ export interface ISafe {
   hasTransactions: boolean; // هل تحتوي على معاملات أم لا
 }
 
+export interface IFinancialEntry {
+  id: number | string;
+  amount: number;
+  description: string;
+  fromSafeId?: string | number;
+  toSafeId?: string | number;
+  fromSafe: ISafe;
+  toSafe: ISafe;
+  createdAt: string;
+  createdBy?: {
+    id?: string;
+    name?: string;
+  };
+  type?: 'TRANSFER' | string;
+}
+
+export interface IFinancialEntriesResponse {
+  data: IFinancialEntry[];
+  pagination?: {
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    itemsPerPage: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+    startItem: number;
+    endItem: number;
+  };
+  total?: number;
+}
+
 export type ISafesResponse = ISafe[];
 
 export interface CreateSafePayload {
@@ -323,6 +355,9 @@ export interface ITraineeFee {
   type: FeeType;
   academicYear: string;
   allowMultipleApply: boolean;
+  allowPartialPayment?: boolean;
+  refundDeadlineEnabled?: boolean;
+  refundDeadlineAt?: string | null;
   programId: number;
   program: ITrainingProgram;
   safeId: string;
@@ -373,6 +408,9 @@ export interface TraineePaymentResponse {
     type: FeeType;               // نوع الرسوم
     academicYear: string;        // العام الدراسي
     allowMultipleApply: boolean; // السماح بتطبيق متعدد
+    allowPartialPayment?: boolean; // السماح بالسداد الجزئي
+    refundDeadlineEnabled?: boolean; // تفعيل آخر موعد للاسترداد
+    refundDeadlineAt?: string | null; // تاريخ آخر موعد للاسترداد
     programId: number;           // معرف البرنامج
     safeId: string;              // معرف الخزينة
     isApplied: boolean;          // حالة التطبيق
@@ -418,6 +456,9 @@ export interface TraineePaymentByTraineeResponse {
     type: FeeType;               // نوع الرسوم
     academicYear: string;        // العام الدراسي
     allowMultipleApply: boolean; // السماح بتطبيق متعدد
+    allowPartialPayment?: boolean; // السماح بالسداد الجزئي
+    refundDeadlineEnabled?: boolean; // تفعيل آخر موعد للاسترداد
+    refundDeadlineAt?: string | null; // تاريخ آخر موعد للاسترداد
     programId: number;           // معرف البرنامج
     safeId: string;              // معرف الخزينة
     isApplied: boolean;          // حالة التطبيق
@@ -471,9 +512,31 @@ export interface CreateTraineeFeePayload {
   type: FeeType;                   // نوع الرسوم (مطلوب)
   academicYear: string;            // العام الدراسي (مطلوب)
   allowMultipleApply?: boolean;    // السماح بتطبيق الرسوم أكثر من مرة (اختياري، افتراضي: false)
+  allowPartialPayment?: boolean;   // السماح بالسداد الجزئي (اختياري)
+  refundDeadlineEnabled?: boolean; // تفعيل حد أقصى للاسترداد (اختياري)
+  refundDeadlineAt?: string;       // تاريخ حد الاسترداد (اختياري)
   programId: number;               // معرف البرنامج التدريبي (مطلوب)
   safeId: string;                  // معرف الخزينة (مطلوب)
 }
+
+export interface UpdateTraineeFeePayload {
+  name?: string;
+  amount?: number;
+  type?: FeeType;
+  academicYear?: string;
+  allowMultipleApply?: boolean;
+  allowPartialPayment?: boolean;
+  refundDeadlineEnabled?: boolean;
+  refundDeadlineAt?: string;
+  programId?: number;
+  safeId?: string;
+}
+
+export type TraineeFeeReportType =
+  | 'paid'
+  | 'unpaid'
+  | 'paid-all-previous'
+  | 'unpaid-any-previous';
 
 // Legacy interface for backward compatibility
 export interface IStudent {
@@ -509,6 +572,7 @@ export interface IStudent {
   facebook: string;
   educationType: EducationType;
   schoolName: string;
+  educationalAdministration?: string;
   graduationDate: string;
   totalGrade: number;
   gradePercentage: number;
@@ -551,6 +615,7 @@ export interface UpdateTraineePayload {
   facebook?: string;
   educationType?: EducationType;
   schoolName?: string;
+  educationalAdministration?: string;
   graduationDate?: string;
   totalGrade?: number;
   gradePercentage?: number;

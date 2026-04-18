@@ -137,6 +137,19 @@ export default StyleSheet.create({
     borderWidth: 2,
     borderColor: COLORS.white,
   },
+  photoLoadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    borderRadius: 64,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoLoadingText: {
+    marginTop: 8,
+    color: COLORS.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
 
   // Select Components
   selectButton: {

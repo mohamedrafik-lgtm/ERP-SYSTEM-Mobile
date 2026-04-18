@@ -4,6 +4,8 @@ import {
   Alert,
   Linking,
   Modal,
+  PermissionsAndroid,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -13,6 +15,7 @@ import {
   View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { Camera, CameraType } from 'react-native-camera-kit';
 import Toast from 'react-native-toast-message';
 import CustomMenu from '../components/CustomMenu';
 import AuthService from '../services/AuthService';
@@ -109,8 +112,11 @@ const AttendanceSessionRecorderScreen = ({
   const [showCodeModal, setShowCodeModal] = useState(false);
   const [generatingCode, setGeneratingCode] = useState(false);
   const [attendanceCode, setAttendanceCode] = useState<AttendanceCodeResponse | null>(null);
+  const [showCameraScanner, setShowCameraScanner] = useState(false);
 
   const unmountingRef = useRef(false);
+  const cameraScanLockRef = useRef(false);
+  const cameraCooldownRef = useRef(0);
 
   useEffect(() => {
     if (!sessionId) {
@@ -404,6 +410,88 @@ const AttendanceSessionRecorderScreen = ({
       const nationalId = numeric.slice(0, 14);
       setScannerInput('');
       await processNationalId(nationalId);
+    }
+  };
+
+  const extractNationalIdFromScannedValue = (rawValue: string): string | null => {
+    const trimmed = (rawValue || '').trim();
+    if (!trimmed) return null;
+
+    if (/^\d{14}$/.test(trimmed)) {
+      return trimmed;
+    }
+
+    const firstMatch = trimmed.match(/\d{14}/);
+    return firstMatch ? firstMatch[0] : null;
+  };
+
+  const openCameraScanner = async () => {
+    try {
+      if (Platform.OS === 'android') {
+        const granted = await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CAMERA, {
+          title: 'إذن الكاميرا',
+          message: 'نحتاج الكاميرا لمسح QR كارنية المتدرب وتسجيل الحضور تلقائياً.',
+          buttonPositive: 'سماح',
+          buttonNegative: 'رفض',
+        });
+
+        if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+          Toast.show({
+            type: 'error',
+            text1: 'تم رفض الإذن',
+            text2: 'لن يعمل مسح QR بدون إذن الكاميرا',
+            position: 'top',
+          });
+          return;
+        }
+      }
+
+      setShowCameraScanner(true);
+    } catch (error: any) {
+      Toast.show({
+        type: 'error',
+        text1: 'تعذر فتح الكاميرا',
+        text2: error?.message || 'حدث خطأ غير متوقع',
+        position: 'top',
+      });
+    }
+  };
+
+  const closeCameraScanner = () => {
+    setShowCameraScanner(false);
+    cameraScanLockRef.current = false;
+    cameraCooldownRef.current = 0;
+  };
+
+  const handleCameraReadCode = async (event: any) => {
+    const now = Date.now();
+    if (cameraScanLockRef.current || now < cameraCooldownRef.current) {
+      return;
+    }
+
+    const rawValue = String(event?.nativeEvent?.codeStringValue || '').trim();
+    if (!rawValue) {
+      return;
+    }
+
+    cameraScanLockRef.current = true;
+    try {
+      const nationalId = extractNationalIdFromScannedValue(rawValue);
+      if (!nationalId) {
+        cameraCooldownRef.current = Date.now() + 1200;
+        Toast.show({
+          type: 'error',
+          text1: 'QR غير صالح',
+          text2: 'الكود لا يحتوي على رقم قومي صحيح (14 رقم)',
+          position: 'top',
+        });
+        return;
+      }
+
+      await processNationalId(nationalId);
+      cameraCooldownRef.current = Date.now() + 1500;
+    } finally {
+      cameraScanLockRef.current = false;
     }
   };
 
@@ -747,6 +835,11 @@ const AttendanceSessionRecorderScreen = ({
           />
 
           <View style={styles.quickActionsRow}>
+            <TouchableOpacity style={styles.quickBtnCamera} onPress={openCameraScanner}>
+              <Icon name="photo-camera" size={16} color="#ffffff" />
+              <Text style={styles.quickBtnCameraText}>مسح QR بالكاميرا</Text>
+            </TouchableOpacity>
+
             <TouchableOpacity style={styles.quickBtnOutline} onPress={openPrintAttendance}>
               <Icon name="print" size={16} color="#1d4ed8" />
               <Text style={styles.quickBtnOutlineText}>طباعة كشف الحضور</Text>
@@ -941,6 +1034,43 @@ const AttendanceSessionRecorderScreen = ({
                 </Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={showCameraScanner}
+        animationType="slide"
+        transparent
+        onRequestClose={closeCameraScanner}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.cameraModalCard}>
+            <View style={styles.modalHeaderRow}>
+              <Text style={styles.modalTitle}>مسح QR كارنية المتدرب</Text>
+              <TouchableOpacity onPress={closeCameraScanner}>
+                <Icon name="close" size={22} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.cameraScannerFrame}>
+              {showCameraScanner ? (
+                <Camera
+                  style={styles.cameraScannerView}
+                  cameraType={CameraType.Back}
+                  scanBarcode
+                  showFrame
+                  laserColor="#10b981"
+                  frameColor="#ffffff"
+                  scanThrottleDelay={1200}
+                  onReadCode={handleCameraReadCode}
+                />
+              ) : null}
+            </View>
+
+            <Text style={styles.cameraHintText}>
+              وجه الكاميرا إلى QR الكارنية. عند قراءة الرقم القومي يتم التحضير تلقائياً.
+            </Text>
           </View>
         </View>
       </Modal>
@@ -1271,6 +1401,24 @@ const styles = StyleSheet.create({
     color: '#1d4ed8',
     fontWeight: '800',
   },
+  quickBtnCamera: {
+    flex: 1,
+    minWidth: 140,
+    borderRadius: 11,
+    borderWidth: 1,
+    borderColor: '#0369a1',
+    backgroundColor: '#0284c7',
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 4,
+  },
+  quickBtnCameraText: {
+    fontSize: 11,
+    color: '#ffffff',
+    fontWeight: '800',
+  },
   quickBtnSolid: {
     flex: 1,
     minWidth: 140,
@@ -1474,6 +1622,33 @@ const styles = StyleSheet.create({
     borderColor: '#dbeafe',
     backgroundColor: '#ffffff',
     padding: 14,
+  },
+  cameraModalCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    backgroundColor: '#ffffff',
+    padding: 12,
+  },
+  cameraScannerFrame: {
+    marginTop: 8,
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    backgroundColor: '#0f172a',
+    height: 320,
+  },
+  cameraScannerView: {
+    width: '100%',
+    height: '100%',
+  },
+  cameraHintText: {
+    marginTop: 10,
+    textAlign: 'center',
+    fontSize: 11,
+    color: '#475569',
+    fontWeight: '700',
   },
   modalHeaderRow: {
     flexDirection: 'row',

@@ -16,6 +16,7 @@ import ArabicSearchInput from '../components/ArabicSearchInput';
 import CustomMenu from '../components/CustomMenu';
 import SelectBox from '../components/SelectBox';
 import AuthService from '../services/AuthService';
+import { usePermissions } from '../hooks/usePermissions';
 
 interface ProgramItem {
   id: number;
@@ -65,6 +66,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const DistributionStudentsManagementScreen = ({ navigation }: any) => {
+  const { canEdit } = usePermissions();
   const [programs, setPrograms] = useState<ProgramItem[]>([]);
   const [trainees, setTrainees] = useState<TraineeItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,6 +90,8 @@ const DistributionStudentsManagementScreen = ({ navigation }: any) => {
   const [selectedTargetRoomId, setSelectedTargetRoomId] = useState<string>('');
   const [loadingTransferData, setLoadingTransferData] = useState(false);
   const [submittingTransfer, setSubmittingTransfer] = useState(false);
+
+  const canEditDistribution = canEdit('dashboard.trainees.distribution');
 
   useEffect(() => {
     loadPrograms();
@@ -421,13 +425,15 @@ const DistributionStudentsManagementScreen = ({ navigation }: any) => {
                 </View>
 
                 <View style={styles.actionsRow}>
-                  <TouchableOpacity
-                    style={styles.primaryBtn}
-                    onPress={() => openTransferModal(trainee)}
-                  >
-                    <Icon name="swap-horiz" size={16} color="#fff" />
-                    <Text style={styles.primaryBtnText}>تحويل</Text>
-                  </TouchableOpacity>
+                  {canEditDistribution && (
+                    <TouchableOpacity
+                      style={styles.primaryBtn}
+                      onPress={() => openTransferModal(trainee)}
+                    >
+                      <Icon name="swap-horiz" size={16} color="#fff" />
+                      <Text style={styles.primaryBtnText}>تحويل</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             ))}

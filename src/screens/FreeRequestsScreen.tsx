@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -27,11 +27,18 @@ interface FreeRequestsScreenProps {
 }
 
 const FreeRequestsScreen = ({ navigation }: FreeRequestsScreenProps) => {
+  const REQUESTS_PAGE_SIZE = 20;
+
   const [requests, setRequests] = useState<TraineeRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [selectedType, setSelectedType] = useState<RequestType | 'ALL'>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<RequestStatus | 'ALL'>('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRequests, setTotalRequests] = useState(0);
   const [selectedRequest, setSelectedRequest] = useState<TraineeRequest | null>(null);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -40,12 +47,27 @@ const FreeRequestsScreen = ({ navigation }: FreeRequestsScreenProps) => {
   const [adminResponse, setAdminResponse] = useState('');
 
   useEffect(() => {
-    fetchRequests();
+    setSearchQuery('');
+    void fetchRequests(1, false);
   }, [selectedType, selectedStatus]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fetchRequests = async () => {
+  const mergeUniqueRequests = (oldRequests: TraineeRequest[], newRequests: TraineeRequest[]) => {
+    const requestsMap = new Map<string, TraineeRequest>();
+
+    oldRequests.forEach(request => requestsMap.set(request.id, request));
+    newRequests.forEach(request => requestsMap.set(request.id, request));
+
+    return Array.from(requestsMap.values());
+  };
+
+  const fetchRequests = async (page = 1, append = false) => {
     try {
-      setLoading(true);
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
+      }
+
       const params: any = {};
       
       if (selectedType !== 'ALL') {
@@ -56,15 +78,33 @@ const FreeRequestsScreen = ({ navigation }: FreeRequestsScreenProps) => {
         params.status = selectedStatus;
       }
 
+      params.page = page;
+      params.limit = REQUESTS_PAGE_SIZE;
+
       const data = await AuthService.getTraineeRequests(params);
+      const normalizedRequests = Array.isArray(data)
+        ? data
+        : data.data && Array.isArray(data.data)
+          ? data.data
+          : [];
+
+      const apiTotalPages = !Array.isArray(data)
+        ? Math.max(1, data.pagination?.totalPages || 1)
+        : 1;
+
+      const apiTotal = !Array.isArray(data)
+        ? data.pagination?.total || normalizedRequests.length
+        : normalizedRequests.length;
       
-      if (Array.isArray(data)) {
-        setRequests(data);
-      } else if (data.data && Array.isArray(data.data)) {
-        setRequests(data.data);
+      if (append) {
+        setRequests(prev => mergeUniqueRequests(prev, normalizedRequests));
       } else {
-        setRequests([]);
+        setRequests(normalizedRequests);
       }
+
+      setCurrentPage(page);
+      setTotalPages(apiTotalPages);
+      setTotalRequests(apiTotal);
     } catch (error) {
       console.error('Error fetching requests:', error);
       const errorMessage = error instanceof Error ? error.message : 'فشل في تحميل الطلبات';
@@ -78,14 +118,26 @@ const FreeRequestsScreen = ({ navigation }: FreeRequestsScreenProps) => {
         });
       }
     } finally {
-      setLoading(false);
+      if (append) {
+        setLoadingMore(false);
+      } else {
+        setLoading(false);
+      }
       setRefreshing(false);
     }
   };
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchRequests();
+    await fetchRequests(1, false);
+  };
+
+  const handleLoadMore = async () => {
+    if (loadingMore || loading || currentPage >= totalPages) {
+      return;
+    }
+
+    await fetchRequests(currentPage + 1, true);
   };
 
   const handleReview = (request: TraineeRequest, action: 'APPROVED' | 'REJECTED') => {
@@ -117,7 +169,7 @@ const FreeRequestsScreen = ({ navigation }: FreeRequestsScreenProps) => {
       setSelectedRequest(null);
       setReviewAction(null);
       setAdminResponse('');
-      await fetchRequests();
+      await fetchRequests(1, false);
     } catch (error) {
       console.error('Error reviewing request:', error);
       Toast.show({
@@ -150,7 +202,7 @@ const FreeRequestsScreen = ({ navigation }: FreeRequestsScreenProps) => {
         position: 'top',
       });
       setRequestToDelete(null);
-      await fetchRequests();
+      await fetchRequests(1, false);
     } catch (error) {
       Toast.show({
         type: 'error',
@@ -215,6 +267,30 @@ const FreeRequestsScreen = ({ navigation }: FreeRequestsScreenProps) => {
       day: 'numeric',
     });
   };
+
+  const filteredRequests = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+
+    if (!query) {
+      return requests;
+    }
+
+    return requests.filter(request => {
+      const traineeName = request.trainee?.nameAr?.toLowerCase() || '';
+      const nationalId = request.trainee?.nationalId?.toLowerCase() || '';
+      const phone = request.trainee?.phone?.toLowerCase() || '';
+      const programName = request.trainee?.program?.nameAr?.toLowerCase() || '';
+      const reason = request.reason?.toLowerCase() || '';
+
+      return (
+        traineeName.includes(query) ||
+        nationalId.includes(query) ||
+        phone.includes(query) ||
+        programName.includes(query) ||
+        reason.includes(query)
+      );
+    });
+  }, [requests, searchQuery]);
 
   const renderRequestCard = (request: TraineeRequest) => (
     <View key={request.id} style={styles.requestCard}>
@@ -420,6 +496,30 @@ const FreeRequestsScreen = ({ navigation }: FreeRequestsScreenProps) => {
         </ScrollView>
       </View>
 
+      <View style={styles.searchContainer}>
+        <View style={styles.searchInputContainer}>
+          <Icon name="search" size={20} color="#9ca3af" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="بحث بالاسم أو الرقم القومي أو الهاتف..."
+            placeholderTextColor="#9ca3af"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            textAlign="right"
+          />
+          {!!searchQuery && (
+            <TouchableOpacity style={styles.clearSearchButton} onPress={() => setSearchQuery('')}>
+              <Icon name="close" size={18} color="#64748b" />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <Text style={styles.resultsInfoText}>
+          المعروض: {filteredRequests.length} من {requests.length} طلب محمل
+          {totalRequests > 0 ? ` (الإجمالي: ${totalRequests})` : ''}
+        </Text>
+      </View>
+
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
@@ -437,14 +537,56 @@ const FreeRequestsScreen = ({ navigation }: FreeRequestsScreenProps) => {
             <ActivityIndicator size="large" color="#1a237e" />
             <Text style={styles.loadingText}>جاري تحميل الطلبات...</Text>
           </View>
-        ) : requests.length === 0 ? (
+        ) : filteredRequests.length === 0 ? (
           <View style={styles.emptyState}>
             <Icon name="inbox" size={64} color="#d1d5db" />
-            <Text style={styles.emptyTitle}>لا توجد طلبات</Text>
-            <Text style={styles.emptySubtitle}>لم يتم العثور على طلبات</Text>
+            <Text style={styles.emptyTitle}>{searchQuery ? 'لا توجد نتائج للبحث' : 'لا توجد طلبات'}</Text>
+            <Text style={styles.emptySubtitle}>
+              {searchQuery ? 'جرّب كلمات مختلفة أو تحميل المزيد من الطلبات القديمة' : 'لم يتم العثور على طلبات'}
+            </Text>
+
+            {currentPage < totalPages && (
+              <TouchableOpacity
+                style={[styles.loadMoreButton, loadingMore && styles.loadMoreButtonDisabled]}
+                onPress={handleLoadMore}
+                disabled={loadingMore}
+              >
+                {loadingMore ? (
+                  <ActivityIndicator size="small" color="#1a237e" />
+                ) : (
+                  <Icon name="expand-more" size={20} color="#1a237e" />
+                )}
+                <Text style={styles.loadMoreButtonText}>
+                  {loadingMore ? 'جاري تحميل المزيد...' : 'تحميل المزيد لتوسيع البحث'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
-          requests.map(renderRequestCard)
+          <>
+            {filteredRequests.map(renderRequestCard)}
+
+            {currentPage < totalPages && (
+              <TouchableOpacity
+                style={[styles.loadMoreButton, loadingMore && styles.loadMoreButtonDisabled]}
+                onPress={handleLoadMore}
+                disabled={loadingMore}
+              >
+                {loadingMore ? (
+                  <ActivityIndicator size="small" color="#1a237e" />
+                ) : (
+                  <Icon name="expand-more" size={20} color="#1a237e" />
+                )}
+                <Text style={styles.loadMoreButtonText}>
+                  {loadingMore ? 'جاري تحميل المزيد...' : 'تحميل المزيد من الطلبات القديمة'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {currentPage >= totalPages && requests.length > 0 && (
+              <Text style={styles.endOfListText}>تم عرض كل الطلبات المتاحة</Text>
+            )}
+          </>
         )}
       </ScrollView>
 
@@ -575,6 +717,11 @@ const styles = StyleSheet.create({
   filterButtonActive: { backgroundColor: '#1a237e' },
   filterButtonText: { fontSize: 14, fontWeight: '600', color: '#6b7280' },
   filterButtonTextActive: { color: '#fff' },
+  searchContainer: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 8, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e5e7eb' },
+  searchInputContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12, paddingHorizontal: 12 },
+  searchInput: { flex: 1, fontSize: 14, color: '#1f2937', paddingVertical: 10, marginHorizontal: 8 },
+  clearSearchButton: { padding: 4, borderRadius: 12, backgroundColor: '#e2e8f0' },
+  resultsInfoText: { marginTop: 8, fontSize: 12, color: '#64748b', textAlign: 'right' },
   content: { flex: 1, padding: 16 },
   requestCard: { backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.08, shadowRadius: 4, elevation: 3 },
   requestHeader: { marginBottom: 12 },
@@ -614,6 +761,10 @@ const styles = StyleSheet.create({
   emptyState: { alignItems: 'center', paddingVertical: 80, paddingHorizontal: 32 },
   emptyTitle: { fontSize: 20, fontWeight: '600', color: '#6b7280', marginTop: 16, marginBottom: 8 },
   emptySubtitle: { fontSize: 15, color: '#9ca3af', textAlign: 'center', lineHeight: 22 },
+  loadMoreButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: '#1a237e', backgroundColor: '#eef2ff', marginTop: 6, marginBottom: 10, gap: 8 },
+  loadMoreButtonDisabled: { opacity: 0.6 },
+  loadMoreButtonText: { fontSize: 14, fontWeight: '700', color: '#1a237e' },
+  endOfListText: { fontSize: 12, color: '#9ca3af', textAlign: 'center', marginTop: 6, marginBottom: 8 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { backgroundColor: '#fff', borderRadius: 20, padding: 24, width: '90%', maxWidth: 400, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8, elevation: 8 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },

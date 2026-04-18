@@ -8,11 +8,14 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Modal,
+  TextInput,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AddScheduleSlotModal from '../components/AddScheduleSlotModal';
 import AuthService from '../services/AuthService';
 import { ClassroomScheduleResponse, DayOfWeek, SessionType } from '../types/scheduleManagement';
+import { AttendanceSession } from '../types/studentAttendance';
 
 interface ScheduleDetailsScreenProps {
   navigation: any;
@@ -41,7 +44,13 @@ const ScheduleDetailsScreen = ({ navigation, route }: ScheduleDetailsScreenProps
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [scheduleSlots, setScheduleSlots] = useState<ClassroomScheduleResponse[]>([]);
+  const [sessionsBySlot, setSessionsBySlot] = useState<Record<number, AttendanceSession[]>>({});
+  const [expandedSlotId, setExpandedSlotId] = useState<number | null>(null);
   const [showAddSlotModal, setShowAddSlotModal] = useState(false);
+  const [editingSlot, setEditingSlot] = useState<ClassroomScheduleResponse | null>(null);
+  const [sessionModalVisible, setSessionModalVisible] = useState(false);
+  const [selectedSession, setSelectedSession] = useState<AttendanceSession | null>(null);
+  const [cancellationReason, setCancellationReason] = useState('');
 
   useEffect(() => {
     if (classroomId) {
@@ -114,6 +123,18 @@ const ScheduleDetailsScreen = ({ navigation, route }: ScheduleDetailsScreenProps
       console.log('🔍 ScheduleDetailsScreen - ScheduleData length:', scheduleData.length);
       
       setScheduleSlots(scheduleData);
+      const sessionsMap: Record<number, AttendanceSession[]> = {};
+      await Promise.all(
+        scheduleData.map(async (slot) => {
+          try {
+            const slotSessions = await AuthService.getAttendanceSessionsBySlot(slot.id);
+            sessionsMap[slot.id] = Array.isArray(slotSessions) ? slotSessions : [];
+          } catch {
+            sessionsMap[slot.id] = [];
+          }
+        })
+      );
+      setSessionsBySlot(sessionsMap);
       console.log('🔍 ScheduleDetailsScreen - Schedule slots loaded:', scheduleData.length);
     } catch (error) {
       console.error('🔍 ScheduleDetailsScreen - Error fetching classroom schedule:', error);
@@ -142,6 +163,7 @@ const ScheduleDetailsScreen = ({ navigation, route }: ScheduleDetailsScreenProps
         { text: 'موافق', style: 'cancel' }
       ]);
       setScheduleSlots([]);
+      setSessionsBySlot({});
     } finally {
       setLoading(false);
     }
@@ -156,6 +178,74 @@ const ScheduleDetailsScreen = ({ navigation, route }: ScheduleDetailsScreenProps
   const handleAddSlotSuccess = () => {
     console.log('🔍 ScheduleDetailsScreen - Slot added successfully, refreshing data...');
     fetchScheduleSlots();
+    setEditingSlot(null);
+  };
+
+  const openAddSlotModal = () => {
+    setEditingSlot(null);
+    setShowAddSlotModal(true);
+  };
+
+  const openEditSlotModal = (slot: ClassroomScheduleResponse) => {
+    setEditingSlot(slot);
+    setShowAddSlotModal(true);
+  };
+
+  const closeSlotModal = () => {
+    setShowAddSlotModal(false);
+    setEditingSlot(null);
+  };
+
+  const openSessionModal = (session: AttendanceSession) => {
+    setSelectedSession(session);
+    setCancellationReason(session.cancellationReason || '');
+    setSessionModalVisible(true);
+  };
+
+  const closeSessionModal = () => {
+    setSessionModalVisible(false);
+    setSelectedSession(null);
+    setCancellationReason('');
+  };
+
+  const handleToggleSessionStatus = async () => {
+    if (!selectedSession) return;
+    const shouldCancel = !selectedSession.isCancelled;
+
+    try {
+      await AuthService.cancelScheduleSession(selectedSession.id, {
+        isCancelled: shouldCancel,
+        cancellationReason: shouldCancel ? (cancellationReason.trim() || undefined) : undefined,
+      });
+      Alert.alert('تم', shouldCancel ? 'تم إلغاء المحاضرة' : 'تم تفعيل المحاضرة');
+      closeSessionModal();
+      fetchScheduleSlots();
+    } catch (error: any) {
+      Alert.alert('خطأ', error?.message || 'فشل في تحديث حالة المحاضرة');
+    }
+  };
+
+  const handleDeleteSlot = (slot: ClassroomScheduleResponse) => {
+    Alert.alert(
+      'تأكيد الحذف',
+      `هل تريد حذف الفترة "${slot.content.name}"؟ سيتم حذف جميع الجلسات المرتبطة بها.`,
+      [
+        { text: 'إلغاء', style: 'cancel' },
+        {
+          text: 'حذف',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await AuthService.deleteScheduleSlot(slot.id);
+              Alert.alert('تم', 'تم حذف الفترة الدراسية بنجاح');
+              fetchScheduleSlots();
+            } catch (error: any) {
+              Alert.alert('خطأ', error?.message || 'فشل في حذف الفترة الدراسية');
+            }
+          }
+        }
+      ]
+    );
   };
 
   const getDayLabel = (dayOfWeek: string) => {
@@ -243,14 +333,68 @@ const ScheduleDetailsScreen = ({ navigation, route }: ScheduleDetailsScreenProps
           <Text style={styles.infoLabel}>الجلسات:</Text>
           <Text style={styles.infoValue}>{slot._count.sessions}</Text>
         </View>
+
+        <View style={styles.sessionsHeaderRow}>
+          <Text style={styles.sessionsTitle}>المحاضرات</Text>
+          <TouchableOpacity
+            style={styles.sessionsToggleBtn}
+            onPress={() => setExpandedSlotId(expandedSlotId === slot.id ? null : slot.id)}
+          >
+            <Text style={styles.sessionsToggleText}>
+              {expandedSlotId === slot.id ? 'إخفاء' : 'عرض'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {expandedSlotId === slot.id && (
+          <View style={styles.sessionsContainer}>
+            {(sessionsBySlot[slot.id] || []).length === 0 ? (
+              <Text style={styles.noSessionsText}>لا توجد محاضرات مجدولة لهذه الفترة</Text>
+            ) : (
+              [...(sessionsBySlot[slot.id] || [])]
+                .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                .map((session) => {
+                  const sessionDate = new Date(session.date);
+                  return (
+                    <TouchableOpacity
+                      key={session.id}
+                      style={[styles.sessionItem, session.isCancelled && styles.sessionItemCancelled]}
+                      onPress={() => openSessionModal(session)}
+                    >
+                      <View style={styles.sessionInfoBlock}>
+                        <Text style={styles.sessionDateText}>
+                          {sessionDate.toLocaleDateString('ar-EG', {
+                            weekday: 'long',
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </Text>
+                        {session.isCancelled && session.cancellationReason ? (
+                          <Text style={styles.sessionReasonText} numberOfLines={2}>
+                            السبب: {session.cancellationReason}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <View style={[styles.sessionStatusBadge, session.isCancelled ? styles.sessionCancelledBadge : styles.sessionActiveBadge]}>
+                        <Text style={[styles.sessionStatusText, session.isCancelled ? styles.sessionCancelledText : styles.sessionActiveText]}>
+                          {session.isCancelled ? 'ملغاة' : 'مفعلة'}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+            )}
+          </View>
+        )}
       </View>
 
       <View style={styles.cardActions}>
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity style={styles.actionButton} onPress={() => openEditSlotModal(slot)}>
           <Icon name="edit" size={20} color="#1a237e" />
           <Text style={styles.actionText}>تعديل</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity style={styles.actionButton} onPress={() => handleDeleteSlot(slot)}>
           <Icon name="delete" size={20} color="#F44336" />
           <Text style={styles.actionText}>حذف</Text>
         </TouchableOpacity>
@@ -283,7 +427,7 @@ const ScheduleDetailsScreen = ({ navigation, route }: ScheduleDetailsScreenProps
           <Icon name="arrow-back" size={24} color="#1a237e" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>جدول {classroomName}</Text>
-        <TouchableOpacity onPress={() => setShowAddSlotModal(true)}>
+        <TouchableOpacity onPress={openAddSlotModal}>
           <Icon name="add" size={24} color="#1a237e" />
         </TouchableOpacity>
       </View>
@@ -324,7 +468,7 @@ const ScheduleDetailsScreen = ({ navigation, route }: ScheduleDetailsScreenProps
           <Text style={styles.sectionTitle}>الفترات الدراسية</Text>
           <TouchableOpacity 
             style={styles.addButton}
-            onPress={() => setShowAddSlotModal(true)}
+            onPress={openAddSlotModal}
           >
             <Icon name="add" size={20} color="#1a237e" />
             <Text style={styles.addButtonText}>إضافة فترة</Text>
@@ -347,10 +491,60 @@ const ScheduleDetailsScreen = ({ navigation, route }: ScheduleDetailsScreenProps
       {/* Modal إضافة فترة دراسية */}
       <AddScheduleSlotModal
         visible={showAddSlotModal}
-        onClose={() => setShowAddSlotModal(false)}
+        onClose={closeSlotModal}
         onSuccess={handleAddSlotSuccess}
-        classroomId={programId}
+        classroomId={classroomId}
+        slotToEdit={editingSlot}
       />
+
+      <Modal
+        visible={sessionModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closeSessionModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitleText}>
+              {selectedSession?.isCancelled ? 'تفعيل المحاضرة' : 'إلغاء المحاضرة'}
+            </Text>
+            <Text style={styles.modalDateText}>
+              {selectedSession?.date
+                ? new Date(selectedSession.date).toLocaleDateString('ar-EG', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                  })
+                : ''}
+            </Text>
+
+            {!selectedSession?.isCancelled && (
+              <View style={styles.reasonContainer}>
+                <Text style={styles.reasonLabel}>سبب الإلغاء (اختياري)</Text>
+                <TextInput
+                  style={styles.reasonInput}
+                  multiline
+                  value={cancellationReason}
+                  onChangeText={setCancellationReason}
+                  placeholder="اكتب سبب الإلغاء"
+                />
+              </View>
+            )}
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.modalCancelBtn} onPress={closeSessionModal}>
+                <Text style={styles.modalCancelText}>إلغاء</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalConfirmBtn} onPress={handleToggleSessionStatus}>
+                <Text style={styles.modalConfirmText}>
+                  {selectedSession?.isCancelled ? 'تفعيل' : 'تأكيد الإلغاء'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -509,6 +703,85 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     flex: 1,
   },
+  sessionsHeaderRow: {
+    marginTop: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  sessionsTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1f2937',
+  },
+  sessionsToggleBtn: {
+    backgroundColor: '#eef2ff',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  sessionsToggleText: {
+    color: '#1a237e',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  sessionsContainer: {
+    marginTop: 10,
+    gap: 8,
+  },
+  noSessionsText: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  sessionItem: {
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 10,
+    padding: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  sessionItemCancelled: {
+    backgroundColor: '#fef2f2',
+    borderColor: '#fecaca',
+  },
+  sessionInfoBlock: {
+    flex: 1,
+    marginRight: 8,
+  },
+  sessionDateText: {
+    fontSize: 12,
+    color: '#111827',
+    fontWeight: '600',
+  },
+  sessionReasonText: {
+    marginTop: 4,
+    fontSize: 11,
+    color: '#b91c1c',
+  },
+  sessionStatusBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  sessionActiveBadge: {
+    backgroundColor: '#dcfce7',
+  },
+  sessionCancelledBadge: {
+    backgroundColor: '#fee2e2',
+  },
+  sessionStatusText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  sessionActiveText: {
+    color: '#166534',
+  },
+  sessionCancelledText: {
+    color: '#b91c1c',
+  },
   cardActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -553,6 +826,72 @@ const styles = StyleSheet.create({
     color: '#999',
     marginTop: 8,
     textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 16,
+  },
+  modalTitleText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1f2937',
+    marginBottom: 8,
+  },
+  modalDateText: {
+    fontSize: 13,
+    color: '#4b5563',
+    marginBottom: 12,
+  },
+  reasonContainer: {
+    marginBottom: 12,
+  },
+  reasonLabel: {
+    fontSize: 13,
+    color: '#374151',
+    marginBottom: 6,
+    fontWeight: '600',
+  },
+  reasonInput: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 10,
+    minHeight: 90,
+    textAlignVertical: 'top',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    color: '#111827',
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'flex-end',
+  },
+  modalCancelBtn: {
+    backgroundColor: '#f3f4f6',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  modalCancelText: {
+    color: '#374151',
+    fontWeight: '700',
+  },
+  modalConfirmBtn: {
+    backgroundColor: '#1a237e',
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  modalConfirmText: {
+    color: '#fff',
+    fontWeight: '700',
   },
 });
 

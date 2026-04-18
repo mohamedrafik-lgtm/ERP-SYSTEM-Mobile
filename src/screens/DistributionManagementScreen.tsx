@@ -3,13 +3,18 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity
 import CustomMenu from '../components/CustomMenu';
 import AuthService from '../services/AuthService';
 import Toast from 'react-native-toast-message';
-import { TraineeDistributionsResponse } from '../types/distribution';
+import { usePermissions } from '../hooks/usePermissions';
 
 const DistributionManagementScreen = ({ navigation }: any) => {
+  const { canView, canCreate, canDelete } = usePermissions();
   const [programs, setPrograms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [programStats, setProgramStats] = useState<Record<number, { totalTrainees: number; totalRooms: number }>>({});
+
+  const canViewDistribution = canView('dashboard.trainees.distribution');
+  const canCreateDistribution = canCreate('dashboard.trainees.distribution');
+  const canDeleteDistribution = canDelete('dashboard.trainees.distribution');
 
   const loadPrograms = async () => {
     try {
@@ -96,12 +101,16 @@ const DistributionManagementScreen = ({ navigation }: any) => {
       >
         {/* Toolbar */}
         <View style={styles.toolbar}>
-          <TouchableOpacity 
-            style={styles.primaryBtn} 
-            onPress={() => navigation.navigate('AddDistribution')}
-          >
-            <Text style={styles.primaryText}>توزيع جديد</Text>
-          </TouchableOpacity>
+          {canCreateDistribution ? (
+            <TouchableOpacity
+              style={styles.primaryBtn}
+              onPress={() => navigation.navigate('AddDistribution')}
+            >
+              <Text style={styles.primaryText}>توزيع جديد</Text>
+            </TouchableOpacity>
+          ) : (
+            <View />
+          )}
           <View style={styles.rightTools}>
             <TouchableOpacity 
               style={styles.ghostBtn} 
@@ -147,24 +156,33 @@ const DistributionManagementScreen = ({ navigation }: any) => {
                   </View>
                 </View>
                 <View style={styles.cardActions}>
-                  <TouchableOpacity 
-                    style={styles.ghostBtn} 
-                    onPress={() => navigation.navigate('ProgramDistributions', { 
-                      programId: program.id, 
-                      programName: program.nameAr 
-                    })}
-                  >
-                    <Text style={styles.ghostText}>عرض وطباعة</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.dangerBtn} onPress={() => {}}>
-                    <Text style={styles.dangerText}>حذف</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.primaryBtn} 
-                    onPress={() => navigation.navigate('DistributionDetails', { distributionId: program.id })}
-                  >
-                    <Text style={styles.primaryText}>تفاصيل التوزيع</Text>
-                  </TouchableOpacity>
+                  {canViewDistribution && (
+                    <TouchableOpacity
+                      style={styles.ghostBtn}
+                      onPress={() => navigation.navigate('ProgramDistributions', {
+                        programId: program.id,
+                        programName: program.nameAr
+                      })}
+                    >
+                      <Text style={styles.ghostText}>عرض وطباعة</Text>
+                    </TouchableOpacity>
+                  )}
+                  {canDeleteDistribution && (
+                    <TouchableOpacity style={styles.dangerBtn} onPress={() => {}}>
+                      <Text style={styles.dangerText}>حذف</Text>
+                    </TouchableOpacity>
+                  )}
+                  {canViewDistribution && (
+                    <TouchableOpacity
+                      style={styles.primaryBtn}
+                      onPress={() => navigation.navigate('ProgramDistributions', {
+                        programId: program.id,
+                        programName: program.nameAr
+                      })}
+                    >
+                      <Text style={styles.primaryText}>تفاصيل التوزيع</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               </View>
             ))}

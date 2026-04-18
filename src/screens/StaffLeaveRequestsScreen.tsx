@@ -6,6 +6,7 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Toast from 'react-native-toast-message';
 import CustomMenu from '../components/CustomMenu';
+import DateTimePickerField from '../components/DateTimePickerField';
 import AuthService from '../services/AuthService';
 import {
   StaffLeaveType, StaffLeaveTypeArabic, StaffLeaveTypeIcon,
@@ -61,6 +62,12 @@ const StaffLeaveRequestsScreen = ({navigation}: any) => {
       Alert.alert('تنبيه', 'يرجى ملء جميع الحقول المطلوبة');
       return;
     }
+
+    if (new Date(formData.startDate).getTime() > new Date(formData.endDate).getTime()) {
+      Alert.alert('تنبيه', 'تاريخ البداية يجب أن يكون قبل أو يساوي تاريخ النهاية');
+      return;
+    }
+
     setCreating(true);
     try {
       await AuthService.createLeaveRequest(formData);
@@ -295,22 +302,20 @@ const StaffLeaveRequestsScreen = ({navigation}: any) => {
                 ))}
               </View>
 
-              <Text style={styles.inputLabel}>تاريخ البداية (YYYY-MM-DD)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="مثال: 2026-03-10"
-                placeholderTextColor="#9ca3af"
+              <DateTimePickerField
+                label="تاريخ البداية"
                 value={formData.startDate}
-                onChangeText={v => setFormData(p => ({ ...p, startDate: v }))}
+                onChange={v => setFormData(p => ({ ...p, startDate: v }))}
+                placeholder="اختر تاريخ البداية"
+                mode="date"
               />
 
-              <Text style={styles.inputLabel}>تاريخ النهاية (YYYY-MM-DD)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="مثال: 2026-03-12"
-                placeholderTextColor="#9ca3af"
+              <DateTimePickerField
+                label="تاريخ النهاية"
                 value={formData.endDate}
-                onChangeText={v => setFormData(p => ({ ...p, endDate: v }))}
+                onChange={v => setFormData(p => ({ ...p, endDate: v }))}
+                placeholder="اختر تاريخ النهاية"
+                mode="date"
               />
 
               <Text style={styles.inputLabel}>السبب *</Text>

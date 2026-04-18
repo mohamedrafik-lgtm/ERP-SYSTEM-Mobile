@@ -18,6 +18,54 @@ class AuthService {
   private static readonly TOKEN_KEY = 'auth_token';
   private static readonly USER_KEY = 'user_data';
   private static readonly EXPIRES_KEY = 'token_expires';
+  private static readonly DEFAULT_SESSION_MS = 7 * 24 * 60 * 60 * 1000;
+
+  private static decodeJwtExpiryMs(token: string): number | null {
+    try {
+      const parts = token.split('.');
+      if (parts.length < 2) return null;
+
+      const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+      const padded = payload + '='.repeat((4 - (payload.length % 4)) % 4);
+      const decoded = JSON.parse(atob(padded));
+      const expSeconds = Number(decoded?.exp);
+
+      if (!Number.isFinite(expSeconds) || expSeconds <= 0) return null;
+      return expSeconds * 1000;
+    } catch {
+      return null;
+    }
+  }
+
+  private static normalizeExpiresInMs(expiresIn?: number): number {
+    if (!Number.isFinite(expiresIn as number) || !expiresIn || expiresIn <= 0) {
+      return this.DEFAULT_SESSION_MS;
+    }
+
+    // بعض الـ APIs ترجع expiresIn بالثواني (مثل 3600)، وبعضها بالملي ثانية.
+    return expiresIn < 100000 ? expiresIn * 1000 : expiresIn;
+  }
+
+  private static computeExpiresAt(token: string, expiresIn?: number): number {
+    const fromApi = Date.now() + this.normalizeExpiresInMs(expiresIn);
+    const fromJwt = this.decodeJwtExpiryMs(token);
+
+    if (!fromJwt) return fromApi;
+
+    // نختار الأقرب لانتهاء فعلي حتى لا نظل على جلسة منتهية على الخادم.
+    return Math.min(fromApi, fromJwt);
+  }
+
+  private static async clearPermissionCacheSilently() {
+    try {
+      const PermissionService = require('./PermissionService').default;
+      if (PermissionService?.clearCache) {
+        await PermissionService.clearCache();
+      }
+    } catch (error) {
+      console.warn('Could not clear permission cache:', error);
+    }
+  }
 
   // Helper method to get the current API base URL
   private static async getApiBaseUrl(): Promise<string> {
@@ -55,15 +103,16 @@ class AuthService {
   // حفظ بيانات تسجيل الدخول - محدث لدعم الأدوار
   static async saveAuthData(token: string, user: User | any, expiresIn?: number) {
     try {
-      // إذا لم يتم تحديد مدة الانتهاء، استخدم 7 أيام كافتراضي
-      const defaultExpiresIn = 7 * 24 * 60 * 60 * 1000; // 7 أيام
-      const expiresAt = Date.now() + (expiresIn || defaultExpiresIn);
+      const expiresAt = this.computeExpiresAt(token, expiresIn);
       
       await AsyncStorage.multiSet([
         [this.TOKEN_KEY, token],
         [this.USER_KEY, JSON.stringify(user)],
         [this.EXPIRES_KEY, expiresAt.toString()]
       ]);
+
+      // ضمان جلب صلاحيات جديدة للحساب الذي تم تسجيل دخوله للتو.
+      await this.clearPermissionCacheSilently();
       
       console.log('Auth data saved successfully');
       console.log('User roles:', user.roles ? `${user.roles.length} roles` : 'no roles');
@@ -83,11 +132,17 @@ class AuthService {
         this.EXPIRES_KEY
       ]);
 
-      if (!token[1] || !userData[1] || !expiresAt[1]) {
+      if (!token[1] || !userData[1]) {
         return null;
       }
 
-      const expires = parseInt(expiresAt[1], 10);
+      let expires = expiresAt[1] ? parseInt(expiresAt[1], 10) : NaN;
+
+      // ترقية تلقائية للحسابات القديمة التي لم تكن تحفظ تاريخ الانتهاء.
+      if (!Number.isFinite(expires) || expires <= 0) {
+        expires = this.computeExpiresAt(token[1]);
+        await AsyncStorage.setItem(this.EXPIRES_KEY, String(expires));
+      }
       
       // التحقق من انتهاء صلاحية الـ token
       if (Date.now() > expires) {
@@ -160,6 +215,7 @@ class AuthService {
         this.USER_KEY,
         this.EXPIRES_KEY
       ]);
+      await this.clearPermissionCacheSilently();
       console.log('Auth data cleared successfully');
     } catch (error) {
       console.error('Error clearing auth data:', error);
@@ -1368,6 +1424,210 @@ class AuthService {
     }
   }
 
+  // Get Financial Entries (Transfers between safes)
+  static async getFinancialEntries(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    dateFrom?: string;
+    dateTo?: string;
+  }): Promise<import('../types/student').IFinancialEntriesResponse> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const queryParams = new URLSearchParams();
+      if (params?.page) queryParams.append('page', String(params.page));
+      if (params?.limit) queryParams.append('limit', String(params.limit));
+      if (params?.search) queryParams.append('search', params.search);
+      if (params?.dateFrom) queryParams.append('dateFrom', params.dateFrom);
+      if (params?.dateTo) queryParams.append('dateTo', params.dateTo);
+
+      const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+      const baseUrl = await this.getApiBaseUrl();
+
+      const response = await fetch(`${baseUrl}/api/finances/entries${queryString}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to fetch financial entries: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (Array.isArray(data)) {
+        return {
+          data,
+          total: data.length,
+        };
+      }
+
+      if (Array.isArray(data?.data)) {
+        return {
+          data: data.data,
+          pagination: data.pagination,
+          total: data.total ?? data.pagination?.totalItems,
+        };
+      }
+
+      if (Array.isArray(data?.data?.data)) {
+        return {
+          data: data.data.data,
+          pagination: data.data.pagination,
+          total: data.data.total ?? data.data.pagination?.totalItems,
+        };
+      }
+
+      return {
+        data: [],
+        total: 0,
+      };
+    } catch (error) {
+      console.error('[AuthService] Error fetching financial entries:', error);
+      throw error;
+    }
+  }
+
+  // Create Financial Entry (transfer between safes)
+  static async createFinancialEntry(payload: {
+    fromSafeId: string;
+    toSafeId: string;
+    amount: number;
+    description: string;
+  }): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/finances/transfer`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to create financial entry: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error creating financial entry:', error);
+      throw error;
+    }
+  }
+
+  // Get Safe By Id
+  static async getSafeById(safeId: string): Promise<import('../types/student').ISafe> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/finances/safes/${safeId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to fetch safe: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching safe by id:', error);
+      throw error;
+    }
+  }
+
+  // Update Safe
+  static async updateSafe(
+    safeId: string,
+    data: {
+      name?: string;
+      description?: string;
+      category?: import('../types/student').SafeCategory;
+      currency?: string;
+      isActive?: boolean;
+    },
+  ): Promise<import('../types/student').ISafe> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/finances/safes/${safeId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to update safe: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error updating safe:', error);
+      throw error;
+    }
+  }
+
+  // Delete Safe
+  static async deleteSafe(safeId: string): Promise<{ message: string }> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/finances/safes/${safeId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to delete safe: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error deleting safe:', error);
+      throw error;
+    }
+  }
+
   // Permissions: Get roles with relations
   static async getRoles(): Promise<import('../types/permissions').RolesResponse> {
     try {
@@ -1505,6 +1765,37 @@ class AuthService {
     }
   }
 
+  // Users: Get single user by id with relations
+  static async getUserById(userId: string): Promise<import('../types/users').UserItem> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/users/${userId}`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to fetch user: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching user by id:', error);
+      throw error;
+    }
+  }
+
   // Users: Update user (PATCH)
   static async updateUser(userId: string, payload: import('../types/users').UpdateUserRequest): Promise<any> {
     try {
@@ -1513,7 +1804,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = `https://erpproductionbackend-production.up.railway.app/api/users/${userId}`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/users/${userId}`;
       // Sanitize payload: drop undefined/empty string fields
       const cleanedEntries = Object.entries(payload).filter(([key, value]) => value !== undefined && value !== '');
       const cleanedPayload = cleanedEntries.reduce((acc: any, [k, v]) => {
@@ -1626,7 +1918,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = `https://erpproductionbackend-production.up.railway.app/api/marketing/employees`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/marketing/employees`;
       console.log('[AuthService] Creating marketing employee');
 
       const response = await fetch(url, {
@@ -1727,7 +2020,8 @@ class AuthService {
       if (params?.month) queryParams.append('month', params.month.toString());
       if (params?.year) queryParams.append('year', params.year.toString());
 
-      const url = `https://erpproductionbackend-production.up.railway.app/api/marketing/targets?${queryParams.toString()}`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/marketing/targets?${queryParams.toString()}`;
       console.log('[AuthService] Fetching marketing targets from URL:', url);
 
       const response = await fetch(url, {
@@ -1837,7 +2131,8 @@ class AuthService {
         throw new Error('Authentication token not found.');
       }
 
-      const url = `https://erpproductionbackend-production.up.railway.app/api/marketing/targets/${id}`;
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/marketing/targets/${id}`;
       console.log('[AuthService] Deleting marketing target', id);
 
       const response = await fetch(url, {
@@ -1900,7 +2195,14 @@ class AuthService {
   }
 
   // Get Safe Transactions
-  static async getSafeTransactions(safeId: string): Promise<import('../types/student').ITransaction[]> {
+  static async getSafeTransactions(
+    safeId: string,
+    params?: {
+      limit?: number;
+      dateFrom?: string;
+      dateTo?: string;
+    },
+  ): Promise<import('../types/student').ITransaction[]> {
     try {
       const token = await this.getToken();
       if (!token) {
@@ -1909,8 +2211,14 @@ class AuthService {
 
       console.log(`[AuthService] Fetching transactions for safe: ${safeId}`);
 
+      const queryParams = new URLSearchParams();
+      if (params?.limit) queryParams.append('limit', String(params.limit));
+      if (params?.dateFrom) queryParams.append('dateFrom', params.dateFrom);
+      if (params?.dateTo) queryParams.append('dateTo', params.dateTo);
+      const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+
       const baseUrl = await this.getApiBaseUrl();
-      const response = await fetch(`${baseUrl}/api/finances/safes/${safeId}/transactions`, {
+      const response = await fetch(`${baseUrl}/api/finances/safes/${safeId}/transactions${queryString}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -2070,7 +2378,7 @@ class AuthService {
       const data = await response.json();
       console.log(`[AuthService] Trainee fee created successfully:`, data);
 
-      return data;
+      return data?.data ?? data;
     } catch (error) {
       console.error('[AuthService] Error creating trainee fee:', error);
       throw error;
@@ -2112,22 +2420,169 @@ class AuthService {
       const data = await response.json();
       console.log(`[AuthService] Trainee fees fetched successfully:`, data);
 
-      return data;
+      if (Array.isArray(data)) {
+        return data;
+      }
+
+      if (Array.isArray(data?.data)) {
+        return data.data;
+      }
+
+      if (Array.isArray(data?.data?.data)) {
+        return data.data.data;
+      }
+
+      return [];
     } catch (error) {
       console.error('[AuthService] Error fetching trainee fees:', error);
       throw error;
     }
   }
 
-  // Apply Trainee Fee
-  static async applyTraineeFee(feeId: number): Promise<any> {
+  // Get Trainee Fee By Id
+  static async getTraineeFeeById(feeId: number): Promise<import('../types/student').ITraineeFee> {
     try {
       const token = await this.getToken();
       if (!token) {
         throw new Error('Authentication token not found.');
       }
 
-      console.log(`[AuthService] Applying trainee fee: ${feeId}`);
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/finances/trainee-fees/${feeId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[AuthService] Get trainee fee by id failed: ${response.status} - ${errorText}`);
+        throw new Error(`Failed to fetch trainee fee: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data?.data ?? data;
+    } catch (error) {
+      console.error('[AuthService] Error fetching trainee fee by id:', error);
+      throw error;
+    }
+  }
+
+  // Get Trainee Fee Report
+  static async getTraineeFeeReport(
+    feeId: number,
+    reportType?: import('../types/student').TraineeFeeReportType,
+  ): Promise<import('../types/student').ITraineeFee> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const query = reportType ? `?type=${encodeURIComponent(reportType)}` : '';
+      const response = await fetch(`${baseUrl}/api/finances/trainee-fees/${feeId}/report${query}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[AuthService] Get trainee fee report failed: ${response.status} - ${errorText}`);
+        throw new Error(`Failed to fetch trainee fee report: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data?.data ?? data;
+    } catch (error) {
+      console.error('[AuthService] Error fetching trainee fee report:', error);
+      throw error;
+    }
+  }
+
+  // Update Trainee Fee
+  static async updateTraineeFee(
+    feeId: number,
+    feeData: import('../types/student').UpdateTraineeFeePayload,
+  ): Promise<import('../types/student').ITraineeFee> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/finances/trainee-fees/${feeId}`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(feeData),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[AuthService] Update trainee fee failed: ${response.status} - ${errorText}`);
+        throw new Error(`Failed to update trainee fee: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data?.data ?? data;
+    } catch (error) {
+      console.error('[AuthService] Error updating trainee fee:', error);
+      throw error;
+    }
+  }
+
+  // Delete Trainee Fee
+  static async deleteTraineeFee(feeId: number): Promise<{ message: string }> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/finances/trainee-fees/${feeId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[AuthService] Delete trainee fee failed: ${response.status} - ${errorText}`);
+        throw new Error(`Failed to delete trainee fee: ${response.status}`);
+      }
+
+      const data = await response.json();
+      return data?.data ?? data;
+    } catch (error) {
+      console.error('[AuthService] Error deleting trainee fee:', error);
+      throw error;
+    }
+  }
+
+  // Apply Trainee Fee
+  static async applyTraineeFee(
+    feeId: number,
+    payload?: { traineeIds?: number[]; description?: string },
+  ): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      console.log(`[AuthService] Applying trainee fee: ${feeId}`, payload);
 
       const baseUrl = await this.getApiBaseUrl();
       const response = await fetch(`${baseUrl}/api/finances/trainee-fees/${feeId}/apply`, {
@@ -2136,6 +2591,7 @@ class AuthService {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        body: JSON.stringify(payload || {}),
       });
 
       console.log(`[AuthService] Apply trainee fee response status: ${response.status}`);
@@ -2150,7 +2606,7 @@ class AuthService {
       const data = await response.json();
       console.log(`[AuthService] Trainee fee applied successfully:`, data);
 
-      return data;
+      return data?.data ?? data;
     } catch (error) {
       console.error('[AuthService] Error applying trainee fee:', error);
       throw error;
@@ -2163,6 +2619,8 @@ class AuthService {
     limit?: number;
     search?: string;
     marketingEmployeeId?: number;
+    employeeId?: number;
+    unassigned?: boolean;
     programId?: number;
     status?: string;
   }): Promise<import('../types/marketing').MarketingTraineesResponse> {
@@ -2177,6 +2635,8 @@ class AuthService {
       if (params?.limit) queryParams.append('limit', params.limit.toString());
       if (params?.search) queryParams.append('search', params.search);
       if (params?.marketingEmployeeId) queryParams.append('marketingEmployeeId', params.marketingEmployeeId.toString());
+      if (params?.employeeId) queryParams.append('employeeId', params.employeeId.toString());
+      if (params?.unassigned) queryParams.append('unassigned', 'true');
       if (params?.programId) queryParams.append('programId', params.programId.toString());
       if (params?.status) queryParams.append('status', params.status);
 
@@ -2200,6 +2660,123 @@ class AuthService {
       return response.json();
     } catch (error) {
       console.error('[AuthService] Error fetching marketing trainees:', error);
+      throw error;
+    }
+  }
+
+  // Marketing Trainees: Check if contact can be modified (commission guard)
+  static async canModifyMarketingTraineeContact(
+    traineeId: number,
+    contactType: import('../types/marketing').MarketingContactType,
+  ): Promise<boolean> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/marketing/trainees/${traineeId}/can-modify-contact/${contactType}`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        return false;
+      }
+
+      const data = await response.json();
+
+      if (typeof data === 'boolean') {
+        return data;
+      }
+
+      if (typeof data === 'object' && data !== null) {
+        return data.canModify === true || data.success === true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('[AuthService] Error checking marketing contact modify permission:', error);
+      return false;
+    }
+  }
+
+  // Marketing Trainees: Update first/second contact assignment
+  static async updateMarketingTraineeContact(
+    traineeId: number,
+    payload: {
+      firstContactEmployeeId?: number | null;
+      secondContactEmployeeId?: number | null;
+    },
+  ): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/marketing/trainees/${traineeId}/contact`;
+
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to update trainee contact: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error updating marketing trainee contact:', error);
+      throw error;
+    }
+  }
+
+  // Commissions: Create commission record after assigning contact
+  static async createMarketingCommission(payload: {
+    marketingEmployeeId: number;
+    traineeId: number;
+    type: import('../types/marketing').MarketingContactType;
+    amount: number;
+    description?: string;
+  }): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/commissions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to create commission: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error creating marketing commission:', error);
       throw error;
     }
   }
@@ -3027,6 +3604,113 @@ class AuthService {
     }
   }
 
+  // Trainee Management: Ministry exam declaration status
+  static async getMinistryDeclarationDeliveryStatus(traineeId: number): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(
+        `${baseUrl}/api/ministry-exam-declarations/admin/trainee/${traineeId}/delivery-status`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return (data as any)?.data ?? data;
+    } catch (error) {
+      console.error('[AuthService] Error getting ministry declaration delivery status:', error);
+      throw error;
+    }
+  }
+
+  // Trainee Management: Ministry exam declaration public link
+  static async getMinistryDeclarationPublicLink(traineeId: number): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(
+        `${baseUrl}/api/ministry-exam-declarations/admin/trainee/${traineeId}/public-link`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return (data as any)?.data ?? data;
+    } catch (error) {
+      console.error('[AuthService] Error getting ministry declaration public link:', error);
+      throw error;
+    }
+  }
+
+  // Trainee Management: Confirm ministry exam declaration delivery
+  static async deliverMinistryDeclaration(
+    traineeId: number,
+    payload: {
+      deliveryMode: 'PAPER_ONLY' | 'SCANNED_COPY' | string;
+      submissionNotes?: string;
+      declarationFileUrl?: string;
+      declarationFileCloudinaryId?: string;
+      declarationFileName?: string;
+      declarationFileMimeType?: string;
+    },
+  ): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(
+        `${baseUrl}/api/ministry-exam-declarations/admin/trainee/${traineeId}/deliver`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        },
+      );
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `HTTP error! status: ${response.status}`);
+      }
+
+      return (data as any)?.data ?? data;
+    } catch (error) {
+      console.error('[AuthService] Error delivering ministry declaration:', error);
+      throw error;
+    }
+  }
+
   // Trainee Management: Get available tuition fees for trainee
   static async getAvailableTraineeFees(traineeId: number): Promise<any> {
     try {
@@ -3686,6 +4370,129 @@ class AuthService {
       return responseData;
     } catch (error) {
       console.error('[AuthService] Error getting trainee documents:', error);
+      throw error;
+    }
+  }
+
+  // Upload a file to backend upload endpoint (Cloudinary/local via server)
+  static async uploadFile(
+    file: {
+      uri: string;
+      name: string;
+      type: string;
+    },
+    folder?: string,
+  ): Promise<{ url: string; [key: string]: any }> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      if (!file?.uri || !file?.name || !file?.type) {
+        throw new Error('Invalid file metadata for upload.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const query = folder ? `?folder=${encodeURIComponent(folder)}` : '';
+      const url = `${baseUrl}/api/upload${query}`;
+
+      const formData = new FormData();
+      formData.append('file', {
+        uri: file.uri,
+        name: file.name,
+        type: file.type,
+      } as any);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch {
+          const errorText = await response.text();
+          errorMessage = errorText || errorMessage;
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      const responseData = await response.json();
+      if (!responseData?.url) {
+        throw new Error('Upload succeeded but file URL was not returned.');
+      }
+
+      return responseData;
+    } catch (error) {
+      console.error('[AuthService] Error uploading file:', error);
+      throw error;
+    }
+  }
+
+  // Trainee Management: Upload/Create trainee document record
+  static async uploadTraineeDocument(
+    traineeId: number,
+    payload: {
+      documentType: import('../types/student').DocumentType;
+      fileName: string;
+      filePath: string;
+      fileSize: number;
+      mimeType: string;
+      notes?: string;
+    },
+  ): Promise<import('../types/student').TraineeDocument> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const url = `${baseUrl}/api/trainees/${traineeId}/documents`;
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        let errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch {
+          const errorText = await response.text();
+          errorMessage = errorText || errorMessage;
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('[AuthService] Error uploading trainee document:', error);
       throw error;
     }
   }
@@ -5246,6 +6053,7 @@ class AuthService {
   static async getTraineeAccounts(params?: {
     search?: string;
     isActive?: boolean;
+    programId?: string;
     page?: number;
     limit?: number;
     sortBy?: string;
@@ -5302,6 +6110,7 @@ class AuthService {
 
       if (params?.search) queryParams.append('search', params.search);
       if (params?.isActive !== undefined) queryParams.append('isActive', params.isActive.toString());
+      if (params?.programId) queryParams.append('programId', params.programId);
       if (params?.page) queryParams.append('page', params.page.toString());
       if (params?.limit) queryParams.append('limit', params.limit.toString());
       if (params?.sortBy) queryParams.append('sortBy', params.sortBy);
@@ -5607,6 +6416,115 @@ class AuthService {
   }
 
   /**
+   * تفعيل/تعطيل حساب متدرب
+   */
+  static async toggleTraineeAccountStatus(accountId: string): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/trainee-platform/accounts/${accountId}/toggle-status`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to toggle trainee account status: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error toggling trainee account status:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * إعادة تعيين كلمة مرور حساب متدرب
+   */
+  static async resetTraineeAccountPassword(accountId: string, newPassword: string): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/trainee-platform/accounts/${accountId}/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ newPassword }),
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to reset trainee account password: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error resetting trainee account password:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * إرسال بيانات المنصة للمتدرب
+   */
+  static async sendTraineeAccountCredentials(accountId: string): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/trainee-platform/accounts/${accountId}/send-credentials`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          await this.clearAuthData();
+          throw new Error('Authentication expired. Please login again.');
+        }
+
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to send trainee account credentials: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error sending trainee account credentials:', error);
+      throw error;
+    }
+  }
+
+  /**
    * إضافة فترة جديدة في الجدول الدراسي
    */
   static async addScheduleSlot(slotData: {
@@ -5841,6 +6759,133 @@ class AuthService {
   }
 
   /**
+   * إضافة فصل دراسي لبرنامج تدريبي
+   */
+  static async createProgramClassroom(
+    programId: number,
+    payload: { name: string },
+  ): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/programs/${programId}/classrooms`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ name: payload.name?.trim() }),
+      });
+
+      let data: any = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
+
+      if (!response.ok) {
+        throw new Error(data?.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return data?.classroom || data;
+    } catch (error) {
+      console.error('Error creating program classroom in AuthService:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * تعديل بيانات فصل دراسي
+   */
+  static async updateProgramClassroom(
+    classroomId: number,
+    payload: { name: string; startDate?: string; endDate?: string },
+  ): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/programs/classrooms/${classroomId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: payload.name?.trim(),
+          startDate: payload.startDate || '',
+          endDate: payload.endDate || '',
+        }),
+      });
+
+      let data: any = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
+
+      if (!response.ok) {
+        throw new Error(data?.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return data?.classroom || data;
+    } catch (error) {
+      console.error('Error updating program classroom in AuthService:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * حذف فصل دراسي
+   */
+  static async deleteProgramClassroom(classroomId: number): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('Authentication token not found.');
+      }
+
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/programs/classrooms/${classroomId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.status === 204) {
+        return { success: true };
+      }
+
+      let data: any = null;
+      try {
+        data = await response.json();
+      } catch {
+        data = null;
+      }
+
+      if (!response.ok) {
+        throw new Error(data?.message || `HTTP error! status: ${response.status}`);
+      }
+
+      return data || { success: true };
+    } catch (error) {
+      console.error('Error deleting program classroom in AuthService:', error);
+      throw error;
+    }
+  }
+
+  /**
    * جلب طلاب الدور الثاني (مواد أقل من 50%)
    */
   static async getSecondRoundStudents(programId: number): Promise<any[]> {
@@ -5896,6 +6941,55 @@ class AuthService {
       if ((error as Error).message.includes('timeout')) {
         throw new Error('انتهت مهلة الاتصال. حاول مرة أخرى.');
       }
+      throw error;
+    }
+  }
+
+  /**
+   * جلب الأوائل مجمعين حسب الفصول
+   */
+  static async getTopStudentsByClassroom(programId?: number, limit: number = 10): Promise<any[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const apiBaseUrl = await getCurrentApiBaseUrl();
+      const query = new URLSearchParams();
+      if (programId) query.append('programId', String(programId));
+      if (limit) query.append('limit', String(limit));
+
+      const response = await fetch(
+        `${apiBaseUrl}/api/grades/top-students-by-classroom${query.toString() ? `?${query.toString()}` : ''}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API Error ${response.status}: ${errorText || response.statusText}`);
+      }
+
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        return data;
+      }
+      if (Array.isArray(data?.data)) {
+        return data.data;
+      }
+      if (Array.isArray(data?.classrooms)) {
+        return data.classrooms;
+      }
+      return [];
+    } catch (error) {
+      console.error('[AuthService] Error fetching top students by classroom:', error);
       throw error;
     }
   }
@@ -6489,6 +7583,51 @@ class AuthService {
   }
 
   /**
+   * جلب المجموعات المتاحة لمادة ونوع فترة محددين
+   */
+  static async getScheduleDistributionRooms(
+    contentId: number,
+    type: 'THEORY' | 'PRACTICAL'
+  ): Promise<Array<{ id: string; roomName: string; _count?: { assignments?: number } }>> {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const apiBaseUrl = await getCurrentApiBaseUrl();
+      const response = await fetch(
+        `${apiBaseUrl}/api/schedule/content/${contentId}/distribution-rooms?type=${type}`,
+        {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+        },
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to fetch distribution rooms: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (Array.isArray(data)) {
+        return data;
+      }
+      if (Array.isArray(data?.data)) {
+        return data.data;
+      }
+      return [];
+    } catch (error) {
+      console.error('[AuthService] Error fetching schedule distribution rooms:', error);
+      throw error;
+    }
+  }
+
+  /**
    * تحديث فترة موجودة في الجدول الدراسي
    */
   static async updateScheduleSlot(slotId: number, updateData: {
@@ -6569,6 +7708,45 @@ class AuthService {
       return data;
     } catch (error) {
       console.error('[AuthService] Error deleting schedule slot:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * إلغاء/تفعيل محاضرة مع سبب اختياري
+   */
+  static async cancelScheduleSession(
+    sessionId: number,
+    payload: {
+      isCancelled: boolean;
+      cancellationReason?: string;
+    }
+  ) {
+    try {
+      const token = await this.getToken();
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const apiBaseUrl = await getCurrentApiBaseUrl();
+      const response = await fetch(`${apiBaseUrl}/api/schedule/sessions/${sessionId}/cancel`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to update session status: ${response.status}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error canceling/activating schedule session:', error);
       throw error;
     }
   }
@@ -7340,13 +8518,19 @@ class AuthService {
 
       const url = `${baseUrl}/api/complaints${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+
       const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -7362,6 +8546,9 @@ class AuthService {
       return response.json();
     } catch (error) {
       console.error('[AuthService] Error fetching complaints:', error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('انتهت مهلة تحميل الشكاوى. حاول مرة أخرى.');
+      }
       throw error;
     }
   }
@@ -7377,13 +8564,19 @@ class AuthService {
       }
 
       const baseUrl = await this.getApiBaseUrl();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+
       const response = await fetch(`${baseUrl}/api/complaints/stats`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -7399,6 +8592,9 @@ class AuthService {
       return response.json();
     } catch (error) {
       console.error('[AuthService] Error fetching complaints stats:', error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('انتهت مهلة تحميل إحصائيات الشكاوى.');
+      }
       throw error;
     }
   }
@@ -7417,6 +8613,9 @@ class AuthService {
       }
 
       const baseUrl = await this.getApiBaseUrl();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+
       const response = await fetch(`${baseUrl}/api/complaints/${complaintId}/review`, {
         method: 'PUT',
         headers: {
@@ -7424,7 +8623,10 @@ class AuthService {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(reviewData),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -7440,6 +8642,9 @@ class AuthService {
       return response.json();
     } catch (error) {
       console.error('[AuthService] Error reviewing complaint:', error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('انتهت مهلة تحديث الشكوى. حاول مرة أخرى.');
+      }
       throw error;
     }
   }
@@ -7455,13 +8660,19 @@ class AuthService {
       }
 
       const baseUrl = await this.getApiBaseUrl();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 12000);
+
       const response = await fetch(`${baseUrl}/api/complaints/${complaintId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -7481,6 +8692,9 @@ class AuthService {
       }
     } catch (error) {
       console.error('[AuthService] Error deleting complaint:', error);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('انتهت مهلة حذف الشكوى. حاول مرة أخرى.');
+      }
       throw error;
     }
   }
@@ -7922,6 +9136,83 @@ class AuthService {
     }
   }
 
+  // Create a new permission
+  static async createPermission(permissionData: {
+    resource: string;
+    action: string;
+    displayName: string;
+    description?: string;
+    category?: string;
+    conditions?: any;
+    isSystem?: boolean;
+  }): Promise<import('../types/permissions').PermissionItem> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/permissions/permissions`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(permissionData),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed to create permission: ${response.status}`);
+      }
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error creating permission:', error);
+      throw error;
+    }
+  }
+
+  // Update an existing permission
+  static async updatePermission(permissionId: string, permissionData: {
+    displayName?: string;
+    description?: string;
+    category?: string;
+    conditions?: any;
+  }): Promise<import('../types/permissions').PermissionItem> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/permissions/permissions/${permissionId}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(permissionData),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed to update permission: ${response.status}`);
+      }
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error updating permission:', error);
+      throw error;
+    }
+  }
+
+  // Delete a permission
+  static async deletePermission(permissionId: string): Promise<void> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/permissions/permissions/${permissionId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed to delete permission: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('[AuthService] Error deleting permission:', error);
+      throw error;
+    }
+  }
+
   // Assign permissions to a role
   static async assignPermissionsToRole(roleId: string, data: import('../types/permissions').AssignPermissionsToRoleRequest): Promise<void> {
     try {
@@ -7984,8 +9275,179 @@ class AuthService {
     }
   }
 
+  // Get user roles with full relation data
+  static async getUserRoles(userId: string): Promise<any[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/permissions/users/${userId}/roles`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed to fetch user roles: ${response.status}`);
+      }
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching user roles:', error);
+      throw error;
+    }
+  }
+
+  // Get user direct permissions
+  static async getUserDirectPermissions(userId: string): Promise<any[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/permissions/users/${userId}/direct-permissions`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed to fetch user direct permissions: ${response.status}`);
+      }
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error fetching user direct permissions:', error);
+      throw error;
+    }
+  }
+
+  // Assign direct permission to user
+  static async assignPermissionToUser(data: {
+    userId: string;
+    permissionId: string;
+    granted?: boolean;
+    expiresAt?: string;
+    reason?: string;
+  }): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/permissions/assign-permission`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed to assign permission: ${response.status}`);
+      }
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error assigning permission to user:', error);
+      throw error;
+    }
+  }
+
+  // Revoke direct permission from user
+  static async revokePermissionFromUser(userId: string, permissionId: string): Promise<void> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/permissions/users/${userId}/permissions/${permissionId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed to revoke permission: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('[AuthService] Error revoking permission from user:', error);
+      throw error;
+    }
+  }
+
+  // Get allowed programs for user
+  static async getUserAllowedPrograms(userId: string): Promise<any[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/users/${userId}/allowed-programs`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed to fetch allowed programs: ${response.status}`);
+      }
+      const data = await response.json();
+      return Array.isArray(data) ? data : (data?.data || []);
+    } catch (error) {
+      console.error('[AuthService] Error fetching allowed programs:', error);
+      throw error;
+    }
+  }
+
+  // Update allowed programs for user
+  static async updateUserAllowedPrograms(userId: string, programIds: number[]): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/users/${userId}/allowed-programs`, {
+        method: 'PATCH',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ programIds }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed to update allowed programs: ${response.status}`);
+      }
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error updating allowed programs:', error);
+      throw error;
+    }
+  }
+
+  // Get permission activity logs
+  static async getPermissionLogs(filters?: {
+    userId?: string;
+    actorId?: string;
+    action?: string;
+    resourceType?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<any[]> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const query = new URLSearchParams();
+      if (filters?.userId) query.append('userId', filters.userId);
+      if (filters?.actorId) query.append('actorId', filters.actorId);
+      if (filters?.action) query.append('action', filters.action);
+      if (filters?.resourceType) query.append('resourceType', filters.resourceType);
+      if (filters?.limit !== undefined) query.append('limit', String(filters.limit));
+      if (filters?.offset !== undefined) query.append('offset', String(filters.offset));
+
+      const response = await fetch(`${baseUrl}/api/permissions/logs?${query.toString()}`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed to fetch permission logs: ${response.status}`);
+      }
+      const data = await response.json();
+      return Array.isArray(data) ? data : (data?.data || []);
+    } catch (error) {
+      console.error('[AuthService] Error fetching permission logs:', error);
+      throw error;
+    }
+  }
+
   // Assign role to user (using the proper endpoint)
-  static async assignRoleToUser(data: { userId: string; roleId: string }): Promise<any> {
+  static async assignRoleToUser(data: { userId: string; roleId: string; expiresAt?: string; conditions?: any }): Promise<any> {
     try {
       const token = await this.getToken();
       if (!token) throw new Error('Authentication token not found.');
@@ -8096,6 +9558,112 @@ class AuthService {
       return response.json();
     } catch (error) {
       console.error('[AuthService] Error getting my attendance logs:', error);
+      throw error;
+    }
+  }
+
+  // Get active overtime session for current user
+  static async getActiveOvertimeSession(): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/staff-attendance/overtime/active`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed: ${response.status}`);
+      }
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error getting active overtime session:', error);
+      throw error;
+    }
+  }
+
+  // Get my overtime requests
+  static async getMyOvertimeRequests(): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/staff-attendance/my-overtime`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed: ${response.status}`);
+      }
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error getting overtime requests:', error);
+      throw error;
+    }
+  }
+
+  // Start overtime session for current user
+  static async startOvertimeSession(reason: string): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/staff-attendance/overtime/start`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed: ${response.status}`);
+      }
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error starting overtime session:', error);
+      throw error;
+    }
+  }
+
+  // End overtime session for current user
+  static async endOvertimeSession(sessionId: string): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/staff-attendance/overtime/${sessionId}/end`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed: ${response.status}`);
+      }
+      return response.json();
+    } catch (error) {
+      console.error('[AuthService] Error ending overtime session:', error);
+      throw error;
+    }
+  }
+
+  // Delete overtime request/session for current user
+  static async deleteOvertimeRequest(requestId: string): Promise<any> {
+    try {
+      const token = await this.getToken();
+      if (!token) throw new Error('Authentication token not found.');
+      const baseUrl = await this.getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/staff-attendance/overtime/${requestId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.message || `Failed: ${response.status}`);
+      }
+      return response.json().catch(() => ({ success: true }));
+    } catch (error) {
+      console.error('[AuthService] Error deleting overtime request:', error);
       throw error;
     }
   }

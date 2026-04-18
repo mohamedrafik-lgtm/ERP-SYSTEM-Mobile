@@ -89,23 +89,33 @@ const TargetSettingScreen = ({ navigation }: any) => {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      
-      // جلب الأهداف
-      const targetsResponse = await AuthService.getMarketingTargets({
-        month: selectedMonth,
-        year: selectedYear,
-      });
 
+      const [targetsResponse, employeesResponse] = await Promise.all([
+        AuthService.getMarketingTargets({
+          month: selectedMonth,
+          year: selectedYear,
+        }),
+        AuthService.getMarketingEmployees(),
+      ]);
+
+      const activeEmployees = (employeesResponse || []).filter((employee: any) => employee?.isActive !== false);
+      setMarketingEmployees(activeEmployees);
       setTargets(targetsResponse || []);
-      
-      // حساب الإحصائيات محلياً من البيانات
+
       const calculatedStats = calculateStatsFromTargets(targetsResponse || []);
       setStats(calculatedStats);
     } catch (error) {
       console.error('Error fetching target data:', error);
       setTargets([]);
       setStats(null);
-      Alert.alert('خطأ', 'فشل في تحميل البيانات');
+      setMarketingEmployees([]);
+
+      const errorMessage = error instanceof Error ? error.message : String(error || '');
+      if (errorMessage.includes('Application not found') || errorMessage.includes('404')) {
+        Alert.alert('خطأ في رابط الخادم', 'فشل تحميل بيانات التارجت بسبب إعداد رابط API غير صحيح. تم تحديث الشاشة لتعمل على نفس رابط الفرع مثل الويب، يرجى إعادة المحاولة.');
+      } else {
+        Alert.alert('خطأ', 'فشل في تحميل البيانات');
+      }
     } finally {
       setLoading(false);
     }
@@ -113,18 +123,7 @@ const TargetSettingScreen = ({ navigation }: any) => {
 
   useEffect(() => {
     fetchData();
-    fetchMarketingEmployees();
   }, [fetchData]);
-
-  const fetchMarketingEmployees = async () => {
-    try {
-      const employees = await AuthService.getMarketingEmployees();
-      setMarketingEmployees(employees || []);
-    } catch (error) {
-      console.error('Error fetching marketing employees:', error);
-      setMarketingEmployees([]);
-    }
-  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -132,12 +131,12 @@ const TargetSettingScreen = ({ navigation }: any) => {
     setRefreshing(false);
   };
 
-  const handleAddTarget = async (targetData: CreateMarketingTargetRequest) => {
+  const handleAddTarget = async (targetsData: CreateMarketingTargetRequest[]) => {
     try {
-      await AuthService.createMarketingTarget(targetData);
+      await Promise.all(targetsData.map((targetData) => AuthService.createMarketingTarget(targetData)));
       setShowAddModal(false);
       await fetchData();
-      Alert.alert('نجح', 'تم إضافة الهدف بنجاح');
+      Alert.alert('نجح', `تم إضافة الهدف بنجاح لـ ${targetsData.length} موظف`);
     } catch (error) {
       console.error('Error creating target:', error);
       Alert.alert('خطأ', 'فشل في إضافة الهدف');

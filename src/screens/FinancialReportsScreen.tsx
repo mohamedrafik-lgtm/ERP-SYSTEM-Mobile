@@ -1,15 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
-  RefreshControl,
   Alert,
   Dimensions,
   Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import CustomMenu from '../components/CustomMenu';
@@ -22,60 +22,65 @@ interface FinancialReportsScreenProps {
   navigation: any;
 }
 
+const TRANSACTION_TYPE_MAP: Record<string, string> = {
+  DEPOSIT: 'إيداع',
+  WITHDRAW: 'سحب',
+  TRANSFER: 'تحويل',
+  FEE: 'رسوم',
+  PAYMENT: 'دفع',
+};
+
 const FinancialReportsScreen = ({ navigation }: FinancialReportsScreenProps) => {
   const [dashboardData, setDashboardData] = useState<FinancialDashboardResponse | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
   const [dateFrom, setDateFrom] = useState<Date | null>(null);
   const [dateTo, setDateTo] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState<'from' | 'to' | null>(null);
   const [tempDate, setTempDate] = useState(new Date());
 
-  const fetchDashboardData = async () => {
-    if (!dateFrom) {
-      Alert.alert('تنبيه', 'يرجى اختيار تاريخ البداية على الأقل');
-      return;
-    }
+  const hasDateFilter = !!dateFrom || !!dateTo;
 
-    // إذا لم يتم اختيار تاريخ النهاية، استخدم نفس تاريخ البداية
-    const fromDateStr = dateFrom.toISOString().split('T')[0];
-    const toDateStr = dateTo ? dateTo.toISOString().split('T')[0] : fromDateStr;
-    
-    console.log('📅 Fetching data for date range:', fromDateStr, 'to', toDateStr);
-
-    const dateFilter = {
-      dateFrom: fromDateStr,
-      dateTo: toDateStr,
-    };
-
+  const fetchDashboardData = async (showLoader = true) => {
     try {
-      setLoading(true);
-      const data = await AuthService.getFinancialDashboard(dateFilter);
+      if (showLoader) {
+        setLoading(true);
+      }
+
+      const params: { dateFrom?: string; dateTo?: string } = {};
+      if (dateFrom) params.dateFrom = dateFrom.toISOString().split('T')[0];
+      if (dateTo) params.dateTo = dateTo.toISOString().split('T')[0];
+
+      const data = await AuthService.getFinancialDashboard(params);
       setDashboardData(data);
     } catch (error) {
-      console.error('Error fetching financial dashboard:', error);
       const errorMessage = error instanceof Error ? error.message : 'فشل في تحميل التقارير المالية';
-      
-      if (errorMessage.includes('401') || errorMessage.toLowerCase().includes('unauthorized')) {
-        Alert.alert('خطأ في المصادقة', 'انتهت صلاحية الجلسة، يرجى تسجيل الدخول مرة أخرى.');
-        AuthService.clearAuthData().then(() => {
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Login' }],
-          });
-        });
-      } else {
-        Alert.alert('خطأ', errorMessage);
+
+      if (errorMessage.includes('401') || errorMessage.toLowerCase().includes('authentication expired')) {
+        Alert.alert('انتهت الجلسة', 'يرجى تسجيل الدخول مرة أخرى');
+        await AuthService.clearAuthData();
+        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+        return;
       }
+
+      Alert.alert('خطأ', errorMessage);
     } finally {
-      setLoading(false);
+      if (showLoader) {
+        setLoading(false);
+      }
       setRefreshing(false);
     }
   };
 
+  useEffect(() => {
+    fetchDashboardData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFrom, dateTo]);
+
   const handleRefresh = async () => {
     setRefreshing(true);
-    await fetchDashboardData();
+    await fetchDashboardData(false);
   };
 
   const handleDateSelect = (type: 'from' | 'to') => {
@@ -92,22 +97,9 @@ const FinancialReportsScreen = ({ navigation }: FinancialReportsScreenProps) => 
     setShowDatePicker(null);
   };
 
-  const handleApplyFilter = async () => {
-    if (!dateFrom) {
-      Alert.alert('تنبيه', 'يرجى اختيار تاريخ البداية على الأقل');
-      return;
-    }
-    if (dateTo && dateFrom > dateTo) {
-      Alert.alert('خطأ', 'تاريخ البداية يجب أن يكون قبل تاريخ النهاية');
-      return;
-    }
-    await fetchDashboardData();
-  };
-
   const handleResetFilter = () => {
     setDateFrom(null);
     setDateTo(null);
-    setDashboardData(null);
   };
 
   const formatDisplayDate = (date: Date | null) => {
@@ -116,6 +108,21 @@ const FinancialReportsScreen = ({ navigation }: FinancialReportsScreenProps) => 
       year: 'numeric',
       month: 'long',
       day: 'numeric',
+    });
+  };
+
+  const formatCurrency = (amount: number) => {
+    return `${amount.toLocaleString('ar-EG')} ج.م`;
+  };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('ar-EG', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
     });
   };
 
@@ -131,28 +138,14 @@ const FinancialReportsScreen = ({ navigation }: FinancialReportsScreenProps) => 
     setTempDate(newDate);
   };
 
-  const formatCurrency = (amount: number) => {
-    return `${amount.toLocaleString('ar-EG')} ج.م`;
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('ar-EG', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  };
-
   const getTransactionTypeIcon = (type: string) => {
     switch (type) {
-      case 'PAYMENT':
-        return 'payment';
       case 'DEPOSIT':
-        return 'savings';
+        return 'arrow-upward';
+      case 'PAYMENT':
+        return 'payments';
       case 'WITHDRAW':
-        return 'money-off';
+        return 'arrow-downward';
       case 'TRANSFER':
         return 'swap-horiz';
       case 'FEE':
@@ -164,144 +157,139 @@ const FinancialReportsScreen = ({ navigation }: FinancialReportsScreenProps) => 
 
   const getTransactionTypeColor = (type: string) => {
     switch (type) {
-      case 'PAYMENT':
       case 'DEPOSIT':
         return '#059669';
+      case 'PAYMENT':
+        return '#2563eb';
       case 'WITHDRAW':
       case 'FEE':
         return '#dc2626';
       case 'TRANSFER':
-        return '#1a237e';
+        return '#f59e0b';
       default:
         return '#6b7280';
     }
   };
+
+  const topIncomeByTarget = useMemo(() => {
+    return (dashboardData?.incomeByTarget || []).slice(0, 5);
+  }, [dashboardData]);
 
   const renderSummaryCard = (
     title: string,
     value: number,
     icon: string,
     color: string,
-    subtitle?: string
+    subtitle: string,
   ) => (
-    <View style={[styles.summaryCard, { borderLeftColor: color }]}>
-      <View style={[styles.summaryIconContainer, { backgroundColor: color + '15' }]}>
-        <Icon name={icon} size={28} color={color} />
-      </View>
-      <View style={styles.summaryContent}>
+    <View style={styles.summaryCard}>
+      <View style={styles.summaryHeader}>
         <Text style={styles.summaryTitle}>{title}</Text>
-        <Text style={[styles.summaryValue, { color }]}>
-          {formatCurrency(value)}
-        </Text>
-        {subtitle && <Text style={styles.summarySubtitle}>{subtitle}</Text>}
+        <View style={[styles.summaryIconWrap, { backgroundColor: `${color}1A` }]}>
+          <Icon name={icon} size={20} color={color} />
+        </View>
+      </View>
+
+      <Text style={[styles.summaryValue, { color }]}>{formatCurrency(value)}</Text>
+
+      <View style={[styles.summaryBadge, { backgroundColor: `${color}12` }]}>
+        <Text style={[styles.summaryBadgeText, { color }]}>{subtitle}</Text>
       </View>
     </View>
   );
 
-  const renderSafeCard = (safe: FinancialDashboardResponse['safes'][0], index: number) => {
-    const colors = [
-      { bg: '#fef3c7', text: '#f59e0b', icon: '#d97706' },
-      { bg: '#f3f4f6', text: '#6b7280', icon: '#4b5563' },
-      { bg: '#dcfce7', text: '#059669', icon: '#047857' },
-      { bg: '#dbeafe', text: '#3b82f6', icon: '#2563eb' },
-      { bg: '#ede9fe', text: '#7c3aed', icon: '#6d28d9' },
-    ];
-    const colorScheme = colors[index % colors.length];
-    
+  const renderIncomeByTargetCard = (
+    item: FinancialDashboardResponse['incomeByTarget'][0],
+    index: number,
+  ) => {
+    const totalIncome = dashboardData?.summary.totalIncome || 0;
+    const percent = totalIncome > 0 ? (item.income / totalIncome) * 100 : 0;
+
+    const rankColors = ['#f59e0b', '#94a3b8', '#fb923c', '#60a5fa', '#cbd5e1'];
+    const rankColor = rankColors[index] || rankColors[4];
+
     return (
-      <View key={safe.id} style={[styles.safeCard, { backgroundColor: colorScheme.bg }]}>
-        <View style={styles.safeRow}>
-          <View style={[styles.safeNumber, { backgroundColor: colorScheme.icon }]}>
-            <Text style={styles.safeNumberText}>{index + 1}</Text>
+      <View key={item.safeId} style={styles.safeRankCard}>
+        <View style={[styles.safeRankNumber, { backgroundColor: rankColor }]}>
+          <Text style={styles.safeRankNumberText}>{index + 1}</Text>
+        </View>
+
+        <View style={styles.safeRankInfo}>
+          <Text style={styles.safeRankName} numberOfLines={1}>{item.safeName}</Text>
+          <Text style={styles.safeRankTransactions}>{item.transactionsCount} معاملة</Text>
+        </View>
+
+        <View style={styles.safeRankAmountBox}>
+          <Text style={styles.safeRankAmount}>{formatCurrency(item.income)}</Text>
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, { width: `${Math.min(percent, 100)}%` }]} />
           </View>
-          <View style={styles.safeDetails}>
-            <Text style={[styles.safeName, { color: colorScheme.icon }]}>{safe.name}</Text>
-            <Text style={styles.safeTransactions}>{safe.transactionsCount} معاملة</Text>
-          </View>
-          <Text style={[styles.safeBalance, { color: colorScheme.icon }]}>
-            {formatCurrency(safe.balance)}
-          </Text>
         </View>
       </View>
     );
   };
 
-  const renderIncomeTypeCard = (item: FinancialDashboardResponse['incomeByType'][0]) => (
-    <View key={item.type} style={styles.incomeTypeCard}>
-      <View style={styles.incomeTypeHeader}>
-        <View style={[styles.incomeTypeIndicator, { backgroundColor: getTransactionTypeColor(item.type) }]} />
-        <View style={styles.incomeTypeInfo}>
-          <Text style={styles.incomeTypeLabel}>{item.type === 'PAYMENT' ? 'مدفوعات' : 'إيداعات'}</Text>
-          <Text style={styles.incomeTypeCount}>{item.count} معاملة</Text>
-        </View>
-      </View>
-      <View style={styles.incomeTypeAmountContainer}>
-        <Text style={styles.incomeTypeAmount}>{formatCurrency(item.amount)}</Text>
-        <View style={styles.incomeTypePercentage}>
-          <Text style={styles.incomeTypePercentageText}>{item.percentage}%</Text>
-        </View>
-      </View>
-    </View>
-  );
+  const renderTransactionCard = (transaction: FinancialDashboardResponse['recentTransactions'][0]) => {
+    const typeLabel = TRANSACTION_TYPE_MAP[transaction.type] || transaction.type;
+    const isPositive = transaction.type === 'DEPOSIT' || transaction.type === 'PAYMENT';
+    const amountColor = isPositive ? '#059669' : '#dc2626';
 
-  const renderTransactionCard = (transaction: FinancialDashboardResponse['recentTransactions'][0]) => (
-    <View key={transaction.id} style={styles.transactionCard}>
-      <View style={styles.transactionHeader}>
-        <View style={[styles.transactionIcon, { backgroundColor: getTransactionTypeColor(transaction.type) + '15' }]}>
-          <Icon name={getTransactionTypeIcon(transaction.type)} size={20} color={getTransactionTypeColor(transaction.type)} />
-        </View>
-        <View style={styles.transactionInfo}>
-          <Text style={styles.transactionDescription} numberOfLines={2}>
-            {transaction.description}
-          </Text>
-          {transaction.traineeName && (
-            <Text style={styles.transactionMeta}>
-              <Icon name="person" size={12} color="#6b7280" /> {transaction.traineeName}
+    return (
+      <View key={transaction.id} style={styles.transactionCard}>
+        <View style={styles.transactionTopRow}>
+          <View style={[styles.transactionTypeIconWrap, { backgroundColor: `${getTransactionTypeColor(transaction.type)}1A` }]}>
+            <Icon name={getTransactionTypeIcon(transaction.type)} size={18} color={getTransactionTypeColor(transaction.type)} />
+          </View>
+
+          <View style={styles.transactionInfoWrap}>
+            <View style={styles.transactionRowBetween}>
+              <Text style={styles.transactionTypeText}>{typeLabel}</Text>
+              <Text style={[styles.transactionAmount, { color: amountColor }]}>
+                {`${isPositive ? '+' : '-'}${formatCurrency(transaction.amount)}`}
+              </Text>
+            </View>
+
+            <Text style={styles.transactionDescription} numberOfLines={2}>
+              {transaction.description}
             </Text>
-          )}
-          {transaction.feeName && (
-            <Text style={styles.transactionMeta}>
-              <Icon name="receipt" size={12} color="#6b7280" /> {transaction.feeName}
-            </Text>
-          )}
-          <Text style={styles.transactionDate}>{formatDate(transaction.createdAt)}</Text>
+
+            <View style={styles.transactionTagsRow}>
+              {transaction.targetSafe ? (
+                <View style={[styles.tagChip, styles.tagChipBlue]}>
+                  <Text style={[styles.tagChipText, styles.tagChipTextBlue]}>{transaction.targetSafe}</Text>
+                </View>
+              ) : null}
+
+              {transaction.traineeName ? (
+                <View style={[styles.tagChip, styles.tagChipGreen]}>
+                  <Text style={[styles.tagChipText, styles.tagChipTextGreen]}>{transaction.traineeName}</Text>
+                </View>
+              ) : null}
+            </View>
+
+            <Text style={styles.transactionDate}>{formatDate(transaction.createdAt)}</Text>
+          </View>
         </View>
-        <Text style={[styles.transactionAmount, { color: getTransactionTypeColor(transaction.type) }]}>
-          {formatCurrency(transaction.amount)}
-        </Text>
       </View>
-      {(transaction.sourceSafe || transaction.targetSafe) && (
-        <View style={styles.transactionFlow}>
-          {transaction.sourceSafe && (
-            <Text style={styles.transactionFlowText}>من: {transaction.sourceSafe}</Text>
-          )}
-          {transaction.sourceSafe && transaction.targetSafe && (
-            <Icon name="arrow-forward" size={14} color="#9ca3af" style={{ marginHorizontal: 8 }} />
-          )}
-          {transaction.targetSafe && (
-            <Text style={styles.transactionFlowText}>إلى: {transaction.targetSafe}</Text>
-          )}
-        </View>
-      )}
-    </View>
-  );
+    );
+  };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
         <CustomMenu navigation={navigation} activeRouteName="FinancialReports" />
+
         <View style={styles.headerCenter}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Icon name="arrow-back" size={24} color="#1a237e" />
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+            <Icon name="arrow-back" size={22} color="#1a237e" />
           </TouchableOpacity>
+
           <View style={styles.headerTitleContainer}>
             <Text style={styles.headerTitle}>التقارير المالية</Text>
-            <Text style={styles.headerSubtitle}>نظرة شاملة على الوضع المالي</Text>
+            <Text style={styles.headerSubtitle}>تحليل شامل للمعاملات والأداء المالي</Text>
           </View>
         </View>
+
         <View style={styles.placeholder} />
       </View>
 
@@ -318,16 +306,18 @@ const FinancialReportsScreen = ({ navigation }: FinancialReportsScreenProps) => 
         }
       >
         <View style={styles.filterSection}>
-          <Text style={styles.filterTitle}>اختر الفترة الزمنية</Text>
-          
+          <View style={styles.filterTitleRow}>
+            <View style={styles.filterIconWrap}>
+              <Icon name="date-range" size={16} color="#2563eb" />
+            </View>
+            <Text style={styles.filterTitle}>فلترة حسب التاريخ</Text>
+          </View>
+
           <View style={styles.dateInputContainer}>
             <View style={styles.dateInputWrapper}>
               <Text style={styles.dateLabel}>من تاريخ</Text>
-              <TouchableOpacity
-                style={styles.datePickerButton}
-                onPress={() => handleDateSelect('from')}
-              >
-                <Icon name="calendar-today" size={18} color="#1a237e" />
+              <TouchableOpacity style={styles.datePickerButton} onPress={() => handleDateSelect('from')}>
+                <Icon name="calendar-today" size={16} color="#1a237e" />
                 <Text style={[styles.datePickerText, !dateFrom && styles.datePickerPlaceholder]}>
                   {formatDisplayDate(dateFrom)}
                 </Text>
@@ -335,12 +325,9 @@ const FinancialReportsScreen = ({ navigation }: FinancialReportsScreenProps) => 
             </View>
 
             <View style={styles.dateInputWrapper}>
-              <Text style={styles.dateLabel}>إلى تاريخ (اختياري)</Text>
-              <TouchableOpacity
-                style={styles.datePickerButton}
-                onPress={() => handleDateSelect('to')}
-              >
-                <Icon name="calendar-today" size={18} color="#1a237e" />
+              <Text style={styles.dateLabel}>إلى تاريخ</Text>
+              <TouchableOpacity style={styles.datePickerButton} onPress={() => handleDateSelect('to')}>
+                <Icon name="calendar-today" size={16} color="#1a237e" />
                 <Text style={[styles.datePickerText, !dateTo && styles.datePickerPlaceholder]}>
                   {formatDisplayDate(dateTo)}
                 </Text>
@@ -349,27 +336,21 @@ const FinancialReportsScreen = ({ navigation }: FinancialReportsScreenProps) => 
           </View>
 
           <View style={styles.filterActions}>
-            <TouchableOpacity 
-              style={styles.resetButton}
-              onPress={handleResetFilter}
-            >
-              <Icon name="clear" size={18} color="#dc2626" />
-              <Text style={styles.resetButtonText}>إعادة تعيين</Text>
+            <TouchableOpacity style={styles.resetButton} onPress={handleResetFilter}>
+              <Icon name="clear" size={16} color="#dc2626" />
+              <Text style={styles.resetButtonText}>مسح الفلاتر</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.applyButton}
-              onPress={handleApplyFilter}
-            >
-              <Icon name="search" size={18} color="#fff" />
-              <Text style={styles.applyButtonText}>عرض التقرير</Text>
+            <TouchableOpacity style={styles.refreshButton} onPress={() => fetchDashboardData(false)}>
+              <Icon name="refresh" size={16} color="#fff" />
+              <Text style={styles.refreshButtonText}>تحديث البيانات</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         <Modal
           visible={showDatePicker !== null}
-          transparent={true}
+          transparent
           animationType="fade"
           onRequestClose={() => setShowDatePicker(null)}
         >
@@ -380,74 +361,51 @@ const FinancialReportsScreen = ({ navigation }: FinancialReportsScreenProps) => 
                   {showDatePicker === 'from' ? 'اختر تاريخ البداية' : 'اختر تاريخ النهاية'}
                 </Text>
                 <TouchableOpacity onPress={() => setShowDatePicker(null)}>
-                  <Icon name="close" size={24} color="#1a237e" />
+                  <Icon name="close" size={22} color="#1a237e" />
                 </TouchableOpacity>
               </View>
 
               <View style={styles.datePickerContainer}>
                 <View style={styles.datePickerColumn}>
                   <Text style={styles.datePickerLabel}>السنة</Text>
-                  <TouchableOpacity 
-                    style={styles.datePickerArrow}
-                    onPress={() => changeDateValue('year', 1)}
-                  >
+                  <TouchableOpacity style={styles.datePickerArrow} onPress={() => changeDateValue('year', 1)}>
                     <Icon name="keyboard-arrow-up" size={24} color="#1a237e" />
                   </TouchableOpacity>
                   <Text style={styles.datePickerValue}>{tempDate.getFullYear()}</Text>
-                  <TouchableOpacity 
-                    style={styles.datePickerArrow}
-                    onPress={() => changeDateValue('year', -1)}
-                  >
+                  <TouchableOpacity style={styles.datePickerArrow} onPress={() => changeDateValue('year', -1)}>
                     <Icon name="keyboard-arrow-down" size={24} color="#1a237e" />
                   </TouchableOpacity>
                 </View>
 
                 <View style={styles.datePickerColumn}>
                   <Text style={styles.datePickerLabel}>الشهر</Text>
-                  <TouchableOpacity 
-                    style={styles.datePickerArrow}
-                    onPress={() => changeDateValue('month', 1)}
-                  >
+                  <TouchableOpacity style={styles.datePickerArrow} onPress={() => changeDateValue('month', 1)}>
                     <Icon name="keyboard-arrow-up" size={24} color="#1a237e" />
                   </TouchableOpacity>
                   <Text style={styles.datePickerValue}>{tempDate.getMonth() + 1}</Text>
-                  <TouchableOpacity 
-                    style={styles.datePickerArrow}
-                    onPress={() => changeDateValue('month', -1)}
-                  >
+                  <TouchableOpacity style={styles.datePickerArrow} onPress={() => changeDateValue('month', -1)}>
                     <Icon name="keyboard-arrow-down" size={24} color="#1a237e" />
                   </TouchableOpacity>
                 </View>
 
                 <View style={styles.datePickerColumn}>
                   <Text style={styles.datePickerLabel}>اليوم</Text>
-                  <TouchableOpacity 
-                    style={styles.datePickerArrow}
-                    onPress={() => changeDateValue('day', 1)}
-                  >
+                  <TouchableOpacity style={styles.datePickerArrow} onPress={() => changeDateValue('day', 1)}>
                     <Icon name="keyboard-arrow-up" size={24} color="#1a237e" />
                   </TouchableOpacity>
                   <Text style={styles.datePickerValue}>{tempDate.getDate()}</Text>
-                  <TouchableOpacity 
-                    style={styles.datePickerArrow}
-                    onPress={() => changeDateValue('day', -1)}
-                  >
+                  <TouchableOpacity style={styles.datePickerArrow} onPress={() => changeDateValue('day', -1)}>
                     <Icon name="keyboard-arrow-down" size={24} color="#1a237e" />
                   </TouchableOpacity>
                 </View>
               </View>
 
               <View style={styles.modalActions}>
-                <TouchableOpacity 
-                  style={styles.modalCancelButton}
-                  onPress={() => setShowDatePicker(null)}
-                >
+                <TouchableOpacity style={styles.modalCancelButton} onPress={() => setShowDatePicker(null)}>
                   <Text style={styles.modalCancelText}>إلغاء</Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.modalConfirmButton}
-                  onPress={handleDateConfirm}
-                >
+
+                <TouchableOpacity style={styles.modalConfirmButton} onPress={handleDateConfirm}>
                   <Text style={styles.modalConfirmText}>تأكيد</Text>
                 </TouchableOpacity>
               </View>
@@ -458,139 +416,88 @@ const FinancialReportsScreen = ({ navigation }: FinancialReportsScreenProps) => 
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#1a237e" />
-            <Text style={styles.loadingText}>جاري تحميل التقارير...</Text>
+            <Text style={styles.loadingText}>جاري تحميل التقارير المالية...</Text>
           </View>
-        ) : dashboardData ? (
-          <View>
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>الملخص المالي</Text>
-              
+        ) : !dashboardData ? (
+          <View style={styles.emptyState}>
+            <Icon name="assessment" size={60} color="#cbd5e1" />
+            <Text style={styles.emptyTitle}>لا توجد بيانات متاحة</Text>
+            <Text style={styles.emptySubtitle}>حاول تغيير الفلاتر أو التحديث</Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.summaryGrid}>
               {renderSummaryCard(
-                'إجمالي الدخل',
+                `إجمالي الدخل ${hasDateFilter ? 'للفترة المحددة' : 'اليوم'}`,
                 dashboardData.summary.totalIncome,
                 'trending-up',
                 '#059669',
-                `${dashboardData.summary.incomeTransactions} معاملة دخل`
+                `${dashboardData.summary.incomeTransactions} معاملة دخل`,
               )}
-              
+
               {renderSummaryCard(
-                'إجمالي المصروفات',
-                dashboardData.summary.totalExpenses,
+                `إجمالي المصروفات ${hasDateFilter ? 'للفترة المحددة' : 'اليوم'}`,
+                dashboardData.summary.totalExpenses || 0,
                 'trending-down',
                 '#dc2626',
-                `${dashboardData.summary.expenseTransactions} معاملة مصروف`
+                `${dashboardData.summary.expenseTransactions} معاملة مصروفات`,
               )}
-              
+
               {renderSummaryCard(
                 'صافي الدخل',
                 dashboardData.summary.netIncome,
-                'account-balance',
-                dashboardData.summary.netIncome >= 0 ? '#1a237e' : '#dc2626',
-                'الفرق بين الدخل والمصروفات'
+                dashboardData.summary.netIncome >= 0 ? 'arrow-upward' : 'arrow-downward',
+                dashboardData.summary.netIncome >= 0 ? '#2563eb' : '#f59e0b',
+                dashboardData.summary.netIncome >= 0 ? 'ربح صافي' : 'خسارة صافية',
               )}
+            </View>
 
-              <View style={styles.statsGrid}>
-                <View style={styles.statCard}>
-                  <Icon name="account-balance-wallet" size={24} color="#7c3aed" />
-                  <Text style={styles.statLabel}>إجمالي الأرصدة</Text>
-                  <Text style={[styles.statValue, { color: '#7c3aed' }]}>
-                    {formatCurrency(dashboardData.summary.totalBalance)}
-                  </Text>
+            <View style={styles.sectionCard}>
+              <View style={styles.sectionHead}>
+                <View style={styles.sectionHeadIconWrap}>
+                  <Icon name="emoji-events" size={16} color="#4f46e5" />
                 </View>
+                <View>
+                  <Text style={styles.sectionHeadTitle}>دفع الرسوم حسب الخزائن</Text>
+                  <Text style={styles.sectionHeadSubTitle}>ترتيب الخزائن حسب إجمالي الدخل</Text>
+                </View>
+              </View>
 
-                <View style={styles.statCard}>
-                  <Icon name="swap-horiz" size={24} color="#f59e0b" />
-                  <Text style={styles.statLabel}>التحويلات</Text>
-                  <Text style={[styles.statValue, { color: '#f59e0b' }]}>
-                    {formatCurrency(dashboardData.summary.totalTransfers)}
-                  </Text>
-                </View>
-
-                <View style={styles.statCard}>
-                  <Icon name="today" size={24} color="#3b82f6" />
-                  <Text style={styles.statLabel}>معاملات اليوم</Text>
-                  <Text style={[styles.statValue, { color: '#3b82f6' }]}>
-                    {dashboardData.summary.transactionsToday}
-                  </Text>
-                </View>
+              <View style={styles.sectionBody}>
+                {topIncomeByTarget.length === 0 ? (
+                  <View style={styles.innerEmptyState}>
+                    <Icon name="account-balance-wallet" size={40} color="#cbd5e1" />
+                    <Text style={styles.innerEmptyText}>لا توجد بيانات</Text>
+                  </View>
+                ) : (
+                  topIncomeByTarget.map(renderIncomeByTargetCard)
+                )}
               </View>
             </View>
 
-            {dashboardData.safes && dashboardData.safes.length > 0 && (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>توزيع الدخل حسب الخزائن</Text>
-                  <Icon name="account-balance" size={24} color="#1a237e" />
+            <View style={styles.sectionCard}>
+              <View style={styles.sectionHead}>
+                <View style={[styles.sectionHeadIconWrap, { backgroundColor: '#dbeafe' }]}>
+                  <Icon name="payments" size={16} color="#2563eb" />
                 </View>
-                {dashboardData.safes.map((safe, index) => renderSafeCard(safe, index))}
+                <View>
+                  <Text style={styles.sectionHeadTitle}>أحدث المعاملات المالية</Text>
+                  <Text style={styles.sectionHeadSubTitle}>آخر المعاملات المسجلة في النظام</Text>
+                </View>
               </View>
-            )}
 
-            {dashboardData.incomeByType && dashboardData.incomeByType.length > 0 && (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>توزيع الدخل حسب النوع</Text>
-                  <Icon name="pie-chart" size={24} color="#1a237e" />
-                </View>
-                {dashboardData.incomeByType.map(renderIncomeTypeCard)}
-              </View>
-            )}
-
-            {dashboardData.incomeByTarget && dashboardData.incomeByTarget.length > 0 && (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>الدخل حسب الخزينة</Text>
-                  <Icon name="donut-large" size={24} color="#1a237e" />
-                </View>
-                {dashboardData.incomeByTarget.map((item) => (
-                  <View key={item.safeId} style={styles.incomeTargetCard}>
-                    <View style={styles.incomeTargetHeader}>
-                      <Icon name="account-balance" size={20} color="#1a237e" />
-                      <Text style={styles.incomeTargetName}>{item.safeName}</Text>
-                    </View>
-                    <View style={styles.incomeTargetStats}>
-                      <View style={styles.incomeTargetStat}>
-                        <Text style={styles.incomeTargetLabel}>الدخل</Text>
-                        <Text style={styles.incomeTargetValue}>{formatCurrency(item.income)}</Text>
-                      </View>
-                      <View style={styles.incomeTargetStat}>
-                        <Text style={styles.incomeTargetLabel}>المعاملات</Text>
-                        <Text style={styles.incomeTargetValue}>{item.transactionsCount}</Text>
-                      </View>
-                    </View>
+              <View style={styles.sectionBody}>
+                {(dashboardData.recentTransactions || []).length === 0 ? (
+                  <View style={styles.innerEmptyState}>
+                    <Icon name="receipt-long" size={40} color="#cbd5e1" />
+                    <Text style={styles.innerEmptyText}>لا توجد معاملات</Text>
                   </View>
-                ))}
+                ) : (
+                  dashboardData.recentTransactions.map(renderTransactionCard)
+                )}
               </View>
-            )}
-
-            {dashboardData.recentTransactions && dashboardData.recentTransactions.length > 0 && (
-              <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>آخر المعاملات المالية</Text>
-                  <Icon name="history" size={24} color="#1a237e" />
-                </View>
-                <View style={styles.transactionsList}>
-                  {dashboardData.recentTransactions.map(renderTransactionCard)}
-                </View>
-              </View>
-            )}
-
-            {dashboardData.recentTransactions?.length === 0 && (
-              <View style={styles.emptyState}>
-                <Icon name="receipt-long" size={64} color="#d1d5db" />
-                <Text style={styles.emptyTitle}>لا توجد معاملات</Text>
-                <Text style={styles.emptySubtitle}>لم يتم تسجيل أي معاملات مالية بعد</Text>
-              </View>
-            )}
-          </View>
-        ) : (
-          <View style={styles.noDataContainer}>
-            <Icon name="date-range" size={80} color="#d1d5db" />
-            <Text style={styles.noDataTitle}>اختر الفترة الزمنية</Text>
-            <Text style={styles.noDataSubtitle}>
-              اختر التاريخ أعلاه ثم اضغط "عرض التقرير" لعرض البيانات المالية
-            </Text>
-          </View>
+            </View>
+          </>
         )}
       </ScrollView>
     </View>
@@ -605,18 +512,15 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    justifyContent: 'space-between',
     backgroundColor: '#fff',
-    elevation: 8,
-    shadowColor: '#1a237e',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderBottomLeftRadius: 18,
+    borderBottomRightRadius: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
   },
   headerCenter: {
     flexDirection: 'row',
@@ -624,550 +528,465 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   backButton: {
-    padding: 8,
-    marginRight: 12,
-    borderRadius: 8,
-    backgroundColor: '#f0f9ff',
-    borderWidth: 1,
-    borderColor: '#1a237e',
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#eef2ff',
+    marginRight: 10,
   },
   headerTitleContainer: {
     flex: 1,
   },
   headerTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#1a237e',
-    letterSpacing: 0.5,
-  },
-  headerSubtitle: {
-    fontSize: 13,
-    color: '#64748b',
-    marginTop: 2,
-  },
-  placeholder: {
-    width: 44,
-  },
-  content: {
-    flex: 1,
-    padding: 16,
-  },
-  filterSection: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  filterTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: '#1a237e',
-    marginBottom: 16,
-    textAlign: 'right',
   },
-  dateInputContainer: {
-    marginBottom: 16,
+  headerSubtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#64748b',
   },
-  dateInputWrapper: {
+  placeholder: {
+    width: 36,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  filterSection: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    padding: 12,
     marginBottom: 12,
   },
-  dateLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#374151',
+  filterTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  filterIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 8,
+    backgroundColor: '#dbeafe',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  filterTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  dateInputContainer: {
+    gap: 8,
+  },
+  dateInputWrapper: {
     marginBottom: 8,
+  },
+  dateLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    marginBottom: 6,
     textAlign: 'right',
   },
   datePickerButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#f9fafb',
-    borderRadius: 12,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 10,
+    paddingVertical: 10,
   },
   datePickerText: {
     flex: 1,
-    fontSize: 15,
-    color: '#1f2937',
     textAlign: 'right',
-    marginRight: 12,
+    color: '#1f2937',
+    marginRight: 8,
+    fontSize: 13,
   },
   datePickerPlaceholder: {
-    color: '#9ca3af',
+    color: '#94a3b8',
   },
   filterActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
+    gap: 8,
+    marginTop: 2,
   },
   resetButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#dc2626',
-    paddingVertical: 12,
-    borderRadius: 12,
+    borderColor: '#fecaca',
+    backgroundColor: '#fff',
+    paddingVertical: 10,
   },
   resetButtonText: {
+    marginLeft: 5,
+    fontSize: 13,
+    fontWeight: '700',
     color: '#dc2626',
-    fontSize: 14,
-    fontWeight: '600',
-    marginLeft: 6,
   },
-  applyButton: {
+  refreshButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 10,
     backgroundColor: '#1a237e',
-    paddingVertical: 12,
-    borderRadius: 12,
-    shadowColor: '#1a237e',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 3,
+    paddingVertical: 10,
   },
-  applyButtonText: {
+  refreshButtonText: {
+    marginLeft: 5,
+    fontSize: 13,
+    fontWeight: '700',
     color: '#fff',
-    fontSize: 14,
+  },
+  summaryGrid: {
+    gap: 10,
+    marginBottom: 12,
+  },
+  summaryCard: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    padding: 12,
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  summaryTitle: {
+    fontSize: 13,
+    color: '#334155',
+    fontWeight: '700',
+    flex: 1,
+    marginRight: 8,
+  },
+  summaryIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  summaryValue: {
+    fontSize: 22,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+  summaryBadge: {
+    alignSelf: 'flex-start',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  summaryBadgeText: {
+    fontSize: 11,
     fontWeight: '600',
-    marginLeft: 6,
+  },
+  sectionCard: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  sectionHeadIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#e0e7ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  sectionHeadTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  sectionHeadSubTitle: {
+    marginTop: 1,
+    fontSize: 11,
+    color: '#94a3b8',
+  },
+  sectionBody: {
+    padding: 10,
+  },
+  safeRankCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 8,
+  },
+  safeRankNumber: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  safeRankNumberText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  safeRankInfo: {
+    flex: 1,
+    marginRight: 8,
+  },
+  safeRankName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  safeRankTransactions: {
+    marginTop: 2,
+    fontSize: 11,
+    color: '#94a3b8',
+  },
+  safeRankAmountBox: {
+    width: 120,
+    alignItems: 'flex-end',
+  },
+  safeRankAmount: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#1e293b',
+  },
+  progressTrack: {
+    marginTop: 4,
+    width: 90,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#e2e8f0',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: 5,
+    backgroundColor: '#3b82f6',
+  },
+  transactionCard: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    padding: 10,
+    marginBottom: 8,
+  },
+  transactionTopRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  transactionTypeIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+  },
+  transactionInfoWrap: {
+    flex: 1,
+  },
+  transactionRowBetween: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  transactionTypeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  transactionAmount: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  transactionDescription: {
+    fontSize: 13,
+    color: '#1e293b',
+    fontWeight: '500',
+    marginBottom: 6,
+  },
+  transactionTagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 6,
+  },
+  tagChip: {
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  tagChipBlue: {
+    backgroundColor: '#eff6ff',
+  },
+  tagChipGreen: {
+    backgroundColor: '#ecfdf5',
+  },
+  tagChipText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  tagChipTextBlue: {
+    color: '#1d4ed8',
+  },
+  tagChipTextGreen: {
+    color: '#047857',
+  },
+  transactionDate: {
+    fontSize: 10,
+    color: '#94a3b8',
+  },
+  loadingContainer: {
+    paddingVertical: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 13,
+    color: '#64748b',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyTitle: {
+    marginTop: 10,
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  emptySubtitle: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#94a3b8',
+  },
+  innerEmptyState: {
+    paddingVertical: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  innerEmptyText: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#94a3b8',
+    fontWeight: '600',
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.45)',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 24,
     width: width - 48,
     maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 14,
   },
   modalTitle: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '700',
     color: '#1a237e',
   },
   datePickerContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   datePickerColumn: {
     alignItems: 'center',
   },
   datePickerLabel: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#64748b',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   datePickerArrow: {
-    padding: 8,
+    padding: 4,
   },
   datePickerValue: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '800',
     color: '#1a237e',
-    marginVertical: 8,
-    minWidth: 60,
+    minWidth: 52,
     textAlign: 'center',
+    marginVertical: 4,
   },
   modalActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
+    gap: 8,
   },
   modalCancelButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
   },
   modalCancelText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#6b7280',
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748b',
   },
   modalConfirmButton: {
     flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
+    borderRadius: 10,
     backgroundColor: '#1a237e',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
   },
   modalConfirmText: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
     color: '#fff',
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingHorizontal: 4,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1a237e',
-    letterSpacing: 0.3,
-  },
-  summaryCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#1a237e',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-    borderLeftWidth: 4,
-  },
-  summaryIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 16,
-  },
-  summaryContent: {
-    flex: 1,
-  },
-  summaryTitle: {
-    fontSize: 14,
-    color: '#64748b',
-    marginBottom: 6,
-    fontWeight: '500',
-  },
-  summaryValue: {
-    fontSize: 24,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-  },
-  summarySubtitle: {
-    fontSize: 12,
-    color: '#9ca3af',
-    marginTop: 4,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginTop: 8,
-  },
-  statCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    width: (width - 48) / 2,
-    marginBottom: 12,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  statLabel: {
-    fontSize: 13,
-    color: '#64748b',
-    marginTop: 8,
-    marginBottom: 6,
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  statValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  safeCard: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  safeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  safeNumber: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 12,
-  },
-  safeNumberText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  safeDetails: {
-    flex: 1,
-    marginRight: 16,
-  },
-  safeName: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 4,
-    textAlign: 'right',
-  },
-  safeTransactions: {
-    fontSize: 13,
-    color: '#6b7280',
-    textAlign: 'right',
-  },
-  safeBalance: {
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  incomeTypeCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  incomeTypeHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  incomeTypeIndicator: {
-    width: 4,
-    height: 40,
-    borderRadius: 2,
-    marginRight: 12,
-  },
-  incomeTypeInfo: {
-    flex: 1,
-  },
-  incomeTypeLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 4,
-  },
-  incomeTypeCount: {
-    fontSize: 13,
-    color: '#6b7280',
-  },
-  incomeTypeAmountContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  incomeTypeAmount: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1a237e',
-  },
-  incomeTypePercentage: {
-    backgroundColor: '#f0f9ff',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#1a237e',
-  },
-  incomeTypePercentageText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1a237e',
-  },
-  incomeTargetCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  incomeTargetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  incomeTargetName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginLeft: 8,
-  },
-  incomeTargetStats: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  incomeTargetStat: {
-    flex: 1,
-  },
-  incomeTargetLabel: {
-    fontSize: 13,
-    color: '#6b7280',
-    marginBottom: 4,
-  },
-  incomeTargetValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1a237e',
-  },
-  transactionsList: {
-    marginTop: 8,
-  },
-  transactionCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  transactionHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-  },
-  transactionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  transactionInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  transactionDescription: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 4,
-  },
-  transactionMeta: {
-    fontSize: 13,
-    color: '#6b7280',
-    marginBottom: 2,
-  },
-  transactionDate: {
-    fontSize: 12,
-    color: '#9ca3af',
-    marginTop: 4,
-  },
-  transactionAmount: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  transactionFlow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f3f4f6',
-  },
-  transactionFlowText: {
-    fontSize: 13,
-    color: '#6b7280',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 64,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: '#6b7280',
-    marginTop: 16,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 64,
-    paddingHorizontal: 32,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#6b7280',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptySubtitle: {
-    fontSize: 15,
-    color: '#9ca3af',
-    textAlign: 'center',
-    lineHeight: 22,
-  },
-  noDataContainer: {
-    alignItems: 'center',
-    paddingVertical: 80,
-    paddingHorizontal: 32,
-  },
-  noDataTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#1a237e',
-    marginTop: 20,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  noDataSubtitle: {
-    fontSize: 16,
-    color: '#64748b',
-    textAlign: 'center',
-    lineHeight: 24,
   },
 });
 

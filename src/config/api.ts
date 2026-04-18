@@ -16,6 +16,27 @@ export const BRANCH_API_URLS = {
 };
 
 /**
+ * Maps branch API host to the corresponding web frontend host.
+ * Example: https://mansapi.tiba29.com -> https://mans.tiba29.com
+ */
+export const mapApiBaseToFrontendBaseUrl = (apiBaseUrl: string): string => {
+  try {
+    const parsed = new URL(apiBaseUrl);
+    const hostMap: Record<string, string> = {
+      'mansapi.tiba29.com': 'mans.tiba29.com',
+      'zagapi.tiba29.com': 'zag.tiba29.com',
+    };
+
+    const mappedHost = hostMap[parsed.hostname] || parsed.hostname.replace('api.', '.');
+    return `${parsed.protocol}//${mappedHost}`;
+  } catch {
+    return apiBaseUrl
+      .replace('://mansapi.tiba29.com', '://mans.tiba29.com')
+      .replace('://zagapi.tiba29.com', '://zag.tiba29.com');
+  }
+};
+
+/**
  * Get current API base URL based on selected branch
  */
 export const getCurrentApiBaseUrl = async (): Promise<string> => {

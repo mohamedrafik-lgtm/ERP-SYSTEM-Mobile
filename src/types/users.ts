@@ -1,9 +1,41 @@
+export type AccountType = 'STAFF' | 'INSTRUCTOR';
+
+export interface AllowedProgramItem {
+  id: number;
+  nameAr: string;
+  nameEn: string;
+}
+
+export interface AllowedDistributionItem {
+  id: string;
+  programId: number;
+  type: 'THEORY' | 'PRACTICAL';
+  classroomId?: number | null;
+  numberOfRooms: number;
+}
+
+export interface AllowedRoomItem {
+  id: string;
+  roomName: string;
+  roomNumber: number;
+  distributionId?: string;
+  _count?: {
+    assignments: number;
+  };
+}
+
 export interface CreateUserRequest {
   name: string;
   email: string;
   phone: string; // /^[0-9+\-\s()]{10,15}$/
   password: string; // min 6
   roleId?: string;
+  roleIds?: string[];
+  accountType?: AccountType;
+  hasCrmAccess?: boolean;
+  allowedProgramIds?: number[];
+  allowedDistributionIds?: string[];
+  allowedRoomIds?: string[];
 }
 
 export interface UpdateUserRequest {
@@ -13,6 +45,12 @@ export interface UpdateUserRequest {
   password?: string; // optional change
   roleId?: string | null; // allow unassign
   isActive?: boolean;
+  isArchived?: boolean;
+  accountType?: AccountType;
+  hasCrmAccess?: boolean;
+  allowedProgramIds?: number[];
+  allowedDistributionIds?: string[];
+  allowedRoomIds?: string[];
 }
 
 export type UsersResponse = UserItem[];
@@ -23,6 +61,16 @@ export interface UserItem {
   email: string;
   phone?: string;
   isActive: boolean;
+  isArchived?: boolean;
+  accountType?: AccountType;
+  hasCrmAccess?: boolean;
+  photoUrl?: string;
+  allowedProgramIds?: number[];
+  allowedDistributionIds?: string[];
+  allowedRoomIds?: string[];
+  allowedProgramsList?: AllowedProgramItem[];
+  allowedDistributionsList?: AllowedDistributionItem[];
+  allowedRoomsList?: AllowedRoomItem[];
   lastLoginAt?: string;
   resetCode?: string | null;
   resetCodeExpiresAt?: string | null;

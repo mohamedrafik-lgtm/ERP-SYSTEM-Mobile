@@ -1,7 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { StatusBar, useColorScheme, View, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  StatusBar,
+  useColorScheme,
+  View,
+  ActivityIndicator,
+  AppState,
+  Platform,
+  PermissionsAndroid,
+  Alert,
+  Linking,
+} from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import Toast from 'react-native-toast-message';
 import withPermissionGuard from './src/components/withPermissionGuard';
@@ -21,10 +31,14 @@ import EditTrainingContentScreen from './src/screens/EditTrainingContentScreen';
 import QuestionsScreen from './src/screens/QuestionsScreen';
 import AddQuestionScreen from './src/screens/AddQuestionScreen';
 import TreasuryScreen from './src/screens/TreasuryScreen';
+import FinancialEntriesScreen from './src/screens/FinancialEntriesScreen';
 import AddTreasuryScreen from './src/screens/AddTreasuryScreen';
 import AddTransactionScreen from './src/screens/AddTransactionScreen';
+import TreasurySafeReportScreen from './src/screens/TreasurySafeReportScreen';
+import FinancialEntriesReportScreen from './src/screens/FinancialEntriesReportScreen';
 import FeesScreen from './src/screens/FeesScreen';
 import AddFeeScreen from './src/screens/AddFeeScreen';
+import TraineeFeeReportScreen from './src/screens/TraineeFeeReportScreen';
 import TraineePaymentsScreen from './src/screens/TraineePaymentsScreen';
 import TraineePaymentDetailsScreen from './src/screens/TraineePaymentDetailsScreen';
 import FinancialReportsScreen from './src/screens/FinancialReportsScreen';
@@ -41,6 +55,9 @@ import RequestsSettingsScreen from './src/screens/RequestsSettingsScreen';
 import PermissionsScreen from './src/screens/PermissionsScreen';
 import RoleDetailsScreen from './src/screens/RoleDetailsScreen';
 import AddPermissionScreen from './src/screens/AddPermissionScreen';
+import UserRoleAssignmentScreen from './src/screens/UserRoleAssignmentScreen';
+import UserDirectPermissionsScreen from './src/screens/UserDirectPermissionsScreen';
+import UserProgramAccessScreen from './src/screens/UserProgramAccessScreen';
 import CreateEditRoleScreen from './src/screens/CreateEditRoleScreen';
 import ManageRolePermissionsScreen from './src/screens/ManageRolePermissionsScreen';
 import AddUserScreen from './src/screens/AddUserScreen';
@@ -61,6 +78,7 @@ import LecturesScreen from './src/screens/LecturesScreen';
 import AddLectureScreen from './src/screens/AddLectureScreen';
 import EditLectureScreen from './src/screens/EditLectureScreen';
 import PdfViewerScreen from './src/screens/PdfViewerScreen';
+import PrintWebViewScreen from './src/screens/PrintWebViewScreen';
 import YouTubeViewerScreen from './src/screens/YouTubeViewerScreen';
 import DistributionManagementScreen from './src/screens/DistributionManagementScreen';
 import DistributionStudentsManagementScreen from './src/screens/DistributionStudentsManagementScreen';
@@ -102,11 +120,15 @@ import AddStudyMaterialScreen from './src/screens/AddStudyMaterialScreen';
 import StaffAttendanceScreen from './src/screens/StaffAttendanceScreen';
 import StaffAttendanceLogsScreen from './src/screens/StaffAttendanceLogsScreen';
 import StaffLeaveRequestsScreen from './src/screens/StaffLeaveRequestsScreen';
+import MyAttendanceLogsScreen from './src/screens/MyAttendanceLogsScreen';
+import MyLeaveRequestsScreen from './src/screens/MyLeaveRequestsScreen';
+import MyOvertimeRequestsScreen from './src/screens/MyOvertimeRequestsScreen';
 import StaffAttendanceSettingsScreen from './src/screens/StaffAttendanceSettingsScreen';
 import StaffAttendanceEmployeesScreen from './src/screens/StaffAttendanceEmployeesScreen';
 import StaffAttendanceEmployeeDetailScreen from './src/screens/StaffAttendanceEmployeeDetailScreen';
 import AttendanceProgramsScreen from './src/screens/AttendanceProgramsScreen';
 import AttendanceClassroomsScreen from './src/screens/AttendanceClassroomsScreen';
+import ClassroomsScreen from './src/screens/ClassroomsScreen';
 import AttendanceContentsScreen from './src/screens/AttendanceContentsScreen';
 import AttendanceSessionsScreen from './src/screens/AttendanceSessionsScreen';
 import AttendanceSessionRecorderScreen from './src/screens/AttendanceSessionRecorderScreen';
@@ -180,10 +202,14 @@ const GuardedEmployeeTrainees = withPermissionGuard(EmployeeTraineesScreen, 'Emp
 const GuardedMarketingStats = withPermissionGuard(MarketingStatsScreen, 'MarketingStats');
 const GuardedWhatsAppManagement = withPermissionGuard(WhatsAppManagementScreen, 'WhatsAppManagement');
 const GuardedTreasury = withPermissionGuard(TreasuryScreen, 'Treasury');
+const GuardedFinancialEntries = withPermissionGuard(FinancialEntriesScreen, 'FinancialEntries');
 const GuardedAddTreasury = withPermissionGuard(AddTreasuryScreen, 'AddTreasuryScreen');
 const GuardedAddTransaction = withPermissionGuard(AddTransactionScreen, 'AddTransactionScreen');
+const GuardedTreasurySafeReport = withPermissionGuard(TreasurySafeReportScreen, 'TreasurySafeReport');
+const GuardedFinancialEntriesReport = withPermissionGuard(FinancialEntriesReportScreen, 'FinancialEntriesReport');
 const GuardedFees = withPermissionGuard(FeesScreen, 'Fees');
 const GuardedAddFee = withPermissionGuard(AddFeeScreen, 'AddFeeScreen');
+const GuardedTraineeFeeReport = withPermissionGuard(TraineeFeeReportScreen, 'TraineeFeeReport');
 const GuardedTraineePayments = withPermissionGuard(TraineePaymentsScreen, 'TraineePayments');
 const GuardedTraineePaymentDetails = withPermissionGuard(TraineePaymentDetailsScreen, 'TraineePaymentDetails');
 const GuardedFinancialReports = withPermissionGuard(FinancialReportsScreen, 'FinancialReports');
@@ -200,6 +226,9 @@ const GuardedRequestsSettings = withPermissionGuard(RequestsSettingsScreen, 'Req
 const GuardedPermissions = withPermissionGuard(PermissionsScreen, 'Permissions');
 const GuardedRoleDetails = withPermissionGuard(RoleDetailsScreen, 'RoleDetails');
 const GuardedAddPermission = withPermissionGuard(AddPermissionScreen, 'AddPermission');
+const GuardedUserRoleAssignment = withPermissionGuard(UserRoleAssignmentScreen, 'UserRoleAssignment');
+const GuardedUserDirectPermissions = withPermissionGuard(UserDirectPermissionsScreen, 'UserDirectPermissions');
+const GuardedUserProgramAccess = withPermissionGuard(UserProgramAccessScreen, 'UserProgramAccess');
 const GuardedCreateEditRole = withPermissionGuard(CreateEditRoleScreen, 'Permissions');
 const GuardedManageRolePermissions = withPermissionGuard(ManageRolePermissionsScreen, 'Permissions');
 const GuardedAcademicSupplies = withPermissionGuard(AcademicSuppliesScreen, 'AcademicSupplies');
@@ -214,12 +243,14 @@ const GuardedStaffAttendanceEmployees = withPermissionGuard(StaffAttendanceEmplo
 const GuardedStaffAttendanceEmployeeDetail = withPermissionGuard(StaffAttendanceEmployeeDetailScreen, 'StaffAttendanceEmployeeDetail');
 const GuardedAttendancePrograms = withPermissionGuard(AttendanceProgramsScreen, 'AttendancePrograms');
 const GuardedAttendanceClassrooms = withPermissionGuard(AttendanceClassroomsScreen, 'AttendanceClassrooms');
+const GuardedClassrooms = withPermissionGuard(ClassroomsScreen, 'Classrooms');
 const GuardedAttendanceContents = withPermissionGuard(AttendanceContentsScreen, 'AttendanceContents');
 const GuardedAttendanceSessions = withPermissionGuard(AttendanceSessionsScreen, 'AttendanceSessions');
 const GuardedAttendanceSessionRecorder = withPermissionGuard(AttendanceSessionRecorderScreen, 'AttendanceSessionRecorder');
 const GuardedAttendanceStats = withPermissionGuard(AttendanceStatsScreen, 'AttendanceStats');
 
 const Stack = createNativeStackNavigator();
+const navigationRef = createNavigationContainerRef<any>();
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -227,13 +258,152 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [hasBranchSelected, setHasBranchSelected] = useState(false);
   const [hasLoginTypeSelected, setHasLoginTypeSelected] = useState(false);
+  const locationAlertOpenRef = useRef(false);
+
+  const showLocationServiceAlert = () => {
+    if (locationAlertOpenRef.current) {
+      return;
+    }
+
+    locationAlertOpenRef.current = true;
+    Alert.alert(
+      'تشغيل الموقع مطلوب',
+      'يرجى تشغيل خدمة الموقع (GPS) من إعدادات الهاتف للاستمرار في استخدام التطبيق.',
+      [
+        {
+          text: 'فتح الإعدادات',
+          onPress: async () => {
+            locationAlertOpenRef.current = false;
+            try {
+              await Linking.openSettings();
+            } catch {
+              // Ignore settings open failures on unsupported devices.
+            }
+          },
+        },
+        {
+          text: 'إلغاء',
+          style: 'cancel',
+          onPress: () => {
+            locationAlertOpenRef.current = false;
+          },
+        },
+      ],
+      {
+        cancelable: true,
+        onDismiss: () => {
+          locationAlertOpenRef.current = false;
+        },
+      },
+    );
+  };
+
+  const ensureLocationPermissionAndService = async () => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    try {
+      const hasLocationPermission = await PermissionsAndroid.check(
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+      );
+
+      let granted = hasLocationPermission;
+
+      if (!hasLocationPermission) {
+        const permissionResult = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: 'صلاحية الموقع مطلوبة',
+            message:
+              'يحتاج التطبيق للوصول إلى الموقع للتأكد من تشغيل خدمة اللوكيشن عند كل فتح.',
+            buttonPositive: 'سماح',
+            buttonNegative: 'رفض',
+          },
+        );
+
+        granted = permissionResult === PermissionsAndroid.RESULTS.GRANTED;
+      }
+
+      if (!granted) {
+        Alert.alert(
+          'صلاحية الموقع مرفوضة',
+          'يجب منح صلاحية الموقع للتطبيق. يمكنك تفعيلها من إعدادات التطبيق.',
+        );
+        return;
+      }
+
+      const Geolocation = require('react-native-geolocation-service').default;
+
+      await new Promise<void>((resolve, reject) => {
+        Geolocation.getCurrentPosition(
+          () => resolve(),
+          (error: any) => reject(error),
+          {
+            enableHighAccuracy: false,
+            timeout: 12000,
+            maximumAge: 5000,
+            showLocationDialog: true,
+            forceRequestLocation: true,
+          },
+        );
+      });
+    } catch (error: any) {
+      const locationDisabledCodes = [2, 3, 4, 5];
+      if (locationDisabledCodes.includes(error?.code)) {
+        showLocationServiceAlert();
+        return;
+      }
+
+      console.error('Location check failed:', error);
+    }
+  };
 
   useEffect(() => {
     checkInitialStatus();
   }, []);
 
+  useEffect(() => {
+    const verifySessionAndRedirectIfNeeded = async () => {
+      try {
+        if (!hasLoginTypeSelected || !hasBranchSelected) return;
+
+        const authenticated = await AuthService.isAuthenticated();
+        setIsAuthenticated(authenticated);
+
+        if (!authenticated && navigationRef.isReady()) {
+          const current = navigationRef.getCurrentRoute()?.name;
+          if (current !== 'Login' && current !== 'BranchSelection' && current !== 'LoginTypeSelection') {
+            navigationRef.reset({
+              index: 0,
+              routes: [{ name: 'Login' }],
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error verifying session:', error);
+      }
+    };
+
+    const appStateSub = AppState.addEventListener('change', state => {
+      if (state === 'active') {
+        verifySessionAndRedirectIfNeeded();
+        ensureLocationPermissionAndService();
+      }
+    });
+
+    const interval = setInterval(verifySessionAndRedirectIfNeeded, 60 * 1000);
+
+    return () => {
+      appStateSub.remove();
+      clearInterval(interval);
+    };
+  }, [hasLoginTypeSelected, hasBranchSelected]);
+
   const checkInitialStatus = async () => {
     try {
+      await ensureLocationPermissionAndService();
+
       // أولاً تحقق من اختيار نوع تسجيل الدخول
       const loginTypeSelected = await hasLoginType();
       setHasLoginTypeSelected(loginTypeSelected);
@@ -276,7 +446,7 @@ function App() {
   return (
     <SafeAreaProvider>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <NavigationContainer>
+      <NavigationContainer ref={navigationRef}>
         <Stack.Navigator 
           initialRouteName={(() => {
             const route = !hasLoginTypeSelected ? "LoginTypeSelection" :
@@ -295,6 +465,7 @@ function App() {
           <Stack.Screen name="Login" component={TestLogin} />
           <Stack.Screen name="Home" component={HomeScreen} />
           <Stack.Screen name="Programs" component={GuardedPrograms} />
+          <Stack.Screen name="Classrooms" component={GuardedClassrooms} />
           <Stack.Screen name="AddProgram" component={GuardedAddProgram} />
           <Stack.Screen name="EditProgram" component={GuardedEditProgram} />
           <Stack.Screen name="StudentsList" component={GuardedStudentsList} />
@@ -306,10 +477,14 @@ function App() {
           <Stack.Screen name="Questions" component={GuardedQuestions} />
           <Stack.Screen name="AddQuestion" component={GuardedAddQuestion} />
           <Stack.Screen name="Treasury" component={GuardedTreasury} />
+          <Stack.Screen name="FinancialEntries" component={GuardedFinancialEntries} />
           <Stack.Screen name="AddTreasuryScreen" component={GuardedAddTreasury} />
           <Stack.Screen name="AddTransactionScreen" component={GuardedAddTransaction} />
+          <Stack.Screen name="TreasurySafeReport" component={GuardedTreasurySafeReport} />
+          <Stack.Screen name="FinancialEntriesReport" component={GuardedFinancialEntriesReport} />
           <Stack.Screen name="Fees" component={GuardedFees} />
           <Stack.Screen name="AddFeeScreen" component={GuardedAddFee} />
+          <Stack.Screen name="TraineeFeeReport" component={GuardedTraineeFeeReport} />
           <Stack.Screen name="TraineePayments" component={GuardedTraineePayments} />
           <Stack.Screen name="TraineePaymentDetails" component={GuardedTraineePaymentDetails} />
           <Stack.Screen name="FinancialReports" component={GuardedFinancialReports} />
@@ -326,6 +501,9 @@ function App() {
           <Stack.Screen name="Permissions" component={GuardedPermissions} />
           <Stack.Screen name="RoleDetails" component={GuardedRoleDetails} />
           <Stack.Screen name="AddPermission" component={GuardedAddPermission} />
+          <Stack.Screen name="UserRoleAssignment" component={GuardedUserRoleAssignment} />
+          <Stack.Screen name="UserDirectPermissions" component={GuardedUserDirectPermissions} />
+          <Stack.Screen name="UserProgramAccess" component={GuardedUserProgramAccess} />
           <Stack.Screen name="CreateEditRole" component={GuardedCreateEditRole} />
           <Stack.Screen name="ManageRolePermissions" component={GuardedManageRolePermissions} />
           <Stack.Screen name="AddUser" component={GuardedAddUser} />
@@ -346,6 +524,7 @@ function App() {
           <Stack.Screen name="AddLecture" component={GuardedAddLecture} />
           <Stack.Screen name="EditLecture" component={GuardedEditLecture} />
           <Stack.Screen name="PdfViewer" component={GuardedPdfViewer} />
+          <Stack.Screen name="PrintWebView" component={PrintWebViewScreen} />
           <Stack.Screen name="YouTubeViewer" component={GuardedYouTubeViewer} />
           <Stack.Screen name="DistributionManagement" component={GuardedDistributionManagement} />
           <Stack.Screen name="DistributionStudentsManagement" component={GuardedDistributionStudentsManagement} />
@@ -389,7 +568,11 @@ function App() {
           <Stack.Screen name="AttendanceSessions" component={GuardedAttendanceSessions} />
           <Stack.Screen name="AttendanceSessionRecorder" component={GuardedAttendanceSessionRecorder} />
           <Stack.Screen name="AttendanceStats" component={GuardedAttendanceStats} />
+          <Stack.Screen name="SelfStaffAttendance" component={StaffAttendanceScreen} />
           <Stack.Screen name="StaffAttendance" component={GuardedStaffAttendance} />
+          <Stack.Screen name="MyAttendanceLogs" component={MyAttendanceLogsScreen} />
+          <Stack.Screen name="MyLeaveRequests" component={MyLeaveRequestsScreen} />
+          <Stack.Screen name="MyOvertimeRequests" component={MyOvertimeRequestsScreen} />
           <Stack.Screen name="StaffAttendanceLogs" component={GuardedStaffAttendanceLogs} />
           <Stack.Screen name="StaffLeaveRequests" component={GuardedStaffLeaveRequests} />
           <Stack.Screen name="StaffAttendanceSettings" component={GuardedStaffAttendanceSettings} />

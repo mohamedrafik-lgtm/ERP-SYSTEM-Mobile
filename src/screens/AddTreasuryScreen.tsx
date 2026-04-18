@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -12,32 +12,57 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import SelectBox from '../components/SelectBox';
 import AuthService from '../services/AuthService';
-import { CreateSafePayload } from '../types/student';
+import { CreateSafePayload, ISafe, SafeCategory } from '../types/student';
 
 interface AddTreasuryScreenProps {
   navigation: any;
+  route?: {
+    params?: {
+      safe?: ISafe;
+    };
+  };
 }
 
-const AddTreasuryScreen = ({ navigation }: AddTreasuryScreenProps) => {
+const CATEGORY_OPTIONS: { value: SafeCategory; label: string }[] = [
+  { value: 'DEBT', label: 'خزائن مديونية' },
+  { value: 'INCOME', label: 'خزائن دخل' },
+  { value: 'EXPENSE', label: 'خزائن مصروفات' },
+  { value: 'ASSETS', label: 'خزائن أصول' },
+  { value: 'UNSPECIFIED', label: 'غير محدد' },
+];
+
+const CURRENCY_OPTIONS = [
+  { value: 'EGP', label: 'جنيه مصري (EGP)' },
+  { value: 'USD', label: 'دولار أمريكي (USD)' },
+  { value: 'EUR', label: 'يورو (EUR)' },
+  { value: 'SAR', label: 'ريال سعودي (SAR)' },
+];
+
+const ACTIVE_OPTIONS = [
+  { value: 'true', label: 'نشطة' },
+  { value: 'false', label: 'غير نشطة' },
+];
+
+const AddTreasuryScreen = ({ navigation, route }: AddTreasuryScreenProps) => {
+  const editingSafe = route?.params?.safe;
+  const isEditMode = Boolean(editingSafe?.id);
+
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<CreateSafePayload>({
-    name: '',
-    description: '',
-    category: 'UNSPECIFIED',
-    balance: 0,
-    currency: 'EGP',
-    isActive: true,
+    name: editingSafe?.name || '',
+    description: editingSafe?.description || '',
+    category: editingSafe?.category || 'UNSPECIFIED',
+    balance: editingSafe?.balance || 0,
+    currency: editingSafe?.currency || 'EGP',
+    isActive: editingSafe?.isActive ?? true,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Remove treasury type options as it's not in the API payload
-
-  const currencyOptions = [
-    { value: 'EGP', label: 'جنيه مصري (EGP)' },
-    { value: 'USD', label: 'دولار أمريكي (USD)' },
-    { value: 'EUR', label: 'يورو (EUR)' },
-    { value: 'SAR', label: 'ريال سعودي (SAR)' },
-  ];
+  const title = useMemo(() => (isEditMode ? 'تعديل الخزينة' : 'إضافة خزينة جديدة'), [isEditMode]);
+  const subtitle = useMemo(
+    () => (isEditMode ? 'تحديث بيانات الخزينة الحالية' : 'إنشاء خزينة مالية جديدة'),
+    [isEditMode],
+  );
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -46,16 +71,30 @@ const AddTreasuryScreen = ({ navigation }: AddTreasuryScreenProps) => {
       newErrors.name = 'اسم الخزينة مطلوب';
     }
 
-    if (!formData.description.trim()) {
-      newErrors.description = 'وصف الخزينة مطلوب';
-    }
-
     if (formData.balance < 0) {
       newErrors.balance = 'الرصيد يجب أن يكون أكبر من أو يساوي 0';
     }
 
+    if (!formData.category) {
+      newErrors.category = 'تصنيف الخزينة مطلوب';
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const handleInputChange = (field: keyof CreateSafePayload, value: any) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value,
+    }));
+
+    if (errors[field]) {
+      setErrors(prev => ({
+        ...prev,
+        [field]: '',
+      }));
+    }
   };
 
   const handleSubmit = async () => {
@@ -66,126 +105,128 @@ const AddTreasuryScreen = ({ navigation }: AddTreasuryScreenProps) => {
     try {
       setLoading(true);
 
-      // Prepare data for API call
-      const safeData: CreateSafePayload = {
-        name: formData.name.trim(),
-        description: formData.description.trim(),
-        category: formData.category,
-        balance: formData.balance,
-        currency: formData.currency,
-        isActive: formData.isActive,
-      };
+      if (isEditMode && editingSafe) {
+        await AuthService.updateSafe(editingSafe.id, {
+          name: formData.name.trim(),
+          description: formData.description?.trim() || undefined,
+          category: formData.category as SafeCategory,
+          currency: formData.currency,
+          isActive: formData.isActive,
+        });
 
-      // Call API
-      await AuthService.createSafe(safeData);
-      
-      Alert.alert('نجح', 'تم إضافة الخزينة بنجاح', [
-        {
-          text: 'حسناً',
-          onPress: () => navigation.goBack(),
-        },
-      ]);
+        Alert.alert('نجح', 'تم تعديل الخزينة بنجاح', [{ text: 'حسنا', onPress: () => navigation.goBack() }]);
+      } else {
+        const payload: CreateSafePayload = {
+          name: formData.name.trim(),
+          description: formData.description?.trim() || '',
+          category: formData.category,
+          balance: formData.balance,
+          currency: formData.currency,
+          isActive: formData.isActive,
+        };
+
+        await AuthService.createSafe(payload);
+
+        Alert.alert('نجح', 'تم إضافة الخزينة بنجاح', [{ text: 'حسنا', onPress: () => navigation.goBack() }]);
+      }
     } catch (error) {
-      console.error('Error creating safe:', error);
-      Alert.alert('خطأ', 'فشل في إضافة الخزينة. تأكد من صحة البيانات وحاول مرة أخرى.');
+      console.error('Error saving safe:', error);
+      Alert.alert('خطأ', isEditMode ? 'فشل في تعديل الخزينة' : 'فشل في إضافة الخزينة');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleInputChange = (field: string, value: any) => {
-    setFormData({
-      ...formData,
-      [field]: value,
-    });
-    
-    // Clear error when user starts typing
-    if (errors[field]) {
-      setErrors({
-        ...errors,
-        [field]: '',
-      });
     }
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Icon name="arrow-back" size={24} color="#1a237e" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>إضافة خزينة جديدة</Text>
-          <Text style={styles.headerSubtitle}>إنشاء خزينة مالية جديدة</Text>
+          <Text style={styles.headerTitle}>{title}</Text>
+          <Text style={styles.headerSubtitle}>{subtitle}</Text>
         </View>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.form}>
-          {/* Treasury Name */}
           <View style={styles.formGroup}>
             <Text style={styles.label}>اسم الخزينة *</Text>
             <TextInput
-              style={[styles.input, errors.name && styles.errorInput]}
+              style={[styles.input, errors.name ? styles.errorInput : null]}
               value={formData.name}
-              onChangeText={(text) => handleInputChange('name', text)}
+              onChangeText={text => handleInputChange('name', text)}
               placeholder="أدخل اسم الخزينة"
               placeholderTextColor="#9CA3AF"
               textAlign="right"
             />
-            {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
+            {errors.name ? <Text style={styles.errorText}>{errors.name}</Text> : null}
           </View>
 
-          {/* Description */}
           <View style={styles.formGroup}>
-            <Text style={styles.label}>الوصف *</Text>
+            <Text style={styles.label}>الوصف (اختياري)</Text>
             <TextInput
-              style={[styles.textArea, errors.description && styles.errorInput]}
-              value={formData.description}
-              onChangeText={(text) => handleInputChange('description', text)}
-              placeholder="أدخل وصف للخزينة"
+              style={styles.textArea}
+              value={formData.description || ''}
+              onChangeText={text => handleInputChange('description', text)}
+              placeholder="أدخل وصفا للخزينة"
               placeholderTextColor="#9CA3AF"
               multiline
               numberOfLines={3}
               textAlign="right"
             />
-            {errors.description && <Text style={styles.errorText}>{errors.description}</Text>}
           </View>
 
-          {/* Balance */}
           <View style={styles.formGroup}>
-            <Text style={styles.label}>الرصيد *</Text>
-            <TextInput
-              style={[styles.input, errors.balance && styles.errorInput]}
-              value={formData.balance.toString()}
-              onChangeText={(text) => handleInputChange('balance', Number(text) || 0)}
-              placeholder="0.00"
-              placeholderTextColor="#9CA3AF"
-              keyboardType="numeric"
-              textAlign="right"
+            <SelectBox
+              label="تصنيف الخزينة *"
+              selectedValue={formData.category as SafeCategory}
+              onValueChange={value => handleInputChange('category', value)}
+              items={CATEGORY_OPTIONS}
+              placeholder="اختر تصنيف الخزينة"
+              error={errors.category}
             />
-            {errors.balance && <Text style={styles.errorText}>{errors.balance}</Text>}
           </View>
 
-          {/* Currency */}
+          {!isEditMode && (
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>الرصيد الابتدائي *</Text>
+              <TextInput
+                style={[styles.input, errors.balance ? styles.errorInput : null]}
+                value={String(formData.balance ?? 0)}
+                onChangeText={text => handleInputChange('balance', Number(text) || 0)}
+                placeholder="0.00"
+                placeholderTextColor="#9CA3AF"
+                keyboardType="numeric"
+                textAlign="right"
+              />
+              {errors.balance ? <Text style={styles.errorText}>{errors.balance}</Text> : null}
+            </View>
+          )}
+
           <View style={styles.formGroup}>
             <SelectBox
               label="العملة *"
               selectedValue={formData.currency}
-              onValueChange={(value) => handleInputChange('currency', value)}
-              items={currencyOptions}
+              onValueChange={value => handleInputChange('currency', value)}
+              items={CURRENCY_OPTIONS}
               placeholder="اختر العملة"
             />
           </View>
 
+          <View style={styles.formGroup}>
+            <SelectBox
+              label="الحالة"
+              selectedValue={String(formData.isActive)}
+              onValueChange={value => handleInputChange('isActive', value === 'true')}
+              items={ACTIVE_OPTIONS}
+              placeholder="اختر الحالة"
+            />
+          </View>
 
-
-          {/* Submit Button */}
           <TouchableOpacity
-            style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+            style={[styles.submitButton, loading ? styles.submitButtonDisabled : null]}
             onPress={handleSubmit}
             disabled={loading}
           >
@@ -193,8 +234,8 @@ const AddTreasuryScreen = ({ navigation }: AddTreasuryScreenProps) => {
               <ActivityIndicator size="small" color="#fff" />
             ) : (
               <>
-                <Icon name="add" size={20} color="#fff" />
-                <Text style={styles.submitButtonText}>إضافة الخزينة</Text>
+                <Icon name={isEditMode ? 'save' : 'add'} size={20} color="#fff" />
+                <Text style={styles.submitButtonText}>{isEditMode ? 'حفظ التعديلات' : 'إضافة الخزينة'}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -254,7 +295,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   formGroup: {
-    marginBottom: 24,
+    marginBottom: 20,
     backgroundColor: '#fff',
     padding: 16,
     borderRadius: 12,
@@ -308,9 +349,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#1a237e',
-    paddingVertical: 18,
+    paddingVertical: 16,
     borderRadius: 12,
-    marginTop: 24,
+    marginTop: 16,
     marginHorizontal: 8,
     shadowColor: '#1a237e',
     shadowOffset: {
@@ -326,7 +367,7 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '600',
     marginLeft: 8,
   },

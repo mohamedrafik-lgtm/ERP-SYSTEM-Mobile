@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -7,514 +7,208 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Toast from 'react-native-toast-message';
 import CustomMenu from '../components/CustomMenu';
 import AuthService from '../services/AuthService';
-import { PaymentSchedule, TraineeFee } from '../types/paymentSchedules';
+import { usePermissions } from '../hooks/usePermissions';
+import {
+  PaymentSchedule,
+  TraineeFee,
+  NonPaymentAction,
+  NON_PAYMENT_ACTION_LABELS,
+} from '../types/paymentSchedules';
+
+interface Program {
+  id: number;
+  nameAr: string;
+  nameEn: string;
+  price: number;
+}
 
 interface PaymentScheduleDetailsScreenProps {
   navigation: any;
   route: {
     params: {
-      program: {
-        id: number;
-        nameAr: string;
-        nameEn: string;
-        price: number;
-      };
+      program: Program;
     };
   };
 }
 
+const PAYMENT_SCHEDULES_RESOURCE = 'dashboard.financial.payment-schedules';
+
+const ACTION_ICON_MAP: Record<string, string> = {
+  DISABLE_ATTENDANCE: 'event-busy',
+  DISABLE_PLATFORM: 'desktop-access-disabled',
+  DISABLE_QUIZZES: 'quiz',
+  DISABLE_ALL: 'block',
+};
+
 const PaymentScheduleDetailsScreen = ({ navigation, route }: PaymentScheduleDetailsScreenProps) => {
   const { program } = route.params;
+  const { canManage } = usePermissions();
+
   const [schedules, setSchedules] = useState<PaymentSchedule[]>([]);
   const [fees, setFees] = useState<TraineeFee[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [useStaticData, setUseStaticData] = useState(true); // استخدام بيانات static مؤقتاً
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchData();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const canManageSchedules = canManage(PAYMENT_SCHEDULES_RESOURCE);
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      
-      // جرب الـ API أولاً
-      let apiSuccess = false;
+  const parseNonPaymentActions = (actions: unknown): string[] => {
+    if (!actions) {
+      return [];
+    }
+
+    if (Array.isArray(actions)) {
+      return actions.filter((item): item is string => typeof item === 'string');
+    }
+
+    if (typeof actions === 'string') {
       try {
-        await Promise.all([fetchSchedules(), fetchFees()]);
-        
-        // تحقق إذا كان في بيانات فعلاً
-        if (fees.length > 0 || schedules.length > 0) {
-          console.log('✅ API returned data successfully');
-          apiSuccess = true;
-          setUseStaticData(false);
+        const parsed = JSON.parse(actions);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((item): item is string => typeof item === 'string');
         }
-      } catch (apiError) {
-        console.error('❌ API call failed:', apiError);
+      } catch {
+        return [];
       }
-      
-      // إذا فشل الـ API أو لم يرجع بيانات، استخدم static data
-      if (!apiSuccess) {
-        console.log('📦 Loading static data as fallback');
-        loadStaticData();
+    }
+
+    return [];
+  };
+
+  const loadData = useCallback(async (showLoader = true) => {
+    try {
+      if (showLoader) {
+        setLoading(true);
       }
+
+      const [allSchedules, allFees] = await Promise.all([
+        AuthService.getPaymentSchedules({ programId: program.id }),
+        AuthService.getAllTraineeFees(),
+      ]);
+
+      const programFees = (allFees || []).filter(
+        (fee: any) => Number(fee.programId) === Number(program.id),
+      );
+
+      const allowedFeeIds = new Set(programFees.map((fee: TraineeFee) => fee.id));
+      const programSchedules = (allSchedules || []).filter((schedule: PaymentSchedule) =>
+        allowedFeeIds.has(schedule.feeId),
+      );
+
+      setFees(programFees as TraineeFee[]);
+      setSchedules(programSchedules as PaymentSchedule[]);
     } catch (error) {
-      console.error('❌ General error:', error);
-      loadStaticData();
+      console.error('Error loading payment schedule details:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'خطأ في تحميل البيانات',
+        text2: 'تعذر تحميل الرسوم أو مواعيد السداد',
+      });
+      setFees([]);
+      setSchedules([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [program.id]);
 
-  const loadStaticData = () => {
-    console.log('📦 Loading static data for program:', program.id);
-    
-    // بيانات رسوم static (حسب الموقع الإلكتروني)
-    const staticFees: any[] = [
-      {
-        id: 1,
-        name: 'القسط الأول مساعد خدمات صحية',
-        amount: 1000,
-        type: 'TUITION',
-        academicYear: '2025/2024',
-        programId: program.id,
-      },
-      {
-        id: 2,
-        name: 'القسط الثاني مساعد خدمات صحية',
-        amount: 1000,
-        type: 'TUITION',
-        academicYear: '2025/2024',
-        programId: program.id,
-      },
-      {
-        id: 3,
-        name: 'القسط الثالث مساعد خدمات صحية',
-        amount: 1000,
-        type: 'TUITION',
-        academicYear: '2025/2024',
-        programId: program.id,
-      },
-      {
-        id: 4,
-        name: 'القسط الرابع مساعد خدمات صحية',
-        amount: 1000,
-        type: 'TUITION',
-        academicYear: '2025/2024',
-        programId: program.id,
-      },
-      {
-        id: 5,
-        name: 'القسط الخامس مساعد خدمات صحية',
-        amount: 1000,
-        type: 'TUITION',
-        academicYear: '2025/2024',
-        programId: program.id,
-      },
-      {
-        id: 6,
-        name: 'كورس إدارة الوقت وتنمية بشرية',
-        amount: 200,
-        type: 'TRAINING',
-        academicYear: '2025/2024',
-        programId: program.id,
-      },
-      {
-        id: 7,
-        name: 'كورس جنرال إنجلش',
-        amount: 200,
-        type: 'TRAINING',
-        academicYear: '2025/2024',
-        programId: program.id,
-      },
-      {
-        id: 8,
-        name: 'كورس (نفسية - عمليات - حضانات -اسعافات )',
-        amount: 600,
-        type: 'TRAINING',
-        academicYear: '2025/2024',
-        programId: program.id,
-      },
-      {
-        id: 9,
-        name: 'مقدم مساعد خدمات صحية',
-        amount: 2500,
-        type: 'TUITION',
-        academicYear: '2025/2024',
-        programId: program.id,
-      },
-      {
-        id: 10,
-        name: 'رسوم إضافية - مساعد خدمات صحية',
-        amount: 500,
-        type: 'ADDITIONAL',
-        academicYear: '2025/2024',
-        programId: program.id,
-      },
-      {
-        id: 11,
-        name: 'رسوم خدمات طلابية',
-        amount: 300,
-        type: 'SERVICES',
-        academicYear: '2025/2024',
-        programId: program.id,
-      },
-      {
-        id: 12,
-        name: 'القسط الثالث مساعد خدمات صحية',
-        amount: 500,
-        type: 'TUITION',
-        academicYear: '2025/2024',
-        programId: program.id,
-      },
-      {
-        id: 13,
-        name: 'القسط الثاني المساحة والإنشاءات',
-        amount: 1000,
-        type: 'TUITION',
-        academicYear: '2025/2024',
-        programId: program.id,
-      },
-      {
-        id: 14,
-        name: 'القسط الأول المساحة والإنشاءات',
-        amount: 1000,
-        type: 'TUITION',
-        academicYear: '2025/2024',
-        programId: program.id,
-      },
-    ];
+  useFocusEffect(
+    useCallback(() => {
+      void loadData(true);
+    }, [loadData]),
+  );
 
-    // بيانات مواعيد static - 12 موعد لكل الرسوم
-    const staticSchedules: any[] = [
-      // القسط الأول
-      {
-        id: 'schedule-1',
-        feeId: 1,
-        paymentStartDate: new Date('2025-09-25'),
-        paymentEndDate: new Date('2025-11-25'),
-        gracePeriodDays: 5,
-        finalDeadline: new Date('2025-11-30'),
-        nonPaymentActions: ['إيقاف الاختبارات الإلكترونية', 'إيقاف الحضور'],
-        actionEnabled: true,
-        notes: null,
-      },
-      // القسط الثاني
-      {
-        id: 'schedule-2',
-        feeId: 2,
-        paymentStartDate: new Date('2025-01-01'),
-        paymentEndDate: new Date('2025-11-01'),
-        gracePeriodDays: 5,
-        finalDeadline: new Date('2025-11-06'),
-        nonPaymentActions: ['إيقاف الاختبارات الإلكترونية', 'إيقاف الحضور'],
-        actionEnabled: true,
-        notes: null,
-      },
-      // القسط الثالث
-      {
-        id: 'schedule-3',
-        feeId: 3,
-        paymentStartDate: new Date('2025-11-01'),
-        paymentEndDate: new Date('2025-12-01'),
-        gracePeriodDays: 5,
-        finalDeadline: new Date('2025-12-06'),
-        nonPaymentActions: ['إيقاف الاختبارات الإلكترونية', 'إيقاف الحضور'],
-        actionEnabled: true,
-        notes: null,
-      },
-      // القسط الرابع
-      {
-        id: 'schedule-4',
-        feeId: 4,
-        paymentStartDate: new Date('2025-12-01'),
-        paymentEndDate: new Date('2026-01-01'),
-        gracePeriodDays: 5,
-        finalDeadline: new Date('2026-01-06'),
-        nonPaymentActions: ['إيقاف الاختبارات الإلكترونية', 'إيقاف الحضور'],
-        actionEnabled: true,
-        notes: null,
-      },
-      // القسط الخامس
-      {
-        id: 'schedule-5',
-        feeId: 5,
-        paymentStartDate: new Date('2025-11-01'),
-        paymentEndDate: new Date('2025-11-10'),
-        gracePeriodDays: 5,
-        finalDeadline: new Date('2025-11-15'),
-        nonPaymentActions: ['إيقاف الاختبارات الإلكترونية', 'إيقاف الحضور'],
-        actionEnabled: true,
-        notes: null,
-      },
-      // كورس إدارة الوقت
-      {
-        id: 'schedule-6',
-        feeId: 6,
-        paymentStartDate: new Date('2025-09-01'),
-        paymentEndDate: new Date('2025-09-30'),
-        gracePeriodDays: 3,
-        finalDeadline: new Date('2025-10-03'),
-        nonPaymentActions: ['إيقاف الاختبارات الإلكترونية'],
-        actionEnabled: true,
-        notes: null,
-      },
-      // كورس جنرال إنجلش
-      {
-        id: 'schedule-7',
-        feeId: 7,
-        paymentStartDate: new Date('2025-09-01'),
-        paymentEndDate: new Date('2025-09-30'),
-        gracePeriodDays: 3,
-        finalDeadline: new Date('2025-10-03'),
-        nonPaymentActions: ['إيقاف الاختبارات الإلكترونية'],
-        actionEnabled: true,
-        notes: null,
-      },
-      // كورس نفسية/عمليات
-      {
-        id: 'schedule-8',
-        feeId: 8,
-        paymentStartDate: new Date('2025-09-15'),
-        paymentEndDate: new Date('2025-10-15'),
-        gracePeriodDays: 5,
-        finalDeadline: new Date('2025-10-20'),
-        nonPaymentActions: ['إيقاف الاختبارات الإلكترونية', 'إيقاف الحضور'],
-        actionEnabled: true,
-        notes: null,
-      },
-      // مقدم
-      {
-        id: 'schedule-9',
-        feeId: 9,
-        paymentStartDate: new Date('2025-01-10'),
-        paymentEndDate: new Date('2025-07-30'),
-        gracePeriodDays: 5,
-        finalDeadline: new Date('2025-08-04'),
-        nonPaymentActions: ['إيقاف المنصة الإلكترونية', 'إيقاف الحضور', 'إيقاف الاختبارات الإلكترونية', 'إيقاف الكل'],
-        actionEnabled: true,
-        notes: null,
-      },
-      // رسوم إضافية
-      {
-        id: 'schedule-10',
-        feeId: 10,
-        paymentStartDate: new Date('2025-09-01'),
-        paymentEndDate: new Date('2025-10-01'),
-        gracePeriodDays: 5,
-        finalDeadline: new Date('2025-10-06'),
-        nonPaymentActions: ['إيقاف المنصة الإلكترونية'],
-        actionEnabled: true,
-        notes: null,
-      },
-      // رسوم خدمات طلابية
-      {
-        id: 'schedule-11',
-        feeId: 11,
-        paymentStartDate: new Date('2025-09-01'),
-        paymentEndDate: new Date('2025-09-15'),
-        gracePeriodDays: 3,
-        finalDeadline: new Date('2025-09-18'),
-        nonPaymentActions: ['إيقاف الحضور'],
-        actionEnabled: true,
-        notes: null,
-      },
-      // رسوم تدريب عملي
-      {
-        id: 'schedule-12',
-        feeId: 12,
-        paymentStartDate: new Date('2025-10-01'),
-        paymentEndDate: new Date('2025-11-01'),
-        gracePeriodDays: 5,
-        finalDeadline: new Date('2025-11-06'),
-        nonPaymentActions: ['إيقاف الاختبارات الإلكترونية', 'إيقاف الحضور'],
-        actionEnabled: true,
-        notes: null,
-      },
-      // القسط الثاني المساحة
-      {
-        id: 'schedule-13',
-        feeId: 13,
-        paymentStartDate: new Date('2025-10-01'),
-        paymentEndDate: new Date('2025-11-15'),
-        gracePeriodDays: 5,
-        finalDeadline: new Date('2025-11-20'),
-        nonPaymentActions: ['إيقاف الاختبارات الإلكترونية', 'إيقاف الحضور'],
-        actionEnabled: true,
-        notes: null,
-      },
-      // القسط الأول المساحة
-      {
-        id: 'schedule-14',
-        feeId: 14,
-        paymentStartDate: new Date('2025-09-01'),
-        paymentEndDate: new Date('2025-10-01'),
-        gracePeriodDays: 5,
-        finalDeadline: new Date('2025-10-06'),
-        nonPaymentActions: ['إيقاف الاختبارات الإلكترونية', 'إيقاف الحضور'],
-        actionEnabled: true,
-        notes: null,
-      },
-    ];
-
-    console.log('\n📦 LOADING STATIC DATA:');
-    console.log('═══════════════════════════════════════');
-    console.log('Static Fees Count:', staticFees.length);
-    console.log('Static Schedules Count:', staticSchedules.length);
-    console.log('\nStatic Fees:', staticFees.map(f => ({ id: f.id, name: f.name })));
-    console.log('\nStatic Schedules:', staticSchedules.map(s => ({ id: s.id, feeId: s.feeId })));
-    console.log('═══════════════════════════════════════\n');
-    
-    setFees(staticFees);
-    setSchedules(staticSchedules);
-    setUseStaticData(true);
-    
-    console.log('✅ Static data loaded successfully');
-    console.log('State updated - Fees:', staticFees.length, 'Schedules:', staticSchedules.length);
-  };
-
-  const fetchSchedules = async () => {
-    try {
-      console.log('🔍 Fetching payment schedules for program:', program.id);
-      const data = await AuthService.getPaymentSchedules({ programId: program.id });
-      console.log('✅ Payment schedules fetched:', data);
-      console.log('✅ Number of schedules:', data?.length || 0);
-      
-      if (data && data.length > 0) {
-        setSchedules(data);
-        setUseStaticData(false);
-      } else {
-        throw new Error('No schedules data');
-      }
-    } catch (error) {
-      console.error('❌ Error fetching schedules - will use static:', error);
-      throw error; // إعادة رمي الخطأ ليتم معالجته في fetchData
-    }
-  };
-
-  const fetchFees = async () => {
-    try {
-      console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('🔍 FETCHING ALL TRAINEE FEES');
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-      
-      const response = await AuthService.getAllTraineeFees();
-      
-      console.log('📦 RAW API RESPONSE:');
-      console.log('═══════════════════════════════════════');
-      console.log(JSON.stringify(response, null, 2));
-      console.log('═══════════════════════════════════════\n');
-      
-      console.log('📊 RESPONSE ANALYSIS:');
-      console.log('- Type:', typeof response);
-      console.log('- Is Array:', Array.isArray(response));
-      console.log('- Keys (if object):', response && typeof response === 'object' ? Object.keys(response) : 'N/A');
-      
-      // معالجة البيانات حسب الـ structure المختلف
-      let allFees: any[] = [];
-      
-      if (Array.isArray(response)) {
-        console.log('✅ Response is direct array');
-        allFees = response;
-      } else if (response && Array.isArray((response as any).data)) {
-        console.log('✅ Response has .data array');
-        allFees = (response as any).data;
-      } else if (response && Array.isArray((response as any).fees)) {
-        console.log('✅ Response has .fees array');
-        allFees = (response as any).fees;
-      } else {
-        console.warn('⚠️ Unexpected response structure');
-      }
-      
-      console.log('\n📋 PROCESSED FEES ARRAY:');
-      console.log('═══════════════════════════════════════');
-      console.log('Total fees count:', allFees.length);
-      
-      if (allFees.length === 0) {
-        console.log('⚠️ No fees returned from API, will use static data');
-        throw new Error('No fees returned from API');
-      }
-      
-      console.log('\n📊 ALL FEES DETAILS:');
-      console.log('═══════════════════════════════════════');
-      allFees.forEach((fee, index) => {
-        console.log(`\nFee #${index + 1}:`);
-        console.log('  - ID:', fee.id);
-        console.log('  - Name:', fee.name);
-        console.log('  - Amount:', fee.amount);
-        console.log('  - Type:', fee.type);
-        console.log('  - Program ID:', fee.programId, `(${typeof fee.programId})`);
-        console.log('  - Academic Year:', fee.academicYear);
-        console.log('  - Safe ID:', fee.safeId);
-        console.log('  - Is Applied:', fee.isApplied);
-      });
-      
-      // عرض جميع programIds الموجودة
-      const programIds = [...new Set(allFees.map((f: any) => f.programId))];
-      console.log('\n🎯 PROGRAM IDS ANALYSIS:');
-      console.log('═══════════════════════════════════════');
-      console.log('Unique Program IDs:', programIds);
-      console.log('Looking for Program ID:', program.id, `(${typeof program.id})`);
-      console.log('Match found:', programIds.includes(program.id));
-      
-      // فلترة الرسوم
-      console.log('\n🔍 FILTERING FEES:');
-      console.log('═══════════════════════════════════════');
-      const programFees = allFees.filter((fee: any) => {
-        const feeProgId = Number(fee.programId);
-        const targetProgId = Number(program.id);
-        const matches = feeProgId === targetProgId;
-        
-        console.log(`Fee "${fee.name}": programId ${fee.programId} ${matches ? '✅ MATCH' : '❌ NO MATCH'}`);
-        return matches;
-      });
-      
-      console.log('\n✅ FILTERING RESULTS:');
-      console.log('Filtered fees count:', programFees.length);
-      
-      // **عرض جميع الرسوم بغض النظر عن البرنامج**
-      console.log('\n📢 FINAL DECISION: SHOWING ALL FEES (NOT FILTERED)');
-      console.log('Reason: For debugging and testing purposes');
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-      
-      setFees(allFees as any);
-      setUseStaticData(false);
-    } catch (error) {
-      console.error('\n❌ ERROR FETCHING FEES:');
-      console.error('═══════════════════════════════════════');
-      console.error(error);
-      console.log('\n⚠️ API failed - will throw error to trigger static data loading');
-      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
-      // لا تضع أي fees هنا - دع fetchData يلاحظ الفشل
-      throw error;
-    }
-  };
+  const schedulesByFeeId = useMemo(() => {
+    const map = new Map<number, PaymentSchedule>();
+    schedules.forEach(schedule => {
+      map.set(schedule.feeId, schedule);
+    });
+    return map;
+  }, [schedules]);
 
   const handleRefresh = () => {
     setRefreshing(true);
-    fetchData();
+    void loadData(false);
   };
 
-  const handleAddSchedule = () => {
+  const handleAddSchedule = (preselectedFeeId?: number) => {
     navigation.navigate('AddPaymentSchedule', {
-      program: program,
-      fees: fees,
+      mode: 'create',
+      program,
+      fees,
+      preselectedFeeId,
+      scheduledFeeIds: schedules.map(schedule => schedule.feeId),
     });
   };
 
-  const getScheduleForFee = (feeId: number): PaymentSchedule | undefined => {
-    return schedules.find(s => s.feeId === feeId);
+  const handleEditSchedule = (schedule: PaymentSchedule, fee: TraineeFee) => {
+    navigation.navigate('AddPaymentSchedule', {
+      mode: 'edit',
+      program,
+      fees,
+      schedule: {
+        ...schedule,
+        fee: schedule.fee || fee,
+      },
+    });
   };
 
-  const formatDate = (date: Date | null) => {
-    if (!date) return '-';
+  const deleteSchedule = async (scheduleId: string) => {
+    try {
+      setDeletingId(scheduleId);
+      await AuthService.deletePaymentSchedule(scheduleId);
+      Toast.show({
+        type: 'success',
+        text1: 'تم الحذف بنجاح',
+        text2: 'تم حذف موعد السداد',
+      });
+      await loadData();
+    } catch (error) {
+      console.error('Error deleting payment schedule:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'فشل الحذف',
+        text2: 'تعذر حذف موعد السداد',
+      });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleDeleteSchedule = (scheduleId: string) => {
+    if (!canManageSchedules) {
+      Toast.show({
+        type: 'error',
+        text1: 'غير مصرح',
+        text2: 'ليس لديك صلاحية الحذف',
+      });
+      return;
+    }
+
+    Alert.alert('تأكيد الحذف', 'هل أنت متأكد من حذف موعد السداد؟', [
+      { text: 'إلغاء', style: 'cancel' },
+      {
+        text: 'حذف',
+        style: 'destructive',
+        onPress: () => {
+          void deleteSchedule(scheduleId);
+        },
+      },
+    ]);
+  };
+
+  const formatDate = (date: Date | string | null | undefined) => {
+    if (!date) {
+      return 'غير محدد';
+    }
+
     return new Date(date).toLocaleDateString('ar-EG', {
       year: 'numeric',
       month: '2-digit',
@@ -541,8 +235,39 @@ const PaymentScheduleDetailsScreen = ({ navigation, route }: PaymentScheduleDeta
   };
 
   const renderFeeCard = (fee: TraineeFee) => {
-    const schedule = getScheduleForFee(fee.id);
-    const hasSchedule = !!schedule;
+    const schedule = schedulesByFeeId.get(fee.id);
+
+    if (!schedule) {
+      return (
+        <View key={fee.id} style={styles.feeCard}>
+          <View style={styles.feeHeader}>
+            <Text style={styles.feeName}>{fee.name}</Text>
+            <Text style={styles.feeAmount}>{formatPrice(fee.amount)}</Text>
+          </View>
+
+          <View style={styles.feeInfo}>
+            <Text style={styles.feeType}>{getFeeTypeLabel(fee.type)}</Text>
+            <Text style={styles.feeYear}>العام الدراسي: {fee.academicYear}</Text>
+          </View>
+
+          <View style={styles.noSchedule}>
+            <Icon name="event-available" size={48} color="#d1d5db" />
+            <Text style={styles.noScheduleText}>لم يتم تحديد موعد سداد</Text>
+            {canManageSchedules && (
+              <TouchableOpacity
+                style={styles.addScheduleButton}
+                onPress={() => handleAddSchedule(fee.id)}
+              >
+                <Icon name="add" size={20} color="#1a237e" />
+                <Text style={styles.addScheduleButtonText}>إضافة موعد</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      );
+    }
+
+    const nonPaymentActions = parseNonPaymentActions(schedule.nonPaymentActions);
 
     return (
       <View key={fee.id} style={styles.feeCard}>
@@ -556,76 +281,118 @@ const PaymentScheduleDetailsScreen = ({ navigation, route }: PaymentScheduleDeta
           <Text style={styles.feeYear}>العام الدراسي: {fee.academicYear}</Text>
         </View>
 
-        {hasSchedule && schedule ? (
-          <View style={styles.scheduleInfo}>
-            <View style={styles.dateRow}>
-              <Icon name="event" size={16} color="#1a237e" />
-              <Text style={styles.dateLabel}>بداية:</Text>
-              <Text style={styles.dateValue}>{formatDate(schedule.paymentStartDate)}</Text>
-            </View>
+        <View style={styles.scheduleInfo}>
+          <View style={styles.dateRow}>
+            <Icon name="event" size={16} color="#1a237e" />
+            <Text style={styles.dateLabel}>بداية:</Text>
+            <Text style={styles.dateValue}>{formatDate(schedule.paymentStartDate)}</Text>
+          </View>
 
-            <View style={styles.dateRow}>
-              <Icon name="event-busy" size={16} color="#dc2626" />
-              <Text style={styles.dateLabel}>نهاية:</Text>
-              <Text style={styles.dateValue}>{formatDate(schedule.paymentEndDate)}</Text>
-            </View>
+          <View style={styles.dateRow}>
+            <Icon name="event-busy" size={16} color="#dc2626" />
+            <Text style={styles.dateLabel}>نهاية:</Text>
+            <Text style={styles.dateValue}>{formatDate(schedule.paymentEndDate)}</Text>
+          </View>
 
-            <View style={styles.dateRow}>
-              <Icon name="access-time" size={16} color="#f59e0b" />
-              <Text style={styles.dateLabel}>فترة السماح:</Text>
-              <Text style={styles.dateValue}>{schedule.gracePeriodDays} يوم</Text>
-            </View>
+          <View style={styles.dateRow}>
+            <Icon name="access-time" size={16} color="#f59e0b" />
+            <Text style={styles.dateLabel}>فترة السماح:</Text>
+            <Text style={styles.dateValue}>{schedule.gracePeriodDays || 0} يوم</Text>
+          </View>
 
-            <View style={styles.dateRow}>
-              <Icon name="error-outline" size={16} color="#7c3aed" />
-              <Text style={styles.dateLabel}>الموعد النهائي:</Text>
-              <Text style={styles.dateValue}>{formatDate(schedule.finalDeadline)}</Text>
-            </View>
+          <View style={styles.dateRow}>
+            <Icon name="error-outline" size={16} color="#7c3aed" />
+            <Text style={styles.dateLabel}>الموعد النهائي:</Text>
+            <Text style={styles.dateValue}>{formatDate(schedule.finalDeadline)}</Text>
+          </View>
 
-            {schedule.actionEnabled && schedule.nonPaymentActions && (
-              <View style={styles.actionsContainer}>
-                <Text style={styles.actionsTitle}>الإجراءات:</Text>
-                <View style={styles.actionsList}>
-                  {(Array.isArray(schedule.nonPaymentActions) 
-                    ? schedule.nonPaymentActions 
-                    : JSON.parse(schedule.nonPaymentActions as any)).map((action: string, index: number) => (
-                    <View key={index} style={styles.actionTag}>
-                      <Icon name="warning" size={12} color="#dc2626" />
-                      <Text style={styles.actionText}>{action}</Text>
-                    </View>
-                  ))}
-                </View>
+          <View style={styles.actionsSection}>
+            <View style={styles.actionsHeader}>
+              <Text style={styles.actionsTitle}>الإجراءات:</Text>
+              <View
+                style={[
+                  styles.statusBadge,
+                  schedule.actionEnabled ? styles.statusBadgeEnabled : styles.statusBadgeDisabled,
+                ]}
+              >
+                <Icon
+                  name={schedule.actionEnabled ? 'lock-open' : 'lock'}
+                  size={12}
+                  color={schedule.actionEnabled ? '#b91c1c' : '#6b7280'}
+                />
+                <Text
+                  style={[
+                    styles.statusBadgeText,
+                    schedule.actionEnabled
+                      ? styles.statusBadgeTextEnabled
+                      : styles.statusBadgeTextDisabled,
+                  ]}
+                >
+                  {schedule.actionEnabled ? 'مفعلة' : 'معطلة'}
+                </Text>
               </View>
-            )}
+            </View>
 
+            {nonPaymentActions.length > 0 ? (
+              <View style={styles.actionsList}>
+                {nonPaymentActions.map((action, index) => (
+                  <View key={`${action}-${index}`} style={styles.actionTag}>
+                    <Icon
+                      name={ACTION_ICON_MAP[action] || 'warning'}
+                      size={12}
+                      color="#dc2626"
+                    />
+                    <Text style={styles.actionText}>
+                      {NON_PAYMENT_ACTION_LABELS[action as NonPaymentAction] || action}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.noActionsText}>لا توجد إجراءات محددة</Text>
+            )}
+          </View>
+
+          {!!schedule.notes && (
+            <View style={styles.notesBox}>
+              <Text style={styles.notesTitle}>ملاحظات:</Text>
+              <Text style={styles.notesText}>{schedule.notes}</Text>
+            </View>
+          )}
+
+          {canManageSchedules && (
             <View style={styles.cardActions}>
-              <TouchableOpacity style={styles.editButton}>
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={() => handleEditSchedule(schedule, fee)}
+              >
                 <Icon name="edit" size={18} color="#1a237e" />
                 <Text style={styles.editButtonText}>تعديل</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.deleteButton}>
-                <Icon name="delete" size={18} color="#dc2626" />
-                <Text style={styles.deleteButtonText}>حذف</Text>
+
+              <TouchableOpacity
+                style={[styles.deleteButton, deletingId === schedule.id && styles.buttonDisabled]}
+                disabled={deletingId === schedule.id}
+                onPress={() => handleDeleteSchedule(schedule.id)}
+              >
+                {deletingId === schedule.id ? (
+                  <ActivityIndicator size="small" color="#dc2626" />
+                ) : (
+                  <>
+                    <Icon name="delete" size={18} color="#dc2626" />
+                    <Text style={styles.deleteButtonText}>حذف</Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
-          </View>
-        ) : (
-          <View style={styles.noSchedule}>
-            <Icon name="event-available" size={48} color="#d1d5db" />
-            <Text style={styles.noScheduleText}>لم يتم تحديد موعد سداد</Text>
-            <TouchableOpacity style={styles.addScheduleButton} onPress={handleAddSchedule}>
-              <Icon name="add" size={20} color="#1a237e" />
-              <Text style={styles.addScheduleButtonText}>إضافة موعد</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+          )}
+        </View>
       </View>
     );
   };
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <CustomMenu navigation={navigation} activeRouteName="PaymentSchedules" />
         <View style={styles.headerCenter}>
@@ -637,9 +404,7 @@ const PaymentScheduleDetailsScreen = ({ navigation, route }: PaymentScheduleDeta
           </TouchableOpacity>
           <View style={styles.headerTitleContainer}>
             <Text style={styles.headerTitle}>مواعيد سداد الرسوم</Text>
-            <Text style={styles.headerSubtitle}>
-              إدارة مواعيد سداد الرسوم والإجراءات عند عدم السداد
-            </Text>
+            <Text style={styles.headerSubtitle}>إدارة مواعيد السداد والإجراءات</Text>
           </View>
         </View>
         <View style={styles.placeholder} />
@@ -652,7 +417,6 @@ const PaymentScheduleDetailsScreen = ({ navigation, route }: PaymentScheduleDeta
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
       >
-        {/* Program Info */}
         <View style={styles.programInfo}>
           <View style={styles.programHeader}>
             <View>
@@ -667,6 +431,7 @@ const PaymentScheduleDetailsScreen = ({ navigation, route }: PaymentScheduleDeta
               <Text style={styles.backToProgramsText}>العودة للبرامج</Text>
             </TouchableOpacity>
           </View>
+
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
               <Text style={styles.statLabel}>عدد الرسوم:</Text>
@@ -679,23 +444,13 @@ const PaymentScheduleDetailsScreen = ({ navigation, route }: PaymentScheduleDeta
           </View>
         </View>
 
-        {/* Debug Info */}
-        <View style={styles.debugInfo}>
-          <Text style={styles.debugText}>
-            {useStaticData ? '📦 وضع البيانات التجريبية' : '🌐 متصل بالخادم'}
-          </Text>
-          <Text style={styles.debugText}>
-            📊 الرسوم: {fees.length} | المواعيد: {schedules.length} | البرنامج: {program.id}
-          </Text>
-        </View>
+        {canManageSchedules && fees.length > 0 && (
+          <TouchableOpacity style={styles.addButton} onPress={() => handleAddSchedule()}>
+            <Icon name="add" size={24} color="#fff" />
+            <Text style={styles.addButtonText}>إضافة موعد سداد</Text>
+          </TouchableOpacity>
+        )}
 
-        {/* Add Schedule Button */}
-        <TouchableOpacity style={styles.addButton} onPress={handleAddSchedule}>
-          <Icon name="add" size={24} color="#fff" />
-          <Text style={styles.addButtonText}>إضافة موعد سداد</Text>
-        </TouchableOpacity>
-
-        {/* Fees List */}
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#1a237e" />
@@ -704,17 +459,14 @@ const PaymentScheduleDetailsScreen = ({ navigation, route }: PaymentScheduleDeta
         ) : fees.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Icon name="receipt" size={64} color="#d1d5db" />
-            <Text style={styles.emptyTitle}>لا توجد رسوم دراسية</Text>
-            <Text style={styles.emptySubtitle}>
-              لم يتم العثور على رسوم دراسية لهذا البرنامج
-            </Text>
+            <Text style={styles.emptyTitle}>لا توجد رسوم لهذا البرنامج</Text>
+            <Text style={styles.emptySubtitle}>لم يتم العثور على رسوم تدريبية مرتبطة بهذا البرنامج</Text>
           </View>
         ) : (
-          <View style={styles.feesList}>
-            {fees.map(fee => renderFeeCard(fee))}
-          </View>
+          <View style={styles.feesList}>{fees.map(fee => renderFeeCard(fee))}</View>
         )}
       </ScrollView>
+
       <Toast />
     </View>
   );
@@ -764,7 +516,7 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
   headerSubtitle: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#64748b',
     marginTop: 2,
     textAlign: 'right',
@@ -961,7 +713,7 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'right',
   },
-  actionsContainer: {
+  actionsSection: {
     marginTop: 12,
     padding: 12,
     backgroundColor: '#fef2f2',
@@ -969,12 +721,40 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#fecaca',
   },
+  actionsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
   actionsTitle: {
     fontSize: 13,
     fontWeight: '700',
     color: '#dc2626',
-    marginBottom: 8,
-    textAlign: 'right',
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  statusBadgeEnabled: {
+    backgroundColor: '#fee2e2',
+  },
+  statusBadgeDisabled: {
+    backgroundColor: '#e5e7eb',
+  },
+  statusBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  statusBadgeTextEnabled: {
+    color: '#b91c1c',
+  },
+  statusBadgeTextDisabled: {
+    color: '#6b7280',
   },
   actionsList: {
     flexDirection: 'row',
@@ -994,6 +774,30 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#dc2626',
     fontWeight: '600',
+  },
+  noActionsText: {
+    fontSize: 12,
+    color: '#6b7280',
+    textAlign: 'right',
+  },
+  notesBox: {
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    borderRadius: 10,
+    padding: 10,
+  },
+  notesTitle: {
+    fontSize: 12,
+    color: '#1d4ed8',
+    fontWeight: '700',
+    marginBottom: 4,
+    textAlign: 'right',
+  },
+  notesText: {
+    fontSize: 13,
+    color: '#334155',
+    textAlign: 'right',
   },
   cardActions: {
     flexDirection: 'row',
@@ -1034,6 +838,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#dc2626',
   },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
   noSchedule: {
     alignItems: 'center',
     paddingVertical: 32,
@@ -1059,17 +866,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#1a237e',
-  },
-  debugInfo: {
-    backgroundColor: '#fef3c7',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  debugText: {
-    fontSize: 12,
-    color: '#78350f',
-    textAlign: 'center',
   },
 });
 

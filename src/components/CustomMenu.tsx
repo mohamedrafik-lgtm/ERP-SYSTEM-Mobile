@@ -13,7 +13,6 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import AuthService from '../services/AuthService';
-import UserRoleDisplay from './UserRoleDisplay';
 import { usePermissions } from '../hooks/usePermissions';
 import Toast from 'react-native-toast-message';
 
@@ -44,12 +43,88 @@ interface CustomMenuProps {
 
 const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) => {
   const [isVisible, setIsVisible] = useState(false);
-  const [slideAnim] = useState(new Animated.Value(-width));
+  const [slideAnim] = useState(new Animated.Value(width));
+  const [isStaffEnrolled, setIsStaffEnrolled] = useState(false);
   const { allowedMenuSections, isLoading } = usePermissions();
+
+  useEffect(() => {
+    const loadEnrollmentStatus = async () => {
+      try {
+        const status = await AuthService.getMyAttendanceStatus();
+        setIsStaffEnrolled(status?.isEnrolled === true);
+      } catch {
+        setIsStaffEnrolled(false);
+      }
+    };
+
+    loadEnrollmentStatus();
+  }, []);
+
+  const homeMenuItem: MenuItem = {
+    id: 'Home',
+    title: 'الرئيسية',
+    icon: 'home',
+    screen: 'Home',
+    priority: -1,
+    allowedRoles: [],
+    category: 'system',
+  };
 
   // إضافة عناصر مخصصة (التوزيعات + إدارة التوزيع + طلاب غير موزعين + تسجيل الخروج) لجميع الأقسام المسموحة
   const getMenuSectionsWithLogout = () => {
-    const sectionsWithLogout = [...allowedMenuSections];
+    const sectionsWithLogout = allowedMenuSections.map(section => ({
+      ...section,
+      // الرئيسية تظهر كعنصر ثابت أعلى القائمة لتفادي تكرارها داخل الأقسام.
+      items: (section.items || []).filter((item: any) => {
+        const itemScreen = item.screen || item.screenName;
+        return item.id !== 'Home' && itemScreen !== 'Home';
+      }),
+    }));
+
+    if (isStaffEnrolled) {
+      sectionsWithLogout.push({
+        title: 'سجل حضوري',
+        category: 'staff_my_attendance',
+        items: [
+          {
+            id: 'StaffAttendanceCheckInMenu',
+            title: 'تسجيل الحضور',
+            icon: 'schedule',
+            screen: 'SelfStaffAttendance',
+            priority: 1,
+            allowedRoles: [],
+            category: 'staff_my_attendance',
+          },
+          {
+            id: 'MyAttendanceLogsMenu',
+            title: 'سجل حضوري',
+            icon: 'description',
+            screen: 'MyAttendanceLogs',
+            priority: 2,
+            allowedRoles: [],
+            category: 'staff_my_attendance',
+          },
+          {
+            id: 'MyLeaveRequestsMenu',
+            title: 'طلبات إجازاتي',
+            icon: 'event',
+            screen: 'MyLeaveRequests',
+            priority: 3,
+            allowedRoles: [],
+            category: 'staff_my_attendance',
+          },
+          {
+            id: 'MyOvertimeRequestsMenu',
+            title: 'أوقاتي الإضافية',
+            icon: 'timer',
+            screen: 'MyOvertimeRequests',
+            priority: 4,
+            allowedRoles: [],
+            category: 'staff_my_attendance',
+          },
+        ],
+      });
+    }
     
     // البحث عن قسم النظام أو إنشاؤه
     let systemSection = sectionsWithLogout.find(section => section.category === 'system');
@@ -99,7 +174,7 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
 
   const hideMenu = () => {
     Animated.timing(slideAnim, {
-      toValue: -width,
+      toValue: width,
       duration: 300,
       useNativeDriver: true,
     }).start(() => {
@@ -186,12 +261,6 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
               <Text style={styles.headerTitle}>مركز طيبة للتدريب</Text>
               <Text style={styles.headerSubtitle}>النظام الإداري</Text>
               
-              {/* عرض معلومات المستخدم والدور */}
-              <View style={styles.userSection}>
-                <UserRoleDisplay compact={true} showPrimaryRoleOnly={true} />
-              </View>
-
-              
               <TouchableOpacity style={styles.closeButton} onPress={hideMenu}>
                 <Icon name="close" size={24} color="#fff" />
               </TouchableOpacity>
@@ -208,67 +277,109 @@ const CustomMenu: React.FC<CustomMenuProps> = ({ navigation, activeRouteName }) 
                   <Text style={styles.loadingText}>جاري تحميل القائمة...</Text>
                 </View>
               ) : (
-                getMenuSectionsWithLogout().map((section, sectionIndex) => (
-                  <View key={sectionIndex} style={styles.menuSection}>
-                    <Text style={styles.sectionTitle}>{section.title}</Text>
-                    {section.items
-                      .sort((a: any, b: any) => a.priority - b.priority)
-                      .map((item: any) => {
-                      const itemScreen = item.screen || item.screenName;
-                      const isActive = activeRouteName === itemScreen;
-                      return (
-                      <TouchableOpacity
-                        key={item.id || item.screenName}
-                        style={[
-                          styles.menuItem,
-                          item.isLogout && styles.logoutMenuItem,
-                          isActive && styles.activeMenuItem,
-                        ]}
-                        onPress={() => handleMenuPress(item)}
-                      >
-                        <View style={styles.menuItemContent}>
-                          <View style={[
+                <>
+                  <View style={styles.menuSection}>
+                    <TouchableOpacity
+                      style={[
+                        styles.menuItem,
+                        activeRouteName === homeMenuItem.screen && styles.activeMenuItem,
+                      ]}
+                      onPress={() => handleMenuPress(homeMenuItem)}
+                    >
+                      <View style={styles.menuItemContent}>
+                        <View
+                          style={[
                             styles.iconContainer,
-                            isActive && styles.activeIconContainer,
-                            item.isLogout && styles.logoutIconContainer,
-                          ]}>
-                            <Icon
-                              name={item.icon}
-                              size={22}
-                              color={
-                                item.isLogout
-                                  ? '#dc2626'
-                                  : isActive
-                                  ? '#1e3a8a'
-                                  : '#fff'
-                              }
-                              style={styles.menuIcon}
-                            />
-                          </View>
-                          <Text
-                            style={[
-                              styles.menuText,
-                              isActive && styles.activeMenuText,
-                              item.isLogout && styles.logoutText,
-                            ]}
-                          >
-                            {item.title}
-                          </Text>
-                        </View>
-                        {!item.isLogout && (
+                            activeRouteName === homeMenuItem.screen && styles.activeIconContainer,
+                          ]}
+                        >
                           <Icon
-                            name="chevron-left"
-                            size={20}
-                            color={isActive ? '#1e3a8a' : 'rgba(255, 255, 255, 0.7)'}
+                            name={homeMenuItem.icon}
+                            size={22}
+                            color={activeRouteName === homeMenuItem.screen ? '#1e3a8a' : '#fff'}
+                            style={styles.menuIcon}
                           />
-                        )}
-                        {isActive && (
-                          <View style={styles.activeIndicator} />
-                        )}
-                      </TouchableOpacity>
-                    );})}
+                        </View>
+                        <Text
+                          style={[
+                            styles.menuText,
+                            activeRouteName === homeMenuItem.screen && styles.activeMenuText,
+                          ]}
+                        >
+                          {homeMenuItem.title}
+                        </Text>
+                      </View>
+                      <Icon
+                        name="chevron-left"
+                        size={20}
+                        color={activeRouteName === homeMenuItem.screen ? '#1e3a8a' : 'rgba(255, 255, 255, 0.7)'}
+                      />
+                      {activeRouteName === homeMenuItem.screen && <View style={styles.activeIndicator} />}
+                    </TouchableOpacity>
                   </View>
-                ))
+
+                  {getMenuSectionsWithLogout().map((section, sectionIndex) => (
+                    <View key={sectionIndex} style={styles.menuSection}>
+                      <Text style={styles.sectionTitle}>{section.title}</Text>
+                      {section.items
+                        .sort((a: any, b: any) => a.priority - b.priority)
+                        .map((item: any) => {
+                        const itemScreen = item.screen || item.screenName;
+                        const isActive = activeRouteName === itemScreen;
+                        return (
+                        <TouchableOpacity
+                          key={item.id || item.screenName}
+                          style={[
+                            styles.menuItem,
+                            item.isLogout && styles.logoutMenuItem,
+                            isActive && styles.activeMenuItem,
+                          ]}
+                          onPress={() => handleMenuPress(item)}
+                        >
+                          <View style={styles.menuItemContent}>
+                            <View style={[
+                              styles.iconContainer,
+                              isActive && styles.activeIconContainer,
+                              item.isLogout && styles.logoutIconContainer,
+                            ]}>
+                              <Icon
+                                name={item.icon}
+                                size={22}
+                                color={
+                                  item.isLogout
+                                    ? '#dc2626'
+                                    : isActive
+                                    ? '#1e3a8a'
+                                    : '#fff'
+                                }
+                                style={styles.menuIcon}
+                              />
+                            </View>
+                            <Text
+                              style={[
+                                styles.menuText,
+                                isActive && styles.activeMenuText,
+                                item.isLogout && styles.logoutText,
+                              ]}
+                            >
+                              {item.title}
+                            </Text>
+                          </View>
+                          {!item.isLogout && (
+                            <Icon
+                              name="chevron-left"
+                              size={20}
+                              color={isActive ? '#1e3a8a' : 'rgba(255, 255, 255, 0.7)'}
+                            />
+                          )}
+                          {isActive && (
+                            <View style={styles.activeIndicator} />
+                          )}
+                        </TouchableOpacity>
+                      );})}
+                    </View>
+                  ))}
+                </>
               )}
             </ScrollView>
 
@@ -350,15 +461,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '500',
   },
-  userSection: {
-    marginTop: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.14)',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.18)',
-  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -374,7 +476,7 @@ const styles = StyleSheet.create({
   closeButton: {
     position: 'absolute',
     top: 44,
-    left: 14,
+    right: 14,
     width: 34,
     height: 34,
     borderRadius: 17,

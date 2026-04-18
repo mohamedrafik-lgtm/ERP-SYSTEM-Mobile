@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -6,325 +6,399 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   RefreshControl,
+  Image,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import Toast from 'react-native-toast-message';
+import CustomMenu from '../components/CustomMenu';
+import SelectBox from '../components/SelectBox';
+import AuthService from '../services/AuthService';
+
+type Program = {
+  id: number;
+  nameAr?: string;
+  nameEn?: string;
+};
+
+type TopStudent = {
+  trainee: {
+    id: number;
+    nameAr?: string;
+    nationalId?: string;
+    photoUrl?: string;
+    program?: {
+      nameAr?: string;
+    };
+  };
+  totalMarks: number;
+  maxMarks: number;
+  percentage: number;
+  subjectsCount: number;
+};
+
+type ClassroomTopStudents = {
+  classroom: {
+    id: number;
+    name: string;
+  };
+  topStudents: TopStudent[];
+};
+
+const LIMIT_OPTIONS = [
+  { value: '5', label: '5 متدربين' },
+  { value: '10', label: '10 متدربين' },
+  { value: '20', label: '20 متدرب' },
+];
 
 const GradeReportsScreen = ({ navigation }: any) => {
-  const [loading, setLoading] = useState(true);
+  const [loadingPrograms, setLoadingPrograms] = useState(true);
+  const [loadingTopStudents, setLoadingTopStudents] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    fetchReports();
-  }, []);
+  const [programs, setPrograms] = useState<Program[]>([]);
+  const [selectedProgram, setSelectedProgram] = useState<string>('');
+  const [limit, setLimit] = useState<string>('10');
+  const [topStudentsData, setTopStudentsData] = useState<ClassroomTopStudents[]>([]);
 
-  const fetchReports = async () => {
-    try {
-      setLoading(true);
-      console.log('🔍 GradeReportsScreen - Fetching grade reports...');
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      console.log('🔍 GradeReportsScreen - Reports loaded');
-    } catch (error) {
-      console.error('🔍 GradeReportsScreen - Error fetching reports:', error);
-      Alert.alert('خطأ', 'فشل في تحميل تقارير الدرجات');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await fetchReports();
-    setRefreshing(false);
-  };
-
-  const reportTypes = [
-    {
-      id: 1,
-      title: 'تقرير الدرجات الشامل',
-      description: 'تقرير شامل بجميع درجات المتدربين',
-      icon: 'assessment',
-      color: '#1a237e',
-    },
-    {
-      id: 2,
-      title: 'تقرير الأداء الأكاديمي',
-      description: 'تحليل أداء المتدربين أكاديمياً',
-      icon: 'trending-up',
-      color: '#4CAF50',
-    },
-    {
-      id: 3,
-      title: 'تقرير المقارنة',
-      description: 'مقارنة أداء المتدربين',
-      icon: 'compare',
-      color: '#FF9800',
-    },
-    {
-      id: 4,
-      title: 'تقرير الإحصائيات',
-      description: 'إحصائيات مفصلة للدرجات',
-      icon: 'bar-chart',
-      color: '#9C27B0',
-    },
-  ];
-
-  const renderReportCard = (report: any) => (
-    <TouchableOpacity key={report.id} style={styles.reportCard}>
-      <View style={styles.reportHeader}>
-        <View style={[styles.iconContainer, { backgroundColor: report.color }]}>
-          <Icon name={report.icon} size={24} color="#fff" />
-        </View>
-        <View style={styles.reportInfo}>
-          <Text style={styles.reportTitle}>{report.title}</Text>
-          <Text style={styles.reportDescription}>{report.description}</Text>
-        </View>
-        <Icon name="chevron-right" size={24} color="#666" />
-      </View>
-    </TouchableOpacity>
+  const programOptions = useMemo(
+    () => programs.map((p) => ({ value: String(p.id), label: p.nameAr || p.nameEn || `برنامج #${p.id}` })),
+    [programs]
   );
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#1a237e" />
-        <Text style={styles.loadingText}>جاري تحميل تقارير الدرجات...</Text>
-      </View>
-    );
-  }
+  const getRankStyle = (index: number) => {
+    if (index === 0) return { bg: '#eab308', text: '#fff' };
+    if (index === 1) return { bg: '#9ca3af', text: '#fff' };
+    if (index === 2) return { bg: '#f97316', text: '#fff' };
+    return { bg: '#2563eb', text: '#fff' };
+  };
+
+  const normalizePrograms = (data: any): Program[] => {
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.programs)) return data.programs;
+    if (Array.isArray(data?.data)) return data.data;
+    return [];
+  };
+
+  const loadTopStudents = useCallback(async (programIdParam?: string, limitParam?: string) => {
+    const targetProgram = programIdParam ?? selectedProgram;
+    const targetLimit = Number(limitParam ?? limit) || 10;
+
+    if (!targetProgram) {
+      setTopStudentsData([]);
+      return;
+    }
+
+    try {
+      setLoadingTopStudents(true);
+      const data = await AuthService.getTopStudentsByClassroom(Number(targetProgram), targetLimit);
+      setTopStudentsData(Array.isArray(data) ? data : []);
+    } catch (error: any) {
+      console.error('Error loading top students:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'فشل تحميل الأوائل',
+        text2: error?.message || 'حدث خطأ غير متوقع',
+        position: 'bottom',
+      });
+      setTopStudentsData([]);
+    } finally {
+      setLoadingTopStudents(false);
+    }
+  }, [limit, selectedProgram]);
+
+  const loadPrograms = useCallback(async () => {
+    try {
+      setLoadingPrograms(true);
+      const data = await AuthService.getAllPrograms();
+      const list = normalizePrograms(data);
+      setPrograms(list);
+
+      if (list.length > 0) {
+        const firstProgramId = String(list[0].id);
+        setSelectedProgram(firstProgramId);
+        await loadTopStudents(firstProgramId, limit);
+      } else {
+        setSelectedProgram('');
+        setTopStudentsData([]);
+      }
+    } catch (error: any) {
+      console.error('Error loading programs:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'فشل تحميل البرامج',
+        text2: error?.message || 'حدث خطأ غير متوقع',
+        position: 'bottom',
+      });
+    } finally {
+      setLoadingPrograms(false);
+    }
+  }, [limit, loadTopStudents]);
+
+  useEffect(() => {
+    loadPrograms();
+  }, [loadPrograms]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    if (selectedProgram) {
+      await loadTopStudents(selectedProgram, limit);
+    } else {
+      await loadPrograms();
+    }
+    setRefreshing(false);
+  }, [limit, loadPrograms, loadTopStudents, selectedProgram]);
+
+  const handleSelectProgram = async (value: string) => {
+    setSelectedProgram(value);
+    await loadTopStudents(value, limit);
+  };
+
+  const handleSelectLimit = async (value: string) => {
+    setLimit(value);
+    await loadTopStudents(selectedProgram, value);
+  };
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Icon name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>تقارير الدرجات</Text>
-        <View style={styles.headerRight}>
-          <TouchableOpacity style={styles.filterButton}>
-            <Icon name="filter-list" size={24} color="#fff" />
-          </TouchableOpacity>
+        <CustomMenu navigation={navigation} activeRouteName="GradeReports" />
+        <View style={styles.headerContent}>
+          <Text style={styles.title}>رصد الأوائل</Text>
+          <Text style={styles.subtitle}>عرض الطلاب المتفوقين في كل فصل دراسي</Text>
         </View>
       </View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.content}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#1a237e']} />}
       >
-        {/* Quick Stats */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Text style={styles.statNumber}>156</Text>
-            <Text style={styles.statLabel}>إجمالي التقارير</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={[styles.statNumber, { color: '#4CAF50' }]}>89%</Text>
-            <Text style={styles.statLabel}>متوسط النجاح</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={[styles.statNumber, { color: '#FF9800' }]}>23</Text>
-            <Text style={styles.statLabel}>المتدربين المتميزين</Text>
-          </View>
+        <View style={styles.filterCard}>
+          <SelectBox
+            label="البرنامج التدريبي"
+            selectedValue={selectedProgram || undefined}
+            onValueChange={handleSelectProgram}
+            items={programOptions}
+            placeholder="اختر البرنامج"
+            loading={loadingPrograms}
+          />
+
+          <SelectBox
+            label="عدد الأوائل"
+            selectedValue={limit}
+            onValueChange={handleSelectLimit}
+            items={LIMIT_OPTIONS}
+            placeholder="اختر العدد"
+            disabled={!selectedProgram}
+          />
+
+          <TouchableOpacity
+            style={[styles.primaryBtn, (!selectedProgram || loadingTopStudents) && styles.primaryBtnDisabled]}
+            disabled={!selectedProgram || loadingTopStudents}
+            onPress={() => loadTopStudents()}
+          >
+            {loadingTopStudents ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Icon name="emoji-events" size={18} color="#fff" />
+                <Text style={styles.primaryBtnText}>عرض الأوائل</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
 
-        {/* Report Types */}
-        <View style={styles.reportsContainer}>
-          <Text style={styles.sectionTitle}>أنواع التقارير</Text>
-          
-          {reportTypes.map(renderReportCard)}
-        </View>
-
-        {/* Recent Reports */}
-        <View style={styles.recentContainer}>
-          <Text style={styles.sectionTitle}>التقارير الأخيرة</Text>
-          
-          <View style={styles.recentCard}>
-            <View style={styles.recentHeader}>
-              <Icon name="description" size={20} color="#1a237e" />
-              <Text style={styles.recentTitle}>تقرير الفصل الأول 2024</Text>
-              <Text style={styles.recentDate}>15 يناير 2024</Text>
-            </View>
-            <Text style={styles.recentDescription}>
-              تقرير شامل بدرجات جميع المتدربين للفصل الدراسي الأول
-            </Text>
+        {loadingTopStudents ? (
+          <View style={styles.centerBox}>
+            <ActivityIndicator size="large" color="#1a237e" />
+            <Text style={styles.centerText}>جاري تحميل الأوائل...</Text>
           </View>
-
-          <View style={styles.recentCard}>
-            <View style={styles.recentHeader}>
-              <Icon name="assessment" size={20} color="#4CAF50" />
-              <Text style={styles.recentTitle}>تقرير الأداء الشهري</Text>
-              <Text style={styles.recentDate}>10 يناير 2024</Text>
-            </View>
-            <Text style={styles.recentDescription}>
-              تحليل أداء المتدربين للشهر الماضي
-            </Text>
+        ) : topStudentsData.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Icon name="emoji-events" size={44} color="#cbd5e1" />
+            <Text style={styles.emptyTitle}>لا توجد بيانات للعرض</Text>
+            <Text style={styles.emptyText}>اختر برنامجا تدريبيا لعرض الأوائل</Text>
           </View>
-        </View>
+        ) : (
+          <View style={styles.classroomsWrap}>
+            {topStudentsData.map((classroomData) => (
+              <View key={classroomData.classroom.id} style={styles.classroomCard}>
+                <View style={styles.classroomHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <Icon name="school" size={18} color="#64748b" />
+                    <Text style={styles.classroomTitle}>{classroomData.classroom.name}</Text>
+                  </View>
+                  <Text style={styles.classroomCount}>{classroomData.topStudents.length} متدرب</Text>
+                </View>
+
+                {classroomData.topStudents.length === 0 ? (
+                  <View style={styles.noStudentsBox}>
+                    <Text style={styles.noStudentsText}>لا توجد درجات مسجلة في هذا الفصل</Text>
+                  </View>
+                ) : (
+                  classroomData.topStudents.map((student, index) => {
+                    const rank = getRankStyle(index);
+                    return (
+                      <View key={student.trainee.id} style={styles.studentRow}>
+                        <View style={[styles.rankBadge, { backgroundColor: rank.bg }]}>
+                          <Text style={[styles.rankText, { color: rank.text }]}>{index + 1}</Text>
+                        </View>
+
+                        <View style={styles.avatarWrap}>
+                          {student.trainee.photoUrl ? (
+                            <Image source={{ uri: student.trainee.photoUrl }} style={styles.avatar} />
+                          ) : (
+                            <View style={styles.avatarPlaceholder}>
+                              <Icon name="person" size={14} color="#94a3b8" />
+                            </View>
+                          )}
+                        </View>
+
+                        <View style={styles.studentInfo}>
+                          <Text style={styles.studentName}>{student.trainee.nameAr || 'غير معروف'}</Text>
+                          <Text style={styles.studentMeta}>{student.trainee.nationalId || '-'}</Text>
+                          <Text style={styles.studentMeta}>{student.trainee.program?.nameAr || '-'}</Text>
+                        </View>
+
+                        <View style={styles.scoreBox}>
+                          <Text style={styles.scorePercent}>{(student.percentage || 0).toFixed(1)}%</Text>
+                          <Text style={styles.scoreMeta}>
+                            {(student.totalMarks || 0).toFixed(1)} / {(student.maxMarks || 0).toFixed(1)}
+                          </Text>
+                          <Text style={styles.scoreMeta}>{student.subjectsCount || 0} مادة</Text>
+                        </View>
+                      </View>
+                    );
+                  })
+                )}
+              </View>
+            ))}
+          </View>
+        )}
+
+        <View style={{ height: 24 }} />
       </ScrollView>
     </View>
   );
 };
 
+export default GradeReportsScreen;
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: '#666',
-  },
+  container: { flex: 1, backgroundColor: '#f4f6fa' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#1a237e',
     paddingHorizontal: 16,
-    paddingVertical: 12,
     paddingTop: 50,
+    paddingBottom: 14,
+    backgroundColor: '#fff',
   },
-  backButton: {
-    padding: 8,
+  headerContent: { flex: 1 },
+  title: { fontSize: 21, fontWeight: '800', color: '#1a237e' },
+  subtitle: { marginTop: 4, color: '#6b7280', fontSize: 12 },
+  content: { flex: 1, padding: 16 },
+  filterCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    padding: 12,
+    marginBottom: 12,
   },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  headerRight: {
+  primaryBtn: {
+    marginTop: 4,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#1a237e',
+    alignItems: 'center',
+    justifyContent: 'center',
     flexDirection: 'row',
+    gap: 6,
+  },
+  primaryBtnDisabled: {
+    opacity: 0.6,
+  },
+  primaryBtnText: { color: '#fff', fontWeight: '700', fontSize: 14, marginLeft: 4 },
+  centerBox: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    padding: 24,
     alignItems: 'center',
   },
-  filterButton: {
-    padding: 8,
+  centerText: { marginTop: 10, color: '#6b7280' },
+  emptyCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    paddingVertical: 28,
+    alignItems: 'center',
   },
-  content: {
-    flex: 1,
-    paddingHorizontal: 16,
+  emptyTitle: { marginTop: 10, fontSize: 16, fontWeight: '700', color: '#111827' },
+  emptyText: { marginTop: 4, fontSize: 12, color: '#6b7280' },
+  classroomsWrap: { gap: 10 },
+  classroomCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    overflow: 'hidden',
   },
-  statsContainer: {
+  classroomHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginVertical: 16,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#fff',
-    padding: 16,
-    marginHorizontal: 4,
-    borderRadius: 8,
     alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    backgroundColor: '#f8fafc',
   },
-  statNumber: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#1a237e',
+  classroomTitle: { marginLeft: 6, fontSize: 14, fontWeight: '700', color: '#0f172a' },
+  classroomCount: {
+    fontSize: 11,
+    color: '#475569',
+    backgroundColor: '#e2e8f0',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
   },
-  statLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 4,
-    textAlign: 'center',
-  },
-  reportsContainer: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 12,
-  },
-  reportCard: {
-    backgroundColor: '#fff',
-    padding: 16,
-    marginBottom: 12,
-    borderRadius: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  reportHeader: {
+  noStudentsBox: { padding: 14 },
+  noStudentsText: { color: '#64748b', fontSize: 12, textAlign: 'center' },
+  studentRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f8fafc',
   },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  rankBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 8,
+  },
+  rankText: { fontWeight: '800', fontSize: 12 },
+  avatarWrap: { marginRight: 8 },
+  avatar: { width: 30, height: 30, borderRadius: 15 },
+  avatarPlaceholder: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#f1f5f9',
     alignItems: 'center',
-    marginRight: 12,
+    justifyContent: 'center',
   },
-  reportInfo: {
-    flex: 1,
-  },
-  reportTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  reportDescription: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 4,
-  },
-  recentContainer: {
-    marginBottom: 16,
-  },
-  recentCard: {
-    backgroundColor: '#fff',
-    padding: 16,
-    marginBottom: 12,
-    borderRadius: 8,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  recentHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  recentTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    flex: 1,
-    marginLeft: 8,
-  },
-  recentDate: {
-    fontSize: 12,
-    color: '#666',
-  },
-  recentDescription: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
-  },
+  studentInfo: { flex: 1 },
+  studentName: { color: '#111827', fontSize: 13, fontWeight: '700' },
+  studentMeta: { color: '#64748b', fontSize: 11, marginTop: 1 },
+  scoreBox: { alignItems: 'flex-end' },
+  scorePercent: { color: '#2563eb', fontSize: 14, fontWeight: '800' },
+  scoreMeta: { color: '#64748b', fontSize: 10, marginTop: 1 },
 });
-
-export default GradeReportsScreen;

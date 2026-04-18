@@ -5,13 +5,18 @@ import CustomMenu from '../components/CustomMenu';
 import AuthService from '../services/AuthService';
 import Toast from 'react-native-toast-message';
 import { TraineeDistributionDetail, DistributionType } from '../types/distribution';
+import { usePermissions } from '../hooks/usePermissions';
 
 const DistributionDetailsScreen = ({ navigation, route }: any) => {
   const { distributionId } = route.params;
+  const { hasPermission } = usePermissions();
   const [distribution, setDistribution] = useState<TraineeDistributionDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedRoom, setSelectedRoom] = useState<any>(null);
   const [modalVisible, setModalVisible] = useState(false);
+
+  const canEditDistribution = hasPermission('dashboard.trainees.distribution', 'edit');
+  const canPrintDistribution = hasPermission('dashboard.trainees.distribution', 'print');
 
   useEffect(() => {
     const loadDistribution = async () => {
@@ -135,10 +140,12 @@ const DistributionDetailsScreen = ({ navigation, route }: any) => {
         />
       </View>
       <View style={styles.roomActions}>
-        <TouchableOpacity style={styles.roomActionBtn}>
-          <Icon name="print" size={16} color="#7e22ce" />
-          <Text style={styles.roomActionText}>طباعة</Text>
-        </TouchableOpacity>
+        {canPrintDistribution && (
+          <TouchableOpacity style={styles.roomActionBtn}>
+            <Icon name="print" size={16} color="#7e22ce" />
+            <Text style={styles.roomActionText}>طباعة</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity style={[styles.roomActionBtn, styles.roomActionPrimary]} onPress={() => handleViewTrainees(item)}>
           <Icon name="visibility" size={16} color="#1d4ed8" />
           <Text style={[styles.roomActionText, styles.roomActionPrimaryText]}>استعراض</Text>
@@ -205,16 +212,22 @@ const DistributionDetailsScreen = ({ navigation, route }: any) => {
 
       <ScrollView style={styles.content}>
         {/* Action Buttons */}
-        <View style={styles.actionButtons}>
-          <TouchableOpacity style={styles.redistributeBtn}>
-            <Icon name="refresh" size={20} color="#fff" />
-            <Text style={styles.redistributeText}>إعادة التوزيع</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.printTopBtn}>
-            <Icon name="print" size={20} color="#fff" />
-            <Text style={styles.printTopText}>طباعة</Text>
-          </TouchableOpacity>
-        </View>
+        {(canEditDistribution || canPrintDistribution) && (
+          <View style={styles.actionButtons}>
+            {canEditDistribution && (
+              <TouchableOpacity style={styles.redistributeBtn}>
+                <Icon name="refresh" size={20} color="#fff" />
+                <Text style={styles.redistributeText}>إعادة التوزيع</Text>
+              </TouchableOpacity>
+            )}
+            {canPrintDistribution && (
+              <TouchableOpacity style={styles.printTopBtn}>
+                <Icon name="print" size={20} color="#fff" />
+                <Text style={styles.printTopText}>طباعة</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
 
         {/* Summary Statistics */}
         <View style={styles.statsContainer}>

@@ -6,6 +6,7 @@ import {
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import Toast from 'react-native-toast-message';
 import CustomMenu from '../components/CustomMenu';
+import DateTimePickerField from '../components/DateTimePickerField';
 import AuthService from '../services/AuthService';
 import {usePermissions} from '../hooks/usePermissions';
 import type {
@@ -643,22 +644,20 @@ const StaffAttendanceSettingsScreen = ({navigation}: any) => {
               onChangeText={v => setHolidayForm(p => ({...p, name: v}))}
             />
 
-            <Text style={s.inputLabel}>تاريخ البداية * (YYYY-MM-DD)</Text>
-            <TextInput
-              style={s.input}
-              placeholder="2026-04-01"
-              placeholderTextColor="#9ca3af"
+            <DateTimePickerField
+              label="تاريخ البداية *"
               value={holidayForm.date}
-              onChangeText={v => setHolidayForm(p => ({...p, date: v}))}
+              onChange={v => setHolidayForm(p => ({...p, date: v}))}
+              placeholder="اختر تاريخ البداية"
+              mode="date"
             />
 
-            <Text style={s.inputLabel}>تاريخ النهاية (YYYY-MM-DD)</Text>
-            <TextInput
-              style={s.input}
-              placeholder="اختياري"
-              placeholderTextColor="#9ca3af"
+            <DateTimePickerField
+              label="تاريخ النهاية (اختياري)"
               value={holidayForm.endDate}
-              onChangeText={v => setHolidayForm(p => ({...p, endDate: v}))}
+              onChange={v => setHolidayForm(p => ({...p, endDate: v}))}
+              placeholder="اختر تاريخ النهاية"
+              mode="date"
             />
 
             <View style={[s.switchRow, {marginTop: 12}]}>

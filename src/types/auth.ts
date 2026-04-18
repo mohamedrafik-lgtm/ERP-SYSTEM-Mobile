@@ -20,6 +20,9 @@ export interface User {
 export interface LoginResponse {
   access_token: string;
   user: User;
+  expiresIn?: number;
+  expires_in?: number;
+  expires?: number;
 }
 
 export interface AuthData {
